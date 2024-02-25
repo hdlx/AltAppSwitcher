@@ -1,0 +1,14 @@
+{
+	"configurations": [
+		{
+			"name": "(Windows) Launch",
+			"type": "cppdbg",
+			"request": "launch",
+			"program": "${workspaceFolder}/output/MacStyleSwitch.exe",
+			"args": [],
+			"stopAtEntry": false,
+			"cwd": ".",
+			"environment": [],
+		}
+	]
+}

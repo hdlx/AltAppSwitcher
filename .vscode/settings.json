@@ -1,0 +1,21 @@
+{
+	"files.associations": {
+		"cstdlib": "c",
+		"windows.h": "c",
+		"tlhelp32.h": "c",
+		"objbase.h": "c",
+		"*.rh": "c",
+		"stdio.h": "c",
+		"typeinfo": "c",
+		"dwmapi.h": "c",
+		"winuser.h": "c",
+		"msscommon.h": "c",
+		"psapi.h": "c",
+		"gdiplus.h": "c",
+		"gdiplusinit.h": "c",
+		"gdiplusgraphics.h": "c",
+		"gdipluseffects.h": "c",
+		"gdiplusflat.h": "c",
+		"processthreadsapi.h": "c"
+	}
+}
