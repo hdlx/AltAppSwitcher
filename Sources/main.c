@@ -175,6 +175,7 @@ BOOL FillWinGroups(HWND hwnd, LPARAM lParam)
     {
         group = &winAppGroupArr->_Data[winAppGroupArr->_Size++];
         group->_PID = dwPID;
+        group->_Icon = NULL;
         {
             // Icon
             HANDLE process = OpenProcess(PROCESS_QUERY_INFORMATION, FALSE, dwPID);
@@ -184,6 +185,8 @@ BOOL FillWinGroups(HWND hwnd, LPARAM lParam)
                 group->_Icon = LoadIcon(NULL, IDI_APPLICATION);
             else
                 group->_Icon = ExtractIcon(process, pathStr, 0);
+            if (!group->_Icon)
+                group->_Icon = LoadIcon(NULL, IDI_APPLICATION);
             CloseHandle(process);
         }
     }
@@ -468,7 +471,6 @@ LRESULT KbProc(int nCode, WPARAM wParam, LPARAM lParam)
     const bool altDown = kbStrut.flags & LLKHF_ALTDOWN;
     const bool isTilde = kbStrut.vkCode == 192;
 
-    //printf("HELLO %i \n", kbStrut.vkCode);
     const uint32_t data =
         (isTab & 0x1)       << 1 |
         (isAlt & 0x1)       << 2 |
