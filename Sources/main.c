@@ -5,7 +5,7 @@
 #include <psapi.h>
 #include <dwmapi.h>
 #include <winuser.h>
-#include "Common/MSSCommon.h"
+#include "MacAppSwitcherHelpers.h"
 #include <signal.h>
 #include <ctype.h>
 #include <processthreadsapi.h>
@@ -68,18 +68,11 @@ void CALLBACK HandleWinEvent(   HWINEVENTHOOK hook, DWORD event, HWND hwnd,
 static void DisplayWindow(HWND win)
 {
     SetWindowPos(win, HWND_TOPMOST, 0, 0, 0, 0, SWP_SHOWWINDOW | SWP_NOSIZE | SWP_NOMOVE | SWP_NOREPOSITION | SWP_NOACTIVATE);
-    //SetForegroundWindow(win);
-    //SetForegroundWindow(WinHandle);
-   // BringWindowToTop(WinHandle);
-   // RedrawWindow(WinHandle, NULL, 0, RDW_FRAME | RDW_INVALIDATE | RDW_ALLCHILDREN);
-  // SetWindowPos(WinHandle, HWND_TOPMOST, 0, 0, 0, 0, SWP_NOSIZE | SWP_NOREPOSITION | SWP_SHOWWINDOW);
-    //RedrawWindow(WinHandle, NULL, 0, RDW_FRAME | RDW_INVALIDATE | RDW_ALLCHILDREN);
 }
 
 static void HideWindow(HWND win)
 {
     SetWindowPos(win, HWND_TOPMOST, 0, 0, 0, 0, SWP_HIDEWINDOW | SWP_NOSIZE | SWP_NOMOVE | SWP_NOREPOSITION | SWP_NOACTIVATE);
-    //SetWindowPos(win, HWND_TOPMOST, 0, 0, 0, 0, SWP_NOSIZE | SWP_SHOWWINDOW | SWP_NOMOVE | SWP_NOREPOSITION);
 }
 
 static const char* WindowsClassNamesToSkip[6] =
@@ -229,8 +222,6 @@ static void FitWindow(HWND hwnd, uint32_t iconCount)
     POINT p;
     p.x = centerX-halfSizeX;
     p.y = centerY-halfSizeY;
- //  ScreenToClient(hwnd, &p);
-
 
     SetWindowPos(hwnd, 0, p.x, p.y, sizeX, sizeY, SWP_SHOWWINDOW | SWP_NOOWNERZORDER);
 }
@@ -276,9 +267,6 @@ static void InitializeSwitchWin(SAppData* pAppData)
     HWND win = GetForegroundWindow();
     if (!win)
         return;
-/*
-    DWORD currentPID = GetWindowThreadProcessId(fgWin, NULL);
-    VERIFY(currentPID);*/
     while (true)
     {
         if (IsAltTabWindow(win))
@@ -287,13 +275,8 @@ static void InitializeSwitchWin(SAppData* pAppData)
     }
     if (!win)
         return;
-
-    // static char buf[512];
-    // GetClassName(fgWin, buf, 100);
-
     DWORD dwPID;
     GetWindowThreadProcessId(win, &dwPID);
-
     SWinGroup* pWinGroup = &(pAppData->_CurrentWinGroup);
     pWinGroup->_PID = dwPID;
     pWinGroup->_WindowCount = 0;
@@ -514,22 +497,16 @@ void DrawRoundedRect(GpGraphics* pGraphics, GpPen* pPen, uint32_t l, uint32_t t,
 
     GpPath* pPath;
     GdipCreatePath(0, &pPath);
-   // GdipAddPathLineI(pPath, l, d - di,  l, t + di);
     GdipAddPathArcI(pPath, l, t, di, di, 180, 90);
     GdipAddPathArcI(pPath, r - di, t, di, di, 270, 90);
     GdipAddPathArcI(pPath, r - di, d - di, di, di, 360, 90);
     GdipAddPathArcI(pPath, l, d - di, di, di, 90, 90);
-
     GdipAddPathLineI(pPath, l, d - di / 2, l, t + di / 2);
     GdipClosePathFigure(pPath);
-
-  // GdipAddPathLineI(pPath, l + di, t, r - di, t);
-  // GdipAddPathLineI(pPath, r, t + di, r, d - di);
-  // GdipAddPathLineI(pPath, r - di, d, l + di, d);
-
     GdipDrawPath(pGraphics, pPen, pPath);
     GdipDeletePath(pPath);
 }
+
 LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 {
     SAppData* pAppData = (SAppData*)GetWindowLongPtr(hwnd, 0);
@@ -559,13 +536,6 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
         return 0;
     case WM_PAINT:
     {
-        /*
-        static char nameStr[512];
-        GetClassName(_AppData._WinGroups._Data[_AppData._Selection]._Windows[0], nameStr, 512);
-        static char msgStr[512];
-        sprintf(msgStr, "selection is: %s", nameStr);
-        printf(msgStr);
-        printf("\n");*/
         PAINTSTRUCT ps;
         HDC hdc = BeginPaint(hwnd, &ps);//GetWindowDC(hwnd);
         GpGraphics* pGraphics;
@@ -576,37 +546,19 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
         const uint32_t iconContainerSize = GetSystemMetrics(SM_CXICONSPACING);
         const uint32_t iconSize = GetSystemMetrics(SM_CXICON) ;
         const uint32_t padding = (iconContainerSize - iconSize) / 2;
-        // HBRUSH brush = GetStockObject(LTGRAY_BRUSH);
-        // FillRect(hdc, &clientRect, brush);
-    //    SetBkMode(hdc, TRANSPARENT);
-        //RoundRect(wdc, rect.left, rect.top, rect.right, rect.bottom, 15, 15);
         uint32_t x = padding;
         for (uint32_t i = 0; i < pAppData->_WinGroups._Size; i++)
         {
             if (i == pAppData->_Selection)
             {
-
                 COLORREF cr = GetSysColor(COLOR_WINDOWFRAME);
                 ARGB gdipColor = cr | 0xFF000000;
-                // HBRUSH brush = CreateSolidBrush(GetSysColor(COLOR_HOTLIGHT));
                 GpPen* pPen;
                 GdipCreatePen1(gdipColor, 3, 2, &pPen);
                 RECT rect = {x - padding / 2, padding / 2, x + iconSize + padding/2, padding + iconSize + padding/2 };
                 DrawRoundedRect(pGraphics, pPen, rect.left, rect.top, rect.right, rect.bottom);
                 GdipDeletePen(pPen);
-                //GpRegion* pRegion;
-                //GdipCreateRegionHrgn(region, &pRegion);
-
-                //GpSolidFill* pBrush;
-                //GdipCreateSolidFill(0xAA0000AA, &pBrush);
-
-                //GdipFillRegion(pGraphics,pBrush,pRegion);
-                //FillRgn(hdc, region, brush);
-                //DrawFocusRect(hdc, &rect);
             }
-            //RECT rect = {iconContainerSize * i, 0, iconContainerSize * (i + 1), iconContainerSize };
-            //DrawFocusRect(hdc, &rect);
-
             DrawIcon(hdc, x, padding, pAppData->_WinGroups._Data[i]._Icon);
             x += iconContainerSize;
         }
@@ -632,9 +584,3 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
     }
     return DefWindowProc(hwnd, uMsg, wParam, lParam);
 }
-
-/*
-int main(int argc, char** argv){
-    printf("Hey");
-    return 0;
-}*/

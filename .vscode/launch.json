@@ -1,10 +1,11 @@
 {
 	"configurations": [
+
 		{
-			"name": "(Windows) Launch",
+			"name": "MacAppSwitcher Debug",
 			"type": "cppdbg",
 			"request": "launch",
-			"program": "${workspaceFolder}/output/MacStyleSwitch.exe",
+			"program": "${workspaceFolder}/Output/Debug/MacAppSwitcher.exe",
 			"args": [],
 			"stopAtEntry": false,
 			"cwd": ".",

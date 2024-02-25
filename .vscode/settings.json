@@ -16,6 +16,7 @@
 		"gdiplusgraphics.h": "c",
 		"gdipluseffects.h": "c",
 		"gdiplusflat.h": "c",
-		"processthreadsapi.h": "c"
+		"processthreadsapi.h": "c",
+		"ctype.h": "c"
 	}
 }

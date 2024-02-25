@@ -2,12 +2,21 @@ import os
 import shutil
 
 cFiles = ""
-for root, subdirs, files in os.walk("./src/MainApp"):
+for root, subdirs, files in os.walk("./Sources"):
     for file in files:
         if file.endswith(".c"):
             cFiles += (root + "/" + file + " ")
 
-arg = "-march=x86-64"
-gccCmd = "gcc {0} -o output/Mac StyleSwitch.exe -Werror -ggdb -mwindows -I ./src -l dwmapi -l User32 -l Gdi32 -l Gdiplus {1}".format(cFiles, arg)
-#gccCmd = "gcc -Os -s -I ./src -I {0} -L {1} {2} -l libSDL2 -o output/main.exe".format(sdl2Include, sdl2Lib, cFiles)
-os.system(gccCmd)
+if not os.path.exists("./Output"):
+    os.makedirs("./Output")
+if not os.path.exists("./Output/Release"):
+    os.makedirs("./Output/Release")
+if not os.path.exists("./Output/Debug"):
+    os.makedirs("./Output/Debug")
+
+link = "-l dwmapi -l User32 -l Gdi32 -l Gdiplus"
+gccCmdDbg = "gcc {0} -o Output/Debug/MacAppSwitcher.exe -Werror -ggdb -I ./Sources {1}".format(cFiles, link)
+gccCmdRel = "gcc {0} -o Output/Release/MacAppSwitcher.exe -mwindows -I ./Sources {1}".format(cFiles, link)
+
+os.system(gccCmdDbg)
+os.system(gccCmdRel)
