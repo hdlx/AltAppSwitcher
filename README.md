@@ -5,7 +5,7 @@ Get the executable (Win64 only) from the repo release page https://github.com/hd
 
 **Run the executable with admin privilege.**
 
-You can kill it from the task manager by searching for "MacAppSwitcher".
+You can kill it from the task manager. Search for "MacAppSwitcher".
 
 ## Known issues
 - Missing instructions to have MacAppSwitcher launching on system startup. We can't trivially add a shortcut the startup folder because of admin privilege requirement.
