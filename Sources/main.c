@@ -87,7 +87,7 @@ static const char* WindowsClassNamesToSkip[6] =
 
 static bool IsAltTabWindow(HWND hwnd)
 {
-    if (hwnd == GetShellWindow())   //Desktop
+    if (hwnd == GetShellWindow()) //Desktop
         return false;
     // Start at the root owner
     const HWND hwndRoot = GetAncestor(hwnd, GA_ROOTOWNER);
@@ -125,10 +125,7 @@ bool ForceSetForeground(HWND win)
     GetWindowPlacement(win, &placement);
     if (placement.showCmd == SW_SHOWMINIMIZED)
         ShowWindow(win, SW_RESTORE);
-    // SetWindowPos(win, HWND_TOPMOST, 0, 0, 0, 0, SWP_SHOWWINDOW | SWP_NOSIZE | SWP_NOMOVE | SWP_NOREPOSITION);
-    // SetWindowPos(win, HWND_NOTOPMOST, 0, 0, 0, 0, SWP_SHOWWINDOW | SWP_NOSIZE | SWP_NOMOVE | SWP_NOREPOSITION);
     VERIFY(BringWindowToTop(win) || SetForegroundWindow(win));
-   // SetCapture(win);
     SetFocus(win);
     SetActiveWindow(win);
     EnableWindow(win, TRUE);
@@ -161,7 +158,6 @@ BOOL FillWinGroups(HWND hwnd, LPARAM lParam)
 {
     if (!IsAltTabWindow(hwnd))
         return true;
-
     DWORD dwPID;
     GetWindowThreadProcessId(hwnd, &dwPID);
     SWinGroupArr* winAppGroupArr = (SWinGroupArr*)(lParam);
@@ -354,7 +350,6 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR pCmdLine,
 
     _MainWin = hwnd; // Ugly. For keyboard hook.
     VERIFY(AllowSetForegroundWindow(GetCurrentProcessId()));
-    // VERIFY(SetForegroundWindow(hwnd));
 
     HANDLE token;
     OpenProcessToken(
@@ -494,7 +489,6 @@ void DrawRoundedRect(GpGraphics* pGraphics, GpPen* pPen, uint32_t l, uint32_t t,
     const uint32_t sY = r - l;
     const uint32_t osX = (sX / 2) + d;
     const uint32_t osY = (sY / 2) + d;
-
     GpPath* pPath;
     GdipCreatePath(0, &pPath);
     GdipAddPathArcI(pPath, l, t, di, di, 180, 90);
