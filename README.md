@@ -1,4 +1,4 @@
-This program brings MacOS-like app switching to Windows. Use alt + tab to switch active app and alt + ~ to switch between windows of the active app.
+This program brings MacOS-like application switching to Windows. Use alt + tab to switch active app and alt + ~ to switch between windows of the active app.
 
 ## Using MacAppSwitcher:
 Get the executable (Win64 only) from the repo release page https://github.com/hdlx/MacAppSwitcher/releases/.
