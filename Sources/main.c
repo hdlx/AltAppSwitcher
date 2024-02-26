@@ -15,7 +15,7 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam);
 
 typedef struct SWinGroup
 {
-    DWORD _PID;
+    char _ModuleFileName[512];
     HWND _Windows[64];
     uint32_t _WindowCount;
     HICON _Icon;
@@ -61,12 +61,11 @@ typedef struct SFoundWin
 
 static HWND _MainWin;
 
-void CALLBACK HandleWinEvent(   HWINEVENTHOOK hook, DWORD event, HWND hwnd,
-                                LONG idObject, LONG idChild, 
-                                DWORD dwEventThread, DWORD dwmsEventTime);
+static bool ForceSetForeground(HWND win);
 
 static void DisplayWindow(HWND win)
 {
+    SetWindowPos(win, HWND_TOP, 0, 0, 0, 0, SWP_SHOWWINDOW | SWP_NOSIZE | SWP_NOMOVE | SWP_NOREPOSITION | SWP_NOACTIVATE);
     SetWindowPos(win, HWND_TOPMOST, 0, 0, 0, 0, SWP_SHOWWINDOW | SWP_NOSIZE | SWP_NOMOVE | SWP_NOREPOSITION | SWP_NOACTIVATE);
 }
 
@@ -84,6 +83,13 @@ static const char* WindowsClassNamesToSkip[6] =
     "Button",
     "Windows.UI.Core.CoreWindow"
 };
+
+static BOOL GetProcessFileName(DWORD PID, char* outFileName)
+{
+    const HANDLE process = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, FALSE, PID);
+    GetModuleFileNameEx(process, NULL, outFileName, 512);
+    CloseHandle(process);
+}
 
 static bool IsAltTabWindow(HWND hwnd)
 {
@@ -115,7 +121,7 @@ static bool IsAltTabWindow(HWND hwnd)
     return true;
 }
 
-bool ForceSetForeground(HWND win)
+static bool ForceSetForeground(HWND win)
 {
     const DWORD dwCurrentThread = GetCurrentThreadId();
     const DWORD dwFGThread = GetWindowThreadProcessId(GetForegroundWindow(), NULL);
@@ -133,7 +139,7 @@ bool ForceSetForeground(HWND win)
     return true;
 }
 
-BOOL FindAltTabProc(HWND hwnd, LPARAM lParam)
+static BOOL FindAltTabProc(HWND hwnd, LPARAM lParam)
 {
     ALTTABINFO info = {};
     if (!GetAltTabInfo(hwnd, 0, &info, NULL, 0))
@@ -144,7 +150,7 @@ BOOL FindAltTabProc(HWND hwnd, LPARAM lParam)
     return TRUE;
 }
 
-HWND FindAltTabWin()
+static HWND FindAltTabWin()
 {
     SFoundWin foundWin;
     foundWin._Size = 0;
@@ -154,18 +160,20 @@ HWND FindAltTabWin()
     return 0;
 }
 
-BOOL FillWinGroups(HWND hwnd, LPARAM lParam)
+static BOOL FillWinGroups(HWND hwnd, LPARAM lParam)
 {
     if (!IsAltTabWindow(hwnd))
         return true;
-    DWORD dwPID;
-    GetWindowThreadProcessId(hwnd, &dwPID);
+    DWORD PID;
+    GetWindowThreadProcessId(hwnd, &PID);
     SWinGroupArr* winAppGroupArr = (SWinGroupArr*)(lParam);
     SWinGroup* group = NULL;
+    static char moduleFileName[512];
+    GetProcessFileName(PID, moduleFileName);
     for (uint32_t i = 0; i < winAppGroupArr->_Size; i++)
     {
         SWinGroup* const _group = &(winAppGroupArr->_Data[i]);
-        if (_group->_PID == dwPID)
+        if (!strcmp(_group->_ModuleFileName, moduleFileName))
         {
             group = _group;
             break;
@@ -174,11 +182,12 @@ BOOL FillWinGroups(HWND hwnd, LPARAM lParam)
     if (group == NULL)
     {
         group = &winAppGroupArr->_Data[winAppGroupArr->_Size++];
-        group->_PID = dwPID;
+        strcpy(group->_ModuleFileName, moduleFileName);
         group->_Icon = NULL;
+        const HANDLE process = OpenProcess(PROCESS_QUERY_INFORMATION, FALSE, PID);
+       // GetModuleFileName(
+        // Icon
         {
-            // Icon
-            HANDLE process = OpenProcess(PROCESS_QUERY_INFORMATION, FALSE, dwPID);
             static char pathStr[512];
             GetModuleFileNameEx(process, NULL, pathStr, 512);
             if (!process)
@@ -194,14 +203,16 @@ BOOL FillWinGroups(HWND hwnd, LPARAM lParam)
     return true;
 }
 
-BOOL FillCurrentWinGroup(HWND hwnd, LPARAM lParam)
+static BOOL FillCurrentWinGroup(HWND hwnd, LPARAM lParam)
 {
     if (!IsAltTabWindow(hwnd))
         return true;
     DWORD PID;
     GetWindowThreadProcessId(hwnd, &PID);
     SWinGroup* currentWinGroup = (SWinGroup*)(lParam);
-    if (PID != currentWinGroup->_PID)
+    static char moduleFileName[512];
+    GetProcessFileName(PID, moduleFileName);
+    if (strcmp(moduleFileName, currentWinGroup->_ModuleFileName))
         return true;
     currentWinGroup->_Windows[currentWinGroup->_WindowCount] = hwnd;
     currentWinGroup->_WindowCount++;
@@ -231,7 +242,6 @@ static void InitializeSwitchApp(SAppData* pAppData)
     for (uint32_t i = 0; i < 64; i++)
     {
         pWinGroups->_Data[i]._WindowCount = 0;
-        pWinGroups->_Data[i]._PID = 0xFFFFFFFF;
     }
     pWinGroups->_Size = 0;
     EnumDesktopWindows(NULL, FillWinGroups, (LPARAM)pWinGroups);
@@ -274,10 +284,10 @@ static void InitializeSwitchWin(SAppData* pAppData)
     }
     if (!win)
         return;
-    DWORD dwPID;
-    GetWindowThreadProcessId(win, &dwPID);
+    DWORD PID;
+    GetWindowThreadProcessId(win, &PID);
     SWinGroup* pWinGroup = &(pAppData->_CurrentWinGroup);
-    pWinGroup->_PID = dwPID;
+    GetProcessFileName(PID, pWinGroup->_ModuleFileName);
     pWinGroup->_WindowCount = 0;
     EnumDesktopWindows(NULL, FillCurrentWinGroup, (LPARAM)pWinGroup);
     pAppData->_Selection = 0;
