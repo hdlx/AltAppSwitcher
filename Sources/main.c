@@ -185,7 +185,6 @@ static BOOL FillWinGroups(HWND hwnd, LPARAM lParam)
         strcpy(group->_ModuleFileName, moduleFileName);
         group->_Icon = NULL;
         const HANDLE process = OpenProcess(PROCESS_QUERY_INFORMATION, FALSE, PID);
-       // GetModuleFileName(
         // Icon
         {
             static char pathStr[512];
@@ -484,7 +483,7 @@ LRESULT KbProc(int nCode, WPARAM wParam, LPARAM lParam)
     const uint32_t data =
         (isTab & 0x1)       << 1 |
         (isAlt & 0x1)       << 2 |
-        (isShift & 0x1)     << 3 |t
+        (isShift & 0x1)     << 3 |
         (isTilde & 0x1)     << 4 |
         (releasing & 0x1)   << 5;
     SendMessage(_MainWin, WM_APP, (*(WPARAM*)(&data)), 0);
