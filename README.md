@@ -13,4 +13,4 @@ You can kill it from the task manager. Search for "MacAppSwitcher".
 - Alt tab popup is behind start menu.
 
 ## Technology
-This is a C project relying only on Windows C API. I'm using GCC (mingw) and vscode.
+This is a C project relying only on Windows C API. I'm using GCC (mingw) and VS Code / VS Codium.
