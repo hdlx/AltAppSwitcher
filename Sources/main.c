@@ -345,7 +345,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR pCmdLine,
         WS_EX_TOOLWINDOW, // Optional window styles (WS_EX_)
         CLASS_NAME, // Window class
         "", // Window text
-        WS_POPUP, // Window style
+        WS_POPUP | WS_BORDER    , // Window style
         // Size and position
         0, 0, 0, 0,
         NULL, // Parent window
@@ -484,11 +484,11 @@ LRESULT KbProc(int nCode, WPARAM wParam, LPARAM lParam)
     const uint32_t data =
         (isTab & 0x1)       << 1 |
         (isAlt & 0x1)       << 2 |
-        (isShift & 0x1)     << 3 |
+        (isShift & 0x1)     << 3 |t
         (isTilde & 0x1)     << 4 |
         (releasing & 0x1)   << 5;
     SendMessage(_MainWin, WM_APP, (*(WPARAM*)(&data)), 0);
-    const bool bypassMsg = isTab && altDown;
+    const bool bypassMsg = (isTab || isTilde) && altDown;
     if (bypassMsg)
         return 1;
     return CallNextHookEx(NULL, nCode, wParam, lParam);
