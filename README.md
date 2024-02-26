@@ -9,7 +9,7 @@ You can kill it from the task manager. Search for "MacAppSwitcher".
 
 ## Known issues
 - Missing installer or instructions to have MacAppSwitcher launching on system startup. We can't trivially add a shortcut to Windows startup directory because of admin privilege requirement.
-- Some window seems to interfere with keyboard inputs messages, thus disabling MacAppSwitcher when in focus.
+- Some windows seem to interfere with keyboard inputs messages, thus disabling MacAppSwitcher when in focus.
 - UI is behind start menu.
 
 ## Technology
