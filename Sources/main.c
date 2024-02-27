@@ -370,22 +370,23 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR pCmdLine,
     const int yPos = GetSystemMetrics(SM_CYSCREEN) / 2;
     const int xPos = GetSystemMetrics(SM_CXSCREEN) / 2;
     HWND hwnd = CreateWindowEx(
-        WS_EX_TOOLWINDOW, // Optional window styles (WS_EX_)
+        WS_EX_TOPMOST, // Optional window styles (WS_EX_)
         CLASS_NAME, // Window class
         "", // Window text
-        WS_POPUP | WS_BORDER    , // Window style
+        WS_POPUPWINDOW | WS_BORDER, // Window style
         // Size and position
         0, 0, 0, 0,
         NULL, // Parent window
         NULL, // Menu
-        hInstance,// Instance handle
+        hInstance,// Instance handle    
         NULL // Additional application data
     );
     VERIFY(hwnd);
     if (hwnd == NULL)
         return 0;
 
-    // Values from cpp enums DWMWINDOWATTRIBUTE and DWM_WINDOW_CORNER_PREFERENCE
+    // Rounded corners for Win 11
+    // Values are from cpp enums DWMWINDOWATTRIBUTE and DWM_WINDOW_CORNER_PREFERENCE
     const uint32_t rounded = 2;
     DwmSetWindowAttribute(hwnd, 33, &rounded, sizeof(rounded));
 
