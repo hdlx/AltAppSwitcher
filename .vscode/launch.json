@@ -1,14 +1,12 @@
 {
 	"configurations": [
 		{
-			"name": "MacAppSwitcher Debug",
-			"type": "cppdbg",
+			"name": "GDB debug MacAppSwitcher",
+			"type": "gdb",
 			"request": "launch",
-			"program": "${workspaceFolder}/Output/Debug/MacAppSwitcher.exe",
-			"args": [],
-			"stopAtEntry": false,
-			"cwd": ".",
-			"environment": [],
+			"target": "${workspaceFolder}/Output/Debug/MacAppSwitcher.exe",
+			"cwd": "${workspaceFolder}/Output/Debug/",
+			"valuesFormatting": "parseText"
 		}
 	]
 }

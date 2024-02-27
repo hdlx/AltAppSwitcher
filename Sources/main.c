@@ -60,8 +60,7 @@ typedef struct SFoundWin
 } SFoundWin;
 
 static HWND _MainWin;
-
-static bool ForceSetForeground(HWND win);
+static bool _IsSwitchActive = false;
 
 static void DisplayWindow(HWND win)
 {
@@ -296,11 +295,41 @@ static void InitializeSwitchWin(SAppData* pAppData)
 static void ApplySwitchApp(const SAppData* pAppData)
 {
     const SWinGroup* group = &pAppData->_WinGroups._Data[pAppData->_Selection];
-    for (int i = group->_WindowCount - 1; i >= 0 ; i--)
+    // This would be nice to ha a "deferred show window"
     {
-        HWND win = group->_Windows[i];
-        VERIFY(ForceSetForeground(win));
+        for (int i = group->_WindowCount - 1; i >= 0 ; i--)
+        {
+            const HWND win = group->_Windows[i];
+            WINDOWPLACEMENT placement;
+            GetWindowPlacement(win, &placement);
+            placement.length = sizeof(WINDOWPLACEMENT);
+            if (placement.showCmd == SW_SHOWMINIMIZED)
+                ShowWindow(win, SW_RESTORE);
+        }
     }
+    // Bringing window to top by setting HWND_TOPMOST, then HWND_NOTOPMOST
+    // It feels hacky but this is most consistent solution I have found.
+    const UINT winFlags = SWP_SHOWWINDOW | SWP_NOSIZE | SWP_NOMOVE | SWP_NOREPOSITION | SWP_NOACTIVATE;
+    {
+        HDWP winPosHandle = BeginDeferWindowPos(group->_WindowCount);
+        for (int i = group->_WindowCount - 1; i >= 0 ; i--)
+        {
+            const HWND win = group->_Windows[i];
+            winPosHandle = DeferWindowPos(winPosHandle, win, HWND_TOPMOST, 0, 0, 0, 0, winFlags);
+        }
+        EndDeferWindowPos(winPosHandle);
+    }
+    {
+        HDWP winPosHandle = BeginDeferWindowPos(group->_WindowCount);
+        for (int i = group->_WindowCount - 1; i >= 0 ; i--)
+        {
+            const HWND win = group->_Windows[i];
+            winPosHandle = DeferWindowPos(winPosHandle, win, HWND_NOTOPMOST, 0, 0, 0, 0, winFlags);
+        }
+        EndDeferWindowPos(winPosHandle);
+    }
+    // Setting focus to the first window of the group
+    VERIFY(ForceSetForeground(group->_Windows[0]));
 }
 
 static void ApplySwitchWin(const SAppData* pAppData)
@@ -428,21 +457,31 @@ static int Modulo(int a, int b)
     return (a % b + b) % b;
 }
 
-static void DoStuff(SAppData* pAppData)
+static void ApplyState(SAppData* pAppData)
 {
     const SWinGroupArr* winGroups = &(pAppData->_WinGroups);
     const SKeyState* pKeyState = &(pAppData->_KeyState);
 
     const bool switchAppInput =
         pAppData->_KeyState._TabNewInput &&
-        pAppData->_KeyState._AltDown &&
-        !pAppData->_IsSwitchingWin;
+        pAppData->_KeyState._AltDown;
     const bool switchWinInput =
         pAppData->_KeyState._TildeNewInput &&
-        pAppData->_KeyState._AltDown &&
-        !pAppData->_IsSwitchingApp;
+        pAppData->_KeyState._AltDown;
     const int direction = pAppData->_KeyState._ShiftDown ? -1 : 1;
 
+    // Denit.
+    if (pAppData->_IsSwitchingApp && (pAppData->_KeyState._AltReleasing || switchWinInput))
+    {
+        ApplySwitchApp(pAppData);
+        DeinitializeSwitchApp(pAppData);
+    }
+    else if (pAppData->_IsSwitchingWin && (pAppData->_KeyState._AltReleasing || switchAppInput))
+    {
+        DeinitializeSwitchWin(pAppData);
+    }
+
+    // Init. / process action
     if (switchAppInput)
     {
         if (!pAppData->_IsSwitchingApp)
@@ -459,15 +498,8 @@ static void DoStuff(SAppData* pAppData)
         pAppData->_Selection = Modulo(pAppData->_Selection, pAppData->_CurrentWinGroup._WindowCount);
         ApplySwitchWin(pAppData);
     }
-    else if (pAppData->_KeyState._AltReleasing &&  pAppData->_IsSwitchingApp)
-    {
-        ApplySwitchApp(pAppData);
-        DeinitializeSwitchApp(pAppData);
-    }
-    else if (pAppData->_KeyState._AltReleasing &&  pAppData->_IsSwitchingWin)
-    {
-        DeinitializeSwitchWin(pAppData);
-    }
+
+    _IsSwitchActive = pAppData->_IsSwitchingApp || pAppData->_IsSwitchingWin;
 }
 
 LRESULT KbProc(int nCode, WPARAM wParam, LPARAM lParam)
@@ -487,7 +519,9 @@ LRESULT KbProc(int nCode, WPARAM wParam, LPARAM lParam)
         (isTilde & 0x1)     << 4 |
         (releasing & 0x1)   << 5;
     SendMessage(_MainWin, WM_APP, (*(WPARAM*)(&data)), 0);
-    const bool bypassMsg = (isTab || isTilde) && altDown;
+    const bool bypassMsg =
+        (isTab || isTilde) && altDown || // Bypass normal alt - tab
+        _IsSwitchActive && (altDown || isShift); // Bypass keyboard language shortcut
     if (bypassMsg)
         return 1;
     return CallNextHookEx(NULL, nCode, wParam, lParam);
@@ -574,7 +608,7 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
     case WM_APP:
     {
         UpdateKeyState(&pAppData->_KeyState, *((uint32_t*)&wParam));
-        DoStuff(pAppData);
+        ApplyState(pAppData);
         return 0;
     }
     case WM_KEYDOWN:
