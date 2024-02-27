@@ -1,4 +1,4 @@
-This program brings MacOS-like application switching to Windows. Use `alt + tab` to switch active app and `alt + ~` to switch between windows of the active app.
+This program brings MacOS-like application switching to Windows. Use `alt + tab` to select active app (not window) and `alt + ~` to switch between windows of the active app.
 
 **Tested on Windows 10 and Windows 11.**
 
