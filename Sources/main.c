@@ -524,8 +524,8 @@ LRESULT KbProc(int nCode, WPARAM wParam, LPARAM lParam)
         (releasing & 0x1)   << 5;
     SendMessage(_MainWin, WM_APP, (*(WPARAM*)(&data)), 0);
     const bool bypassMsg =
-        ((isTab || isTilde) && altDown) || // Bypass normal alt - tab
-        (_IsSwitchActive && altDown && isShift); // Bypass keyboard language shortcut
+        ((isTab || isTilde) && altDown && !releasing) || // Bypass normal alt - tab
+        (_IsSwitchActive && altDown && isShift && !releasing); // Bypass keyboard language shortcut
     if (bypassMsg)
         return 1;
     return CallNextHookEx(NULL, nCode, wParam, lParam);
