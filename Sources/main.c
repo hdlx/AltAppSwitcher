@@ -613,11 +613,11 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
                 VERIFY(!GdipSetStringFormatLineAlign(pFormat, StringAlignmentCenter));
                 VERIFY(!GdipGetGenericFontFamilySansSerif(&pFontFamily));
                 GpFont* pFont;
-                const uint32_t fontSize = 12;
-                VERIFY(!GdipCreateFont(pFontFamily, fontSize, FontStyleRegular, MetafileFrameUnitPixel, &pFont));
+                const uint32_t fontSize = 10;
+                VERIFY(!GdipCreateFont(pFontFamily, fontSize, FontStyleBold, MetafileFrameUnitPixel, &pFont));
                 GpSolidFill* pBrushText;
                 GpSolidFill* pBrushBg;
-                ARGB colorBg = GetSysColor(COLOR_WINDOWFRAME) | 0xFF000000;
+                ARGB colorBg = GetSysColor(COLOR_WINDOW) | 0xFF000000;
                 ARGB colorText = GetSysColor(COLOR_WINDOW) | 0xFF000000;
                 VERIFY(!GdipCreateSolidFill(colorBg, &pBrushBg));
                 VERIFY(!GdipCreateSolidFill(colorText, &pBrushText));
