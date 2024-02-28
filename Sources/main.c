@@ -528,9 +528,8 @@ LRESULT KbProc(int nCode, WPARAM wParam, LPARAM lParam)
     return CallNextHookEx(NULL, nCode, wParam, lParam);
 }
 
-void DrawRoundedRect(GpGraphics* pGraphics, GpPen* pPen, uint32_t l, uint32_t t, uint32_t r, uint32_t d)
+void DrawRoundedRect(GpGraphics* pGraphics, GpPen* pPen, GpBrush* pBrush, uint32_t l, uint32_t t, uint32_t r, uint32_t d, uint32_t di)
 {
-    const uint32_t di = 10;
     const uint32_t sX = t - d;
     const uint32_t sY = r - l;
     const uint32_t osX = (sX / 2) + d;
@@ -543,7 +542,11 @@ void DrawRoundedRect(GpGraphics* pGraphics, GpPen* pPen, uint32_t l, uint32_t t,
     GdipAddPathArcI(pPath, l, d - di, di, di, 90, 90);
     GdipAddPathLineI(pPath, l, d - di / 2, l, t + di / 2);
     GdipClosePathFigure(pPath);
-    GdipDrawPath(pGraphics, pPen, pPath);
+    if (pBrush)
+        GdipFillPath(pGraphics, pBrush, pPath);
+    if (pPen)
+        GdipDrawPath(pGraphics, pPen, pPath);
+
     GdipDeletePath(pPath);
 }
 
@@ -596,10 +599,42 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
                 GpPen* pPen;
                 GdipCreatePen1(gdipColor, 3, 2, &pPen);
                 RECT rect = {x - padding / 2, padding / 2, x + iconSize + padding/2, padding + iconSize + padding/2 };
-                DrawRoundedRect(pGraphics, pPen, rect.left, rect.top, rect.right, rect.bottom);
+                DrawRoundedRect(pGraphics, pPen, NULL, rect.left, rect.top, rect.right, rect.bottom, 10);
                 GdipDeletePen(pPen);
             }
             DrawIcon(hdc, x, padding, pAppData->_WinGroups._Data[i]._Icon);
+            {
+                GpFontFamily* pFontFamily;
+                GpStringFormat* pGenericFormat;
+                GpStringFormat* pFormat;
+                VERIFY(!GdipStringFormatGetGenericDefault(&pGenericFormat));
+                VERIFY(!GdipCloneStringFormat(pGenericFormat, &pFormat));
+                VERIFY(!GdipSetStringFormatAlign(pFormat, StringAlignmentCenter));
+                VERIFY(!GdipSetStringFormatLineAlign(pFormat, StringAlignmentCenter));
+                VERIFY(!GdipGetGenericFontFamilySansSerif(&pFontFamily));
+                GpFont* pFont;
+                const uint32_t fontSize = 12;
+                VERIFY(!GdipCreateFont(pFontFamily, fontSize, FontStyleRegular, MetafileFrameUnitPixel, &pFont));
+                GpSolidFill* pBrushText;
+                GpSolidFill* pBrushBg;
+                ARGB colorBg = GetSysColor(COLOR_WINDOWFRAME) | 0xFF000000;
+                ARGB colorText = GetSysColor(COLOR_WINDOW) | 0xFF000000;
+                VERIFY(!GdipCreateSolidFill(colorBg, &pBrushBg));
+                VERIFY(!GdipCreateSolidFill(colorText, &pBrushText));
+                WCHAR count[4];
+                const uint32_t winCount = pAppData->_WinGroups._Data[i]._WindowCount;
+                const uint32_t digitsCount = winCount > 99 ? 3 : winCount > 9 ? 2 : 1;
+                const uint32_t width = digitsCount * (uint32_t)(0.7 * (float)fontSize) + 5;
+                const uint32_t height = (fontSize + 4);
+                RectF rectf = { x + iconSize + padding/2 - width - 3, padding + iconSize + padding/2 - height - 3, width, height };
+                swprintf(count, 4, L"%i", winCount);
+                DrawRoundedRect(pGraphics, NULL, pBrushBg, rectf.X, rectf.Y, rectf.X + rectf.Width, rectf.Y + rectf.Height, 5);
+                VERIFY(!GdipDrawString(pGraphics, count, digitsCount, pFont, &rectf, pFormat, pBrushText));
+                GdipDeleteFont(pFont);
+                GdipDeleteBrush(pBrushText);
+                GdipDeleteBrush(pBrushBg);
+                GdipDeleteStringFormat(pFormat);
+            }
             x += iconContainerSize;
         }
         EndPaint(hwnd, &ps);
