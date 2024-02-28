@@ -6,6 +6,9 @@ This program brings MacOS-like application switching to Windows. Use `alt + tab`
 
 ## Using MacAppSwitcher:
 Get the executable (Win64 only) from the release page https://github.com/hdlx/MacAppSwitcher/releases/.
+
+**Run it as an administator, if possible.**
+
 You can kill it from the task manager. Search for "MacAppSwitcher".
 
 ## Known issues
