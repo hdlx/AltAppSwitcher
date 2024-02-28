@@ -1,7 +1,8 @@
 This program brings MacOS-like application switching to Windows. Use `alt + tab` to select active app (not window) and `alt + ~` to switch between windows of the active app.
-![](Assets/ScreenshotWin10)
-*Windows 10*
+
 **Tested on Windows 10 and Windows 11.**
+
+![](./Assets/ScreenshotWin10.png)
 
 ## Using MacAppSwitcher:
 Get the executable (Win64 only) from the release page https://github.com/hdlx/MacAppSwitcher/releases/.
