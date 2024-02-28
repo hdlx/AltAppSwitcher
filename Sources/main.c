@@ -516,7 +516,6 @@ LRESULT KbProc(int nCode, WPARAM wParam, LPARAM lParam)
     const bool releasing = kbStrut.flags & LLKHF_UP;
     const bool altDown = kbStrut.flags & LLKHF_ALTDOWN;
     const bool isTilde = kbStrut.vkCode == 192;
-
     const uint32_t data =
         (isTab & 0x1)       << 1 |
         (isAlt & 0x1)       << 2 |

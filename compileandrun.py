@@ -1,3 +1,3 @@
 import compile
 import os
-os.system(".\\output\\MacStyleSwitch.exe")
+os.system(".\\Output\\Debug\\MacAppSwitcher.exe")
