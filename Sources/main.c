@@ -617,7 +617,7 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
                 VERIFY(!GdipCreateFont(pFontFamily, fontSize, FontStyleBold, MetafileFrameUnitPixel, &pFont));
                 GpSolidFill* pBrushText;
                 GpSolidFill* pBrushBg;
-                ARGB colorBg = GetSysColor(COLOR_WINDOW) | 0xFF000000;
+                ARGB colorBg = GetSysColor(COLOR_WINDOWFRAME) | 0xFF000000;
                 ARGB colorText = GetSysColor(COLOR_WINDOW) | 0xFF000000;
                 VERIFY(!GdipCreateSolidFill(colorBg, &pBrushBg));
                 VERIFY(!GdipCreateSolidFill(colorText, &pBrushText));
