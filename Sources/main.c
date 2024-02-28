@@ -370,10 +370,10 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR pCmdLine,
     const int yPos = GetSystemMetrics(SM_CYSCREEN) / 2;
     const int xPos = GetSystemMetrics(SM_CXSCREEN) / 2;
     HWND hwnd = CreateWindowEx(
-        WS_EX_TOPMOST, // Optional window styles (WS_EX_)
+        WS_EX_TOPMOST | WS_EX_TOOLWINDOW, // Optional window styles (WS_EX_)
         CLASS_NAME, // Window class
         "", // Window text
-        WS_BORDER | WS_CLIPSIBLINGS | WS_CLIPCHILDREN | WS_POPUP, // Window style
+        WS_BORDER | WS_POPUP, // Window style
         // Size and position
         0, 0, 0, 0,
         NULL, // Parent window
@@ -391,8 +391,6 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR pCmdLine,
     // Values are from cpp enums DWMWINDOWATTRIBUTE and DWM_WINDOW_CORNER_PREFERENCE
     const uint32_t rounded = 2;
     DwmSetWindowAttribute(hwnd, 33, &rounded, sizeof(rounded));
-    const uint32_t pxl = 20;
-    DwmSetWindowAttribute(hwnd, 37, &pxl, sizeof(pxl));
 
     _MainWin = hwnd; // Ugly. For keyboard hook.
     VERIFY(AllowSetForegroundWindow(GetCurrentProcessId()));
