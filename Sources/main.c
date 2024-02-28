@@ -363,7 +363,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR pCmdLine,
     wc.hInstance     = hInstance;
     wc.lpszClassName = CLASS_NAME;
     wc.cbWndExtra = sizeof(SAppData*);
-    wc.style = CS_HREDRAW | CS_VREDRAW;
+    wc.style = CS_HREDRAW | CS_VREDRAW | CS_DROPSHADOW;
     wc.hbrBackground = GetSysColorBrush(COLOR_WINDOW);
     RegisterClass(&wc);
     // Create the window.
@@ -373,7 +373,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR pCmdLine,
         WS_EX_TOPMOST, // Optional window styles (WS_EX_)
         CLASS_NAME, // Window class
         "", // Window text
-        WS_POPUPWINDOW | WS_BORDER, // Window style
+        WS_BORDER | WS_CLIPSIBLINGS | WS_CLIPCHILDREN | WS_POPUP, // Window style
         // Size and position
         0, 0, 0, 0,
         NULL, // Parent window
@@ -385,10 +385,14 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR pCmdLine,
     if (hwnd == NULL)
         return 0;
 
+//SetWindowLong(hwnd, GWL_EXSTYLE, WS_EX_TOOLWINDOW);
+
     // Rounded corners for Win 11
     // Values are from cpp enums DWMWINDOWATTRIBUTE and DWM_WINDOW_CORNER_PREFERENCE
     const uint32_t rounded = 2;
     DwmSetWindowAttribute(hwnd, 33, &rounded, sizeof(rounded));
+    const uint32_t pxl = 20;
+    DwmSetWindowAttribute(hwnd, 37, &pxl, sizeof(pxl));
 
     _MainWin = hwnd; // Ugly. For keyboard hook.
     VERIFY(AllowSetForegroundWindow(GetCurrentProcessId()));
