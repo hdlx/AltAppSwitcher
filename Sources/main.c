@@ -687,16 +687,14 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
             }
             x += iconContainerSize;
         }
-       
        // HDC hdc = BeginPaint(hwnd, &ps);
         BitBlt(ps.hdc, clientRect.left, clientRect.top, clientRect.right - clientRect.left, clientRect.bottom - clientRect.top, pGraphRes->_DCBuffer, 0, 0, SRCCOPY);
         GdipDeleteGraphics(pGraphics);
         EndPaint(hwnd, &ps);
         return 0;
-    }/*
+    }
     case WM_ERASEBKGND:
         return (LRESULT)1;
-    */
     case WM_APP:
     {
         UpdateKeyState(&pAppData->_KeyState, *((uint32_t*)&wParam));
