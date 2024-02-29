@@ -38,6 +38,14 @@ typedef struct SKeyState
     bool _AltReleasing;
 } SKeyState;
 
+typedef struct SGraphicResources
+{
+    HDC _DCBuffer;
+    bool _DCDirty;
+    HBITMAP _Bitmap;
+} SGraphicResources;
+
+
 typedef struct SAppData
 {
     HWND _MainWin;
@@ -51,6 +59,7 @@ typedef struct SAppData
     SWinGroup _CurrentWinGroup;
     HHOOK _MsgHook;
     SKeyState _KeyState;
+    SGraphicResources _GraphicResources;
 } SAppData;
 
 typedef struct SFoundWin
@@ -226,11 +235,9 @@ static void FitWindow(HWND hwnd, uint32_t iconCount)
     const uint32_t halfSizeX = sizeX / 2;
     const uint32_t sizeY = 1 * iconContainerSize;
     const uint32_t halfSizeY = sizeY / 2;
-
     POINT p;
     p.x = centerX-halfSizeX;
     p.y = centerY-halfSizeY;
-
     SetWindowPos(hwnd, 0, p.x, p.y, sizeX, sizeY, SWP_SHOWWINDOW | SWP_NOOWNERZORDER);
 }
 
@@ -244,6 +251,7 @@ static void InitializeSwitchApp(SAppData* pAppData)
     pWinGroups->_Size = 0;
     EnumDesktopWindows(NULL, FillWinGroups, (LPARAM)pWinGroups);
     FitWindow(pAppData->_MainWin, pWinGroups->_Size);
+    pAppData->_GraphicResources._DCDirty = true;
     DisplayWindow(pAppData->_MainWin);
     pAppData->_Selection = 0;
     pAppData->_IsSwitchingApp = true;
@@ -571,22 +579,49 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
         pAppData->_KeyState._TabNewInput = false;
         pAppData->_KeyState._TildeNewInput = false;
         pAppData->_KeyState._AltReleasing = false;
+        pAppData->_GraphicResources._DCDirty = true;
+        pAppData->_GraphicResources._DCBuffer = NULL;
+
         SetWindowLongPtr(hwnd, 0, (LONG_PTR)pAppData);
         VERIFY(SetWindowsHookEx(WH_KEYBOARD_LL, KbProc, 0, 0));
         return TRUE;
    case WM_DESTROY:
+        if (pAppData->_GraphicResources._DCBuffer)
+            DeleteDC(pAppData->_GraphicResources._DCBuffer);
+        if (pAppData->_GraphicResources._Bitmap)
+            DeleteObject(pAppData->_GraphicResources._Bitmap);
         free(pAppData);
         PostQuitMessage(0);
         return 0;
     case WM_PAINT:
     {
         PAINTSTRUCT ps;
-        HDC hdc = BeginPaint(hwnd, &ps);//GetWindowDC(hwnd);
-        GpGraphics* pGraphics;
-        GdipCreateFromHWND(hwnd,&pGraphics);
-        GdipSetSmoothingMode(pGraphics, 5);
+        BeginPaint(hwnd, &ps);
         RECT clientRect;
         GetClientRect (hwnd, &clientRect);
+        if (pAppData->_GraphicResources._DCDirty)
+        {
+            if (pAppData->_GraphicResources._DCBuffer)
+                DeleteDC(pAppData->_GraphicResources._DCBuffer);
+            pAppData->_GraphicResources._DCBuffer = CreateCompatibleDC(ps.hdc);
+            pAppData->_GraphicResources._Bitmap = CreateCompatibleBitmap(
+                ps.hdc,
+                clientRect.right - clientRect.left,
+                clientRect.bottom - clientRect.top);
+            pAppData->_GraphicResources._DCDirty = false;
+        }
+        HBITMAP oldBitmap = SelectObject(pAppData->_GraphicResources._DCBuffer,  pAppData->_GraphicResources._Bitmap);
+
+        HBRUSH bgBrush = CreateSolidBrush(GetSysColor(COLOR_WINDOW));
+        FillRect(pAppData->_GraphicResources._DCBuffer, &clientRect, bgBrush);
+        DeleteObject(bgBrush);
+
+        SetBkMode(pAppData->_GraphicResources._DCBuffer, TRANSPARENT);
+
+        GpGraphics* pGraphics;
+        GdipCreateFromHDC(pAppData->_GraphicResources._DCBuffer, &pGraphics);
+        GdipSetSmoothingMode(pGraphics, 5);
+
         const uint32_t iconContainerSize = GetSystemMetrics(SM_CXICONSPACING);
         const uint32_t iconSize = GetSystemMetrics(SM_CXICON) ;
         const uint32_t padding = (iconContainerSize - iconSize) / 2;
@@ -603,7 +638,7 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
                 DrawRoundedRect(pGraphics, pPen, NULL, rect.left, rect.top, rect.right, rect.bottom, 10);
                 GdipDeletePen(pPen);
             }
-            DrawIcon(hdc, x, padding, pAppData->_WinGroups._Data[i]._Icon);
+            DrawIcon(pAppData->_GraphicResources._DCBuffer, x, padding, pAppData->_WinGroups._Data[i]._Icon);
             {
                 GpFontFamily* pFontFamily;
                 GpStringFormat* pGenericFormat;
@@ -638,10 +673,16 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
             }
             x += iconContainerSize;
         }
-        EndPaint(hwnd, &ps);
+       
+       // HDC hdc = BeginPaint(hwnd, &ps);
+        BitBlt(ps.hdc, clientRect.left, clientRect.top, clientRect.right - clientRect.left, clientRect.bottom - clientRect.top, pAppData->_GraphicResources._DCBuffer, 0, 0, SRCCOPY);
         GdipDeleteGraphics(pGraphics);
+        EndPaint(hwnd, &ps);
         return 0;
-    }
+    }/*
+    case WM_ERASEBKGND:
+        return (LRESULT)1;
+    */
     case WM_APP:
     {
         UpdateKeyState(&pAppData->_KeyState, *((uint32_t*)&wParam));
