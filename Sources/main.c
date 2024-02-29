@@ -38,13 +38,49 @@ typedef struct SKeyState
     bool _AltReleasing;
 } SKeyState;
 
-typedef struct SGraphicResources
+typedef struct SGraphicsResources
 {
     HDC _DCBuffer;
     bool _DCDirty;
     HBITMAP _Bitmap;
-} SGraphicResources;
+    uint32_t _FontSize;
+    GpSolidFill* _pBrushText;
+    GpSolidFill* _pBrushBg;
+    GpFont* _pFont;
+    GpStringFormat* _pFormat;
+} SGraphicsResources;
 
+static void InitGraphicsResources(SGraphicsResources* pRes)
+{
+    pRes->_DCDirty = true;
+    pRes->_DCBuffer = NULL;
+    // Text
+    {
+        GpStringFormat* pGenericFormat;
+        GpFontFamily* pFontFamily;
+        VERIFY(Ok == GdipStringFormatGetGenericDefault(&pGenericFormat));
+        VERIFY(Ok == GdipCloneStringFormat(pGenericFormat, &pRes->_pFormat));
+        VERIFY(Ok == GdipSetStringFormatAlign(pRes->_pFormat, StringAlignmentCenter));
+        VERIFY(Ok == GdipSetStringFormatLineAlign(pRes->_pFormat, StringAlignmentCenter));
+        VERIFY(Ok == GdipGetGenericFontFamilySansSerif(&pFontFamily));
+        pRes->_FontSize = 10;
+        VERIFY(Ok == GdipCreateFont(pFontFamily, pRes->_FontSize, FontStyleBold, MetafileFrameUnitPixel, &pRes->_pFont));
+    }
+    // Brushes
+    {
+        VERIFY(Ok == GdipCreateSolidFill(GetSysColor(COLOR_WINDOWFRAME) | 0xFF000000, &pRes->_pBrushBg));
+        VERIFY(Ok == GdipCreateSolidFill(GetSysColor(COLOR_WINDOW) | 0xFF000000, &pRes->_pBrushText));
+    }
+}
+
+static void DeInitGraphicsResources(SGraphicsResources* pRes)
+{
+    pRes->_DCDirty = true;
+    pRes->_DCBuffer = NULL;
+    VERIFY(Ok == GdipDeleteBrush(pRes->_pBrushText));
+    VERIFY(Ok == GdipDeleteBrush(pRes->_pBrushBg));
+    VERIFY(Ok == GdipDeleteStringFormat(pRes->_pFormat));
+}
 
 typedef struct SAppData
 {
@@ -59,7 +95,7 @@ typedef struct SAppData
     SWinGroup _CurrentWinGroup;
     HHOOK _MsgHook;
     SKeyState _KeyState;
-    SGraphicResources _GraphicResources;
+    SGraphicsResources _GraphicsResources;
 } SAppData;
 
 typedef struct SFoundWin
@@ -251,7 +287,7 @@ static void InitializeSwitchApp(SAppData* pAppData)
     pWinGroups->_Size = 0;
     EnumDesktopWindows(NULL, FillWinGroups, (LPARAM)pWinGroups);
     FitWindow(pAppData->_MainWin, pWinGroups->_Size);
-    pAppData->_GraphicResources._DCDirty = true;
+    pAppData->_GraphicsResources._DCDirty = true;
     DisplayWindow(pAppData->_MainWin);
     pAppData->_Selection = 0;
     pAppData->_IsSwitchingApp = true;
@@ -579,17 +615,16 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
         pAppData->_KeyState._TabNewInput = false;
         pAppData->_KeyState._TildeNewInput = false;
         pAppData->_KeyState._AltReleasing = false;
-        pAppData->_GraphicResources._DCDirty = true;
-        pAppData->_GraphicResources._DCBuffer = NULL;
-
+        InitGraphicsResources(&pAppData->_GraphicsResources);
         SetWindowLongPtr(hwnd, 0, (LONG_PTR)pAppData);
         VERIFY(SetWindowsHookEx(WH_KEYBOARD_LL, KbProc, 0, 0));
         return TRUE;
    case WM_DESTROY:
-        if (pAppData->_GraphicResources._DCBuffer)
-            DeleteDC(pAppData->_GraphicResources._DCBuffer);
-        if (pAppData->_GraphicResources._Bitmap)
-            DeleteObject(pAppData->_GraphicResources._Bitmap);
+        DeInitGraphicsResources(&pAppData->_GraphicsResources);
+        if (pAppData->_GraphicsResources._DCBuffer)
+            DeleteDC(pAppData->_GraphicsResources._DCBuffer);
+        if (pAppData->_GraphicsResources._Bitmap)
+            DeleteObject(pAppData->_GraphicsResources._Bitmap);
         free(pAppData);
         PostQuitMessage(0);
         return 0;
@@ -598,28 +633,28 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
         PAINTSTRUCT ps;
         BeginPaint(hwnd, &ps);
         RECT clientRect;
-        GetClientRect (hwnd, &clientRect);
-        if (pAppData->_GraphicResources._DCDirty)
+        GetClientRect(hwnd, &clientRect);
+        SGraphicsResources* pGraphRes = &pAppData->_GraphicsResources;
+        if (pGraphRes->_DCDirty)
         {
-            if (pAppData->_GraphicResources._DCBuffer)
-                DeleteDC(pAppData->_GraphicResources._DCBuffer);
-            pAppData->_GraphicResources._DCBuffer = CreateCompatibleDC(ps.hdc);
-            pAppData->_GraphicResources._Bitmap = CreateCompatibleBitmap(
+            if (pGraphRes->_DCBuffer)
+                DeleteDC(pGraphRes->_DCBuffer);
+            pGraphRes->_DCBuffer = CreateCompatibleDC(ps.hdc);
+            pGraphRes->_Bitmap = CreateCompatibleBitmap(
                 ps.hdc,
                 clientRect.right - clientRect.left,
                 clientRect.bottom - clientRect.top);
-            pAppData->_GraphicResources._DCDirty = false;
+            pGraphRes->_DCDirty = false;
         }
-        HBITMAP oldBitmap = SelectObject(pAppData->_GraphicResources._DCBuffer,  pAppData->_GraphicResources._Bitmap);
-
+        HBITMAP oldBitmap = SelectObject(pGraphRes->_DCBuffer,  pGraphRes->_Bitmap);
         HBRUSH bgBrush = CreateSolidBrush(GetSysColor(COLOR_WINDOW));
-        FillRect(pAppData->_GraphicResources._DCBuffer, &clientRect, bgBrush);
+        FillRect(pGraphRes->_DCBuffer, &clientRect, bgBrush);
         DeleteObject(bgBrush);
 
-        SetBkMode(pAppData->_GraphicResources._DCBuffer, TRANSPARENT);
+        SetBkMode(pGraphRes->_DCBuffer, TRANSPARENT);
 
         GpGraphics* pGraphics;
-        GdipCreateFromHDC(pAppData->_GraphicResources._DCBuffer, &pGraphics);
+        GdipCreateFromHDC(pGraphRes->_DCBuffer, &pGraphics);
         GdipSetSmoothingMode(pGraphics, 5);
 
         const uint32_t iconContainerSize = GetSystemMetrics(SM_CXICONSPACING);
@@ -638,44 +673,23 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
                 DrawRoundedRect(pGraphics, pPen, NULL, rect.left, rect.top, rect.right, rect.bottom, 10);
                 GdipDeletePen(pPen);
             }
-            DrawIcon(pAppData->_GraphicResources._DCBuffer, x, padding, pAppData->_WinGroups._Data[i]._Icon);
+            DrawIcon(pGraphRes->_DCBuffer, x, padding, pAppData->_WinGroups._Data[i]._Icon);
             {
-                GpFontFamily* pFontFamily;
-                GpStringFormat* pGenericFormat;
-                GpStringFormat* pFormat;
-                VERIFY(!GdipStringFormatGetGenericDefault(&pGenericFormat));
-                VERIFY(!GdipCloneStringFormat(pGenericFormat, &pFormat));
-                VERIFY(!GdipSetStringFormatAlign(pFormat, StringAlignmentCenter));
-                VERIFY(!GdipSetStringFormatLineAlign(pFormat, StringAlignmentCenter));
-                VERIFY(!GdipGetGenericFontFamilySansSerif(&pFontFamily));
-                GpFont* pFont;
-                const uint32_t fontSize = 10;
-                VERIFY(!GdipCreateFont(pFontFamily, fontSize, FontStyleBold, MetafileFrameUnitPixel, &pFont));
-                GpSolidFill* pBrushText;
-                GpSolidFill* pBrushBg;
-                ARGB colorBg = GetSysColor(COLOR_WINDOWFRAME) | 0xFF000000;
-                ARGB colorText = GetSysColor(COLOR_WINDOW) | 0xFF000000;
-                VERIFY(!GdipCreateSolidFill(colorBg, &pBrushBg));
-                VERIFY(!GdipCreateSolidFill(colorText, &pBrushText));
                 WCHAR count[4];
                 const uint32_t winCount = pAppData->_WinGroups._Data[i]._WindowCount;
                 const uint32_t digitsCount = winCount > 99 ? 3 : winCount > 9 ? 2 : 1;
-                const uint32_t width = digitsCount * (uint32_t)(0.7 * (float)fontSize) + 5;
-                const uint32_t height = (fontSize + 4);
+                const uint32_t width = digitsCount * (uint32_t)(0.7 * (float)pGraphRes->_FontSize) + 5;
+                const uint32_t height = (pGraphRes->_FontSize + 4);
                 RectF rectf = { x + iconSize + padding/2 - width - 3, padding + iconSize + padding/2 - height - 3, width, height };
                 swprintf(count, 4, L"%i", winCount);
-                DrawRoundedRect(pGraphics, NULL, pBrushBg, rectf.X, rectf.Y, rectf.X + rectf.Width, rectf.Y + rectf.Height, 5);
-                VERIFY(!GdipDrawString(pGraphics, count, digitsCount, pFont, &rectf, pFormat, pBrushText));
-                GdipDeleteFont(pFont);
-                GdipDeleteBrush(pBrushText);
-                GdipDeleteBrush(pBrushBg);
-                GdipDeleteStringFormat(pFormat);
+                DrawRoundedRect(pGraphics, NULL, pGraphRes->_pBrushBg, rectf.X, rectf.Y, rectf.X + rectf.Width, rectf.Y + rectf.Height, 5);
+                VERIFY(!GdipDrawString(pGraphics, count, digitsCount, pGraphRes->_pFont, &rectf, pGraphRes->_pFormat, pGraphRes->_pBrushText));
             }
             x += iconContainerSize;
         }
        
        // HDC hdc = BeginPaint(hwnd, &ps);
-        BitBlt(ps.hdc, clientRect.left, clientRect.top, clientRect.right - clientRect.left, clientRect.bottom - clientRect.top, pAppData->_GraphicResources._DCBuffer, 0, 0, SRCCOPY);
+        BitBlt(ps.hdc, clientRect.left, clientRect.top, clientRect.right - clientRect.left, clientRect.bottom - clientRect.top, pGraphRes->_DCBuffer, 0, 0, SRCCOPY);
         GdipDeleteGraphics(pGraphics);
         EndPaint(hwnd, &ps);
         return 0;
