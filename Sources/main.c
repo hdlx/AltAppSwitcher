@@ -266,13 +266,11 @@ static BOOL FillWinGroups(HWND hwnd, LPARAM lParam)
             const HANDLE process = OpenProcess(PROCESS_QUERY_INFORMATION, FALSE, PID);
             static char pathStr[512];
             GetModuleFileNameEx(process, NULL, pathStr, 512);
-            WORD toto;
             if (!process)
                 group->_Icon = LoadIcon(NULL, IDI_APPLICATION);
             else
-                group->_Icon = ExtractAssociatedIcon(GetModuleHandle(NULL), pathStr, &toto);
+                group->_Icon = ExtractIcon(process, pathStr, 0);
 
-                //group->_Icon = ExtractIcon(process, pathStr, 0);
             if (!group->_Icon)
                 group->_Icon = LoadIcon(NULL, IDI_APPLICATION);
             CloseHandle(process);
