@@ -204,16 +204,49 @@ static HWND FindAltTabWin()
     return 0;
 }
 
+BOOL GetApplicationFrameHostChildWindow(HWND hwnd, LPARAM lParam)
+{
+    DWORD PID;
+    GetWindowThreadProcessId(hwnd, &PID);
+    static char moduleFileName[512];
+    GetProcessFileName(PID, moduleFileName);
+    int32_t lastBackslash = 0;
+    for (uint32_t i = 0; moduleFileName[i] != '\0'; i++)
+    {
+        if (moduleFileName[i] == '\\')
+            lastBackslash = i;
+    }
+    if (!strcmp(moduleFileName + lastBackslash + 1, "ApplicationFrameHost.exe"))
+        return TRUE;
+    *((HWND*)lParam) = hwnd;
+    return FALSE;
+}
+
 static BOOL FillWinGroups(HWND hwnd, LPARAM lParam)
 {
     if (!IsAltTabWindow(hwnd))
         return true;
     DWORD PID;
     GetWindowThreadProcessId(hwnd, &PID);
-    SWinGroupArr* winAppGroupArr = (SWinGroupArr*)(lParam);
-    SWinGroup* group = NULL;
     static char moduleFileName[512];
     GetProcessFileName(PID, moduleFileName);
+    int32_t lastBackslash = 0;
+    for (uint32_t i = 0; moduleFileName[i] != '\0'; i++)
+    {
+        if (moduleFileName[i] == '\\')
+            lastBackslash = i;
+    }
+    {
+        if (!strcmp(moduleFileName + lastBackslash + 1, "ApplicationFrameHost.exe"))
+        {
+            HWND childWin;
+            EnumChildWindows(hwnd, GetApplicationFrameHostChildWindow, (LPARAM)&childWin);
+            GetWindowThreadProcessId(childWin, &PID);
+            GetProcessFileName(PID, moduleFileName);
+        }
+    }
+    SWinGroupArr* winAppGroupArr = (SWinGroupArr*)(lParam);
+    SWinGroup* group = NULL;
     for (uint32_t i = 0; i < winAppGroupArr->_Size; i++)
     {
         SWinGroup* const _group = &(winAppGroupArr->_Data[i]);
@@ -228,15 +261,18 @@ static BOOL FillWinGroups(HWND hwnd, LPARAM lParam)
         group = &winAppGroupArr->_Data[winAppGroupArr->_Size++];
         strcpy(group->_ModuleFileName, moduleFileName);
         group->_Icon = NULL;
-        const HANDLE process = OpenProcess(PROCESS_QUERY_INFORMATION, FALSE, PID);
         // Icon
         {
+            const HANDLE process = OpenProcess(PROCESS_QUERY_INFORMATION, FALSE, PID);
             static char pathStr[512];
             GetModuleFileNameEx(process, NULL, pathStr, 512);
+            WORD toto;
             if (!process)
                 group->_Icon = LoadIcon(NULL, IDI_APPLICATION);
             else
-                group->_Icon = ExtractIcon(process, pathStr, 0);
+                group->_Icon = ExtractAssociatedIcon(GetModuleHandle(NULL), pathStr, &toto);
+
+                //group->_Icon = ExtractIcon(process, pathStr, 0);
             if (!group->_Icon)
                 group->_Icon = LoadIcon(NULL, IDI_APPLICATION);
             CloseHandle(process);
@@ -339,7 +375,7 @@ static void InitializeSwitchWin(SAppData* pAppData)
 static void ApplySwitchApp(const SAppData* pAppData)
 {
     const SWinGroup* group = &pAppData->_WinGroups._Data[pAppData->_Selection];
-    // This would be nice to ha a "deferred show window"
+    // It would be nice to ha a "deferred show window"
     {
         for (int i = group->_WindowCount - 1; i >= 0 ; i--)
         {
