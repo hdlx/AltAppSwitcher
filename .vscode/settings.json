@@ -17,6 +17,8 @@
 		"gdipluseffects.h": "c",
 		"gdiplusflat.h": "c",
 		"processthreadsapi.h": "c",
-		"ctype.h": "c"
+		"ctype.h": "c",
+		"winreg.h": "c",
+		"stdlib.h": "c"
 	}
 }

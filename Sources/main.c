@@ -10,6 +10,10 @@
 #include <ctype.h>
 #include <processthreadsapi.h>
 #include <gdiplus.h>
+#include <appmodel.h>
+#include <shlwapi.h>
+#include <winreg.h>
+#include <stdlib.h>
 
 LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam);
 
@@ -19,6 +23,7 @@ typedef struct SWinGroup
     HWND _Windows[64];
     uint32_t _WindowCount;
     HICON _Icon;
+    wchar_t _UWPIconPath[512];
 } SWinGroup;
 
 typedef struct SWinGroupArr
@@ -208,6 +213,7 @@ BOOL GetApplicationFrameHostChildWindow(HWND hwnd, LPARAM lParam)
 {
     DWORD PID;
     GetWindowThreadProcessId(hwnd, &PID);
+    MyPrintWindow(hwnd);
     static char moduleFileName[512];
     GetProcessFileName(PID, moduleFileName);
     int32_t lastBackslash = 0;
@@ -216,10 +222,136 @@ BOOL GetApplicationFrameHostChildWindow(HWND hwnd, LPARAM lParam)
         if (moduleFileName[i] == '\\')
             lastBackslash = i;
     }
-    if (!strcmp(moduleFileName + lastBackslash + 1, "ApplicationFrameHost.exe"))
-        return TRUE;
-    *((HWND*)lParam) = hwnd;
-    return FALSE;
+    if (strcmp(moduleFileName + lastBackslash + 1, "ApplicationFrameHost.exe"))
+    {
+        *((HWND*)lParam) = hwnd;
+        return FALSE;
+    }
+    HWND childUWPWin = NULL;
+    EnumChildWindows(hwnd, GetApplicationFrameHostChildWindow, (LPARAM)&childUWPWin);
+    if (childUWPWin != NULL)
+    {
+        *((HWND*)lParam) = childUWPWin;
+        return FALSE;
+    }
+    return TRUE;
+}
+
+void GetUWPIcon(HANDLE process, wchar_t* iconPath)
+{
+    static wchar_t packageFullName[512];
+    uint32_t packageFullNameLength = 512;
+    {
+        GetPackageFullName(process, &packageFullNameLength, packageFullName);
+    }
+
+    static wchar_t packageFamilyName[512];
+    uint32_t packageFamilyNameLength = 512;
+    uint32_t packageNameLength = 512;
+    {
+        GetPackageFamilyName(process, &packageFamilyNameLength, packageFamilyName);
+        packageNameLength = packageFamilyNameLength - 14; // Publicsher id is always 13 chars. Also count underscore.
+    }
+
+    static wchar_t manifestPath[512];
+    {
+        uint32_t uiBufSize = 512;
+        GetPackagePathByFullName(packageFullName, &uiBufSize, manifestPath);
+        memcpy((void*)&manifestPath[uiBufSize - 1], (void*)L"\\AppxManifest.xml", sizeof(L"\\AppxManifest.xml"));
+    }
+
+    static wchar_t logoPath[512];
+    uint32_t logoPathLength = 0;
+    {
+        static char _logoPath[512];
+        FILE* file = _wfopen(manifestPath, L"r");
+        static char lineBuf[1024];
+        while (fgets(lineBuf, 1024, file))
+        {
+            const char* pLogo = strstr(lineBuf, "<Logo>");
+            if (pLogo == NULL)
+                continue;
+            const char* pEnd = strstr(lineBuf, "</Logo>");
+            const char* pToCopy = pLogo + sizeof("<Logo>") - 1;
+            while (pToCopy != pEnd)
+            {
+                _logoPath[logoPathLength] = *pToCopy;
+                pToCopy++;
+                logoPathLength++;
+            }
+            break;
+        }
+        fclose(file);
+        mbstowcs(logoPath, _logoPath, logoPathLength);
+    }
+
+    static wchar_t indirStr[512];
+    {
+        uint32_t i = 0;
+
+        memcpy((void*)&indirStr[i], (void*)L"@{", sizeof(L"@{"));
+        i += (sizeof(L"@{") / sizeof(wchar_t)) - 1;
+
+        memcpy((void*)&indirStr[i], (void*)packageFullName, packageFullNameLength * sizeof(wchar_t));
+        i += packageFullNameLength - 1;
+
+        memcpy((void*)&indirStr[i], (void*)L"?ms-resource://", sizeof(L"?ms-resource://"));
+        i += (sizeof(L"?ms-resource://") / sizeof(wchar_t)) - 1;
+
+        memcpy((void*)&indirStr[i], (void*)packageFamilyName, packageNameLength * sizeof(wchar_t));
+        i += packageNameLength - 1;
+
+        memcpy((void*)&indirStr[i], (void*)L"/Files/", sizeof(L"/Files/"));
+        i += (sizeof(L"/Files/") / sizeof(wchar_t)) - 1;
+
+        memcpy((void*)&indirStr[i], (void*)logoPath, logoPathLength * sizeof(wchar_t));
+        i += logoPathLength; // Does not count \0 unlike other length
+
+        memcpy((void*)&indirStr[i], (void*)L"}", sizeof(L"}"));
+        i += (sizeof(L"}") / sizeof(wchar_t)) - 1;
+    }
+/*
+    wchar_t _inputBuf[] = 
+        L"@{Microsoft.WindowsStore_22404.1401.2.0_x64__8wekyb3d8bbwe?"
+        L"ms-resource://Microsoft.WindowsStore_8wekyb3d8bbwe/Files/Assets\\AppTiles\\StoreStoreLogo.png}";
+
+        L"@{Microsoft.WindowsStore_22404.1401.2.0_x64__8wekyb3d8bbwe?ms-resource://Microsoft.WindowsStore_8wekyb3d8bbwe/Files/Assets\\AppTiles\\StoreStoreLogo.png}";
+*/
+
+#if 0
+    { 
+        PACKAGE_ID packageId;
+        uint32_t bl = sizeof(PACKAGE_ID);
+        LONG toto = GetPackageId(process, &bl, (BYTE*)&packageId);
+        //APPMODEL_ERROR_NO_PACKAGE
+        PrintLastError();
+    }
+    {
+        wchar_t output[512];
+        uint32_t size = 512;
+
+        GetApplicationUserModelId(process, &size, output);
+        PrintLastError();
+    }
+    {
+        PACKAGE_INFO_REFERENCE packageInfoRef;
+        OpenPackageInfoByFullName(packageFullName, 0, &packageInfoRef);
+
+        PACKAGE_INFO pi[64];
+        uint32_t size = sizeof(pi);
+        uint32_t count = 0;
+        GetPackageInfo(packageInfoRef, 0, &size, (BYTE*)pi, &count);
+
+        ClosePackageInfo(packageInfoRef);
+    }
+#endif
+
+    //static wchar_t logoFullPath[512];
+    {
+        SHLoadIndirectString(indirStr, iconPath, 512 * sizeof(wchar_t), NULL);
+    }
+
+    //wcstombs(iconPath, logoFullPath, 512);
 }
 
 static BOOL FillWinGroups(HWND hwnd, LPARAM lParam)
@@ -231,17 +363,25 @@ static BOOL FillWinGroups(HWND hwnd, LPARAM lParam)
     static char moduleFileName[512];
     GetProcessFileName(PID, moduleFileName);
     int32_t lastBackslash = 0;
+    HWND childUWPWin = 0;
     for (uint32_t i = 0; moduleFileName[i] != '\0'; i++)
     {
         if (moduleFileName[i] == '\\')
             lastBackslash = i;
     }
+/*
+    {
+        wchar_t output[512];
+        uint32_t size = 512;
+        const HANDLE pr = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, FALSE, PID);
+        GetApplicationUserModelId(pr, &size, output);
+        CloseHandle(pr);
+    }*/
     {
         if (!strcmp(moduleFileName + lastBackslash + 1, "ApplicationFrameHost.exe"))
         {
-            HWND childWin;
-            EnumChildWindows(hwnd, GetApplicationFrameHostChildWindow, (LPARAM)&childWin);
-            GetWindowThreadProcessId(childWin, &PID);
+            EnumChildWindows(hwnd, GetApplicationFrameHostChildWindow, (LPARAM)&childUWPWin);
+            GetWindowThreadProcessId(childUWPWin, &PID);
             GetProcessFileName(PID, moduleFileName);
         }
     }
@@ -261,6 +401,7 @@ static BOOL FillWinGroups(HWND hwnd, LPARAM lParam)
         group = &winAppGroupArr->_Data[winAppGroupArr->_Size++];
         strcpy(group->_ModuleFileName, moduleFileName);
         group->_Icon = NULL;
+        group->_UWPIconPath[0] = L'\0';
         // Icon
         {
             const HANDLE process = OpenProcess(PROCESS_QUERY_INFORMATION, FALSE, PID);
@@ -269,10 +410,62 @@ static BOOL FillWinGroups(HWND hwnd, LPARAM lParam)
             if (!process)
                 group->_Icon = LoadIcon(NULL, IDI_APPLICATION);
             else
-                group->_Icon = ExtractIcon(process, pathStr, 0);
+            {
+                if (childUWPWin != 0)
+                    GetUWPIcon(process, group->_UWPIconPath);
+                else
+                    group->_Icon = ExtractIcon(process, pathStr, 0);
+                // group->_Icon = (HICON)SendMessage(childUWPWin != 0 ? childUWPWin : hwnd, WM_GETICON, ICON_BIG, 300);
+               // group->_Icon = (HICON)GetClassLongPtr(childUWPWin != 0 ? childUWPWin : hwnd, GCLP_HICON);
+            }
+/*
+            if (!group->_Icon)
+            {
+                group->_Icon = (HICON)SendMessage(hwnd,WM_GETICON,ICON_SMALL2,0);
+            }
 
             if (!group->_Icon)
+            {
+                group->_Icon = (HICON)SendMessage(hwnd,WM_GETICON,ICON_SMALL,0);
+            }
+
+            if (!group->_Icon)
+            {
+                group->_Icon = (HICON)SendMessage(hwnd,WM_GETICON, ICON_BIG,0);
+            }
+            if (!group->_Icon)
+            {
+                group->_Icon = (HICON)SendMessage(childUWPWin,WM_GETICON,ICON_SMALL2,0);
+            }
+
+            if (!group->_Icon)
+            {
+                group->_Icon = (HICON)SendMessage(childUWPWin,WM_GETICON,ICON_SMALL,0);
+            }
+
+            if (!group->_Icon)
+            {
+                group->_Icon = (HICON)SendMessage(childUWPWin,WM_GETICON, ICON_BIG,0);
+            }
+*/
+/*
+            if (!group->_Icon)
+            {
+                PrintLastError();
+                group->_Icon =(HICON)GetClassLongPtr(childUWPWin, GCLP_HICON);
+            }
+
+            if (!group->_Icon)
+            {
+                PrintLastError();
+                group->_Icon =(HICON)GetClassLongPtr(childUWPWin, GCLP_HICONSM);
+            }
+*/
+            if (!group->_Icon)
+            {
+                PrintLastError();
                 group->_Icon = LoadIcon(NULL, IDI_APPLICATION);
+            }
             CloseHandle(process);
         }
     }
@@ -697,6 +890,7 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
         uint32_t x = padding;
         for (uint32_t i = 0; i < pAppData->_WinGroups._Size; i++)
         {
+            const SWinGroup* pWinGroup = &pAppData->_WinGroups._Data[i];
             if (i == pAppData->_Selection)
             {
                 COLORREF cr = GetSysColor(COLOR_WINDOWFRAME);
@@ -707,10 +901,21 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
                 DrawRoundedRect(pGraphics, pPen, NULL, rect.left, rect.top, rect.right, rect.bottom, 10);
                 GdipDeletePen(pPen);
             }
-            DrawIcon(pGraphRes->_DCBuffer, x, padding, pAppData->_WinGroups._Data[i]._Icon);
+
+            if (pWinGroup->_UWPIconPath[0] != L'\0')
+            {
+                GpImage* img = NULL;
+                GdipLoadImageFromFile(pWinGroup->_UWPIconPath, &img);
+                GdipDrawImageRectI(pGraphics, img, x, padding, iconSize, iconSize);
+            }
+            else if (pWinGroup->_Icon)
+            {
+                DrawIcon(pGraphRes->_DCBuffer, x, padding, pWinGroup->_Icon);
+            }
+
             {
                 WCHAR count[4];
-                const uint32_t winCount = pAppData->_WinGroups._Data[i]._WindowCount;
+                const uint32_t winCount = pWinGroup->_WindowCount;
                 const uint32_t digitsCount = winCount > 99 ? 3 : winCount > 9 ? 2 : 1;
                 const uint32_t width = digitsCount * (uint32_t)(0.7 * (float)pGraphRes->_FontSize) + 5;
                 const uint32_t height = (pGraphRes->_FontSize + 4);
