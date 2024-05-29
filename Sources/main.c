@@ -123,7 +123,7 @@ static void HideWindow(HWND win)
     SetWindowPos(win, HWND_TOPMOST, 0, 0, 0, 0, SWP_HIDEWINDOW | SWP_NOSIZE | SWP_NOMOVE | SWP_NOREPOSITION | SWP_NOACTIVATE);
 }
 
-static const char* WindowsClassNamesToSkip[6] =
+static const char* WindowsClassNamesToSkip[] =
 {
     "Shell_TrayWnd",
     "DV2ControlHost",
@@ -140,6 +140,123 @@ static BOOL GetProcessFileName(DWORD PID, char* outFileName)
     CloseHandle(process);
 }
 
+BOOL CALLBACK FindIMEWin(HWND hwnd, LPARAM lParam)
+{
+    static char className[512];
+    GetClassName(hwnd, className, 512);
+    if (strcmp("IME", className))
+        return TRUE;
+    (*(HWND*)lParam) = hwnd;
+}
+
+typedef struct SFindPIDEnumFnParams
+{
+    HWND InHostWindow;
+    DWORD OutPID;
+} SFindPIDEnumFnParams;
+
+static BOOL FindPIDEnumFn(HWND hwnd, LPARAM lParam)
+{
+    SFindPIDEnumFnParams* pParams = (SFindPIDEnumFnParams*)lParam;
+    static char className[512];
+    GetClassName(hwnd, className, 512);
+    if (strcmp("Windows.UI.Core.CoreWindow", className))
+        return TRUE;
+
+    DWORD PID = 0;
+    DWORD TID = GetWindowThreadProcessId(hwnd, &PID);
+
+    wchar_t UMI[512];
+    BOOL isUWP = false;
+    {
+
+        const HANDLE proc = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, FALSE, PID);
+        uint32_t size = 512;
+        isUWP = GetApplicationUserModelId(proc, &size, UMI) == ERROR_SUCCESS;
+        CloseHandle(proc);
+    }
+    if (!isUWP)
+        return TRUE;
+
+    HWND IMEWin = NULL;
+    EnumThreadWindows(TID, FindIMEWin, (LPARAM)&IMEWin);
+    if (IMEWin == NULL)
+        return TRUE;
+
+    HWND ownerWin = GetWindow(IMEWin, GW_OWNER);
+
+    if (pParams->InHostWindow != ownerWin)
+        return TRUE;
+
+    pParams->OutPID = PID;
+}
+
+
+typedef struct SFindUWPChildParams
+{
+    DWORD OutUWPPID;
+    DWORD InHostPID;
+} SFindUWPChildParams;
+
+BOOL FindUWPChild(HWND hwnd, LPARAM lParam)
+{
+    SFindUWPChildParams* pParams = (SFindUWPChildParams*)lParam;
+    DWORD PID = 0;
+    GetWindowThreadProcessId(hwnd, &PID);
+    MyPrintWindow(hwnd);
+    if (PID != pParams->InHostPID)
+    {
+        pParams->OutUWPPID = PID;
+        return FALSE;
+    }
+/*
+    // EnumChildWindows already enumerates recursively - Raymond Chen
+    HWND childUWPWin = NULL;
+    EnumChildWindows(hwnd, FindUWPChild0, (LPARAM)&childUWPWin);
+    if (childUWPWin != NULL)
+    {
+        pParams->UWPWin = childUWPWin;
+        return FALSE;
+    }
+*/
+    return TRUE;
+}
+
+static void FindActualPID(HWND hwnd, DWORD* PID, BOOL* isUWP)
+{
+    static char className[512];
+    GetClassName(hwnd, className, 512);
+    if (strcmp("ApplicationFrameWindow", className))
+    {
+        GetWindowThreadProcessId(hwnd, PID);
+        *isUWP = false;
+        return;
+    }
+
+    *isUWP = true;
+
+    {
+        SFindUWPChildParams params;
+        GetWindowThreadProcessId(hwnd,  &(params.InHostPID));
+        params.OutUWPPID = 0;
+        EnumChildWindows(hwnd, FindUWPChild, (LPARAM)&params);
+        if (params.OutUWPPID != 0)
+        {
+            *PID = params.OutUWPPID;
+            return;
+        }
+    }
+
+    SFindPIDEnumFnParams params;
+    params.InHostWindow = hwnd;
+    params.OutPID = 0;
+
+    EnumDesktopWindows(NULL, FindPIDEnumFn, (LPARAM)&params);
+
+    *PID = params.OutPID;
+    *isUWP = true;
+}
+
 static bool IsAltTabWindow(HWND hwnd)
 {
     if (hwnd == GetShellWindow()) //Desktop
@@ -152,7 +269,7 @@ static bool IsAltTabWindow(HWND hwnd)
     if (!IsWindowVisible(hwnd))
         return false;
     static char buf[512];
-    GetClassName(hwnd, buf, 100);
+    GetClassName(hwnd, buf, 512);
     for (int i = 0; i < sizeof(WindowsClassNamesToSkip) / sizeof(WindowsClassNamesToSkip[0]); i++)
     {
         if (!strcmp(WindowsClassNamesToSkip[i], buf))
@@ -207,34 +324,6 @@ static HWND FindAltTabWin()
     if (foundWin._Size)
         return foundWin._Data[0];
     return 0;
-}
-
-BOOL GetApplicationFrameHostChildWindow(HWND hwnd, LPARAM lParam)
-{
-    DWORD PID;
-    GetWindowThreadProcessId(hwnd, &PID);
-    MyPrintWindow(hwnd);
-    static char moduleFileName[512];
-    GetProcessFileName(PID, moduleFileName);
-    int32_t lastBackslash = 0;
-    for (uint32_t i = 0; moduleFileName[i] != '\0'; i++)
-    {
-        if (moduleFileName[i] == '\\')
-            lastBackslash = i;
-    }
-    if (strcmp(moduleFileName + lastBackslash + 1, "ApplicationFrameHost.exe"))
-    {
-        *((HWND*)lParam) = hwnd;
-        return FALSE;
-    }
-    HWND childUWPWin = NULL;
-    EnumChildWindows(hwnd, GetApplicationFrameHostChildWindow, (LPARAM)&childUWPWin);
-    if (childUWPWin != NULL)
-    {
-        *((HWND*)lParam) = childUWPWin;
-        return FALSE;
-    }
-    return TRUE;
 }
 
 void GetUWPIcon(HANDLE process, wchar_t* iconPath)
@@ -350,20 +439,19 @@ void GetUWPIcon(HANDLE process, wchar_t* iconPath)
     {
         SHLoadIndirectString(indirStr, iconPath, 512 * sizeof(wchar_t), NULL);
     }
-
-    //wcstombs(iconPath, logoFullPath, 512);
 }
 
 static BOOL FillWinGroups(HWND hwnd, LPARAM lParam)
 {
+    MyPrintWindow(hwnd);
+    BOOL isUWP = false;
     if (!IsAltTabWindow(hwnd))
         return true;
-    DWORD PID;
-    GetWindowThreadProcessId(hwnd, &PID);
+    DWORD PID = 0;
+    FindActualPID(hwnd, &PID, &isUWP);
     static char moduleFileName[512];
     GetProcessFileName(PID, moduleFileName);
     int32_t lastBackslash = 0;
-    HWND childUWPWin = 0;
     for (uint32_t i = 0; moduleFileName[i] != '\0'; i++)
     {
         if (moduleFileName[i] == '\\')
@@ -376,14 +464,33 @@ static BOOL FillWinGroups(HWND hwnd, LPARAM lParam)
         const HANDLE pr = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, FALSE, PID);
         GetApplicationUserModelId(pr, &size, output);
         CloseHandle(pr);
-    }*/
+    }*/ 
     {
+        #if 0
         if (!strcmp(moduleFileName + lastBackslash + 1, "ApplicationFrameHost.exe"))
         {
-            EnumChildWindows(hwnd, GetApplicationFrameHostChildWindow, (LPARAM)&childUWPWin);
-            GetWindowThreadProcessId(childUWPWin, &PID);
+            SendMessage(hwnd, WM_CHILDACTIVATE, 0, 0);
+
+            isUWP = true;
+            SFindUWPChildParams findUWPChildParams;
+            findUWPChildParams.HostPID = PID;
+            findUWPChildParams.UWPWin = NULL;
+            EnumChildWindows(hwnd, FindUWPChild, (LPARAM)&findUWPChildParams);
+
+            findUWPChildParams.UWPWin = FindWindowEx(hwnd, NULL, "Windows.UI.Core.CoreWindow", NULL);
+            GetWindowThreadProcessId(findUWPChildParams.UWPWin, &PID);
             GetProcessFileName(PID, moduleFileName);
+            if (findUWPChildParams.UWPWin)
+            {
+                wchar_t output[512];
+                uint32_t size = 512;
+                const HANDLE pr = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, FALSE, PID);
+                GetApplicationUserModelId(pr, &size, output);
+                CloseHandle(pr);
+                PrintLastError();
+            }
         }
+        #endif
     }
     SWinGroupArr* winAppGroupArr = (SWinGroupArr*)(lParam);
     SWinGroup* group = NULL;
@@ -411,56 +518,12 @@ static BOOL FillWinGroups(HWND hwnd, LPARAM lParam)
                 group->_Icon = LoadIcon(NULL, IDI_APPLICATION);
             else
             {
-                if (childUWPWin != 0)
+                if (isUWP)
                     GetUWPIcon(process, group->_UWPIconPath);
                 else
                     group->_Icon = ExtractIcon(process, pathStr, 0);
-                // group->_Icon = (HICON)SendMessage(childUWPWin != 0 ? childUWPWin : hwnd, WM_GETICON, ICON_BIG, 300);
-               // group->_Icon = (HICON)GetClassLongPtr(childUWPWin != 0 ? childUWPWin : hwnd, GCLP_HICON);
-            }
-/*
-            if (!group->_Icon)
-            {
-                group->_Icon = (HICON)SendMessage(hwnd,WM_GETICON,ICON_SMALL2,0);
             }
 
-            if (!group->_Icon)
-            {
-                group->_Icon = (HICON)SendMessage(hwnd,WM_GETICON,ICON_SMALL,0);
-            }
-
-            if (!group->_Icon)
-            {
-                group->_Icon = (HICON)SendMessage(hwnd,WM_GETICON, ICON_BIG,0);
-            }
-            if (!group->_Icon)
-            {
-                group->_Icon = (HICON)SendMessage(childUWPWin,WM_GETICON,ICON_SMALL2,0);
-            }
-
-            if (!group->_Icon)
-            {
-                group->_Icon = (HICON)SendMessage(childUWPWin,WM_GETICON,ICON_SMALL,0);
-            }
-
-            if (!group->_Icon)
-            {
-                group->_Icon = (HICON)SendMessage(childUWPWin,WM_GETICON, ICON_BIG,0);
-            }
-*/
-/*
-            if (!group->_Icon)
-            {
-                PrintLastError();
-                group->_Icon =(HICON)GetClassLongPtr(childUWPWin, GCLP_HICON);
-            }
-
-            if (!group->_Icon)
-            {
-                PrintLastError();
-                group->_Icon =(HICON)GetClassLongPtr(childUWPWin, GCLP_HICONSM);
-            }
-*/
             if (!group->_Icon)
             {
                 PrintLastError();
@@ -477,8 +540,9 @@ static BOOL FillCurrentWinGroup(HWND hwnd, LPARAM lParam)
 {
     if (!IsAltTabWindow(hwnd))
         return true;
-    DWORD PID;
-    GetWindowThreadProcessId(hwnd, &PID);
+    DWORD PID = 0;
+    BOOL isUWP = false;
+    FindActualPID(hwnd, &PID, &isUWP);
     SWinGroup* currentWinGroup = (SWinGroup*)(lParam);
     static char moduleFileName[512];
     GetProcessFileName(PID, moduleFileName);
@@ -543,6 +607,7 @@ static DWORD GetParentPID(DWORD PID)
 static void InitializeSwitchWin(SAppData* pAppData)
 {
     HWND win = GetForegroundWindow();
+    BOOL isUWP =false;
     if (!win)
         return;
     while (true)
