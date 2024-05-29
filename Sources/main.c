@@ -607,7 +607,6 @@ static DWORD GetParentPID(DWORD PID)
 static void InitializeSwitchWin(SAppData* pAppData)
 {
     HWND win = GetForegroundWindow();
-    BOOL isUWP =false;
     if (!win)
         return;
     while (true)
@@ -619,7 +618,9 @@ static void InitializeSwitchWin(SAppData* pAppData)
     if (!win)
         return;
     DWORD PID;
-    GetWindowThreadProcessId(win, &PID);
+    BOOL isUWP = false;
+    //GetWindowThreadProcessId(win, &PID);
+    FindActualPID(win, &PID, &isUWP);
     SWinGroup* pWinGroup = &(pAppData->_CurrentWinGroup);
     GetProcessFileName(PID, pWinGroup->_ModuleFileName);
     pWinGroup->_WindowCount = 0;
@@ -671,6 +672,18 @@ static void ApplySwitchApp(const SAppData* pAppData)
 static void ApplySwitchWin(const SAppData* pAppData)
 {
     const HWND win = pAppData->_CurrentWinGroup._Windows[pAppData->_Selection];
+
+    const UINT winFlags = SWP_SHOWWINDOW | SWP_NOSIZE | SWP_NOMOVE | SWP_NOREPOSITION | SWP_NOACTIVATE;
+    {
+        HDWP winPosHandle = BeginDeferWindowPos(1);
+        winPosHandle = DeferWindowPos(winPosHandle, win, HWND_TOPMOST, 0, 0, 0, 0, winFlags);
+        EndDeferWindowPos(winPosHandle);
+    }
+    {
+        HDWP winPosHandle = BeginDeferWindowPos(1);
+        winPosHandle = DeferWindowPos(winPosHandle, win, HWND_NOTOPMOST, 0, 0, 0, 0, winFlags);
+        EndDeferWindowPos(winPosHandle);
+    }
     ForceSetForeground(win);
 }
 
