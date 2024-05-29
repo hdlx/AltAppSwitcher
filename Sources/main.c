@@ -169,7 +169,6 @@ static BOOL FindPIDEnumFn(HWND hwnd, LPARAM lParam)
     wchar_t UMI[512];
     BOOL isUWP = false;
     {
-
         const HANDLE proc = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, FALSE, PID);
         uint32_t size = 512;
         isUWP = GetApplicationUserModelId(proc, &size, UMI) == ERROR_SUCCESS;
@@ -226,15 +225,21 @@ static void FindActualPID(HWND hwnd, DWORD* PID, BOOL* isUWP)
 {
     static char className[512];
     GetClassName(hwnd, className, 512);
-    if (strcmp("ApplicationFrameWindow", className))
+
     {
+        wchar_t UMI[512];
         GetWindowThreadProcessId(hwnd, PID);
-        *isUWP = false;
-        return;
+        const HANDLE proc = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, FALSE, *PID);
+        uint32_t size = 512;
+        *isUWP = GetApplicationUserModelId(proc, &size, UMI) == ERROR_SUCCESS;
+        CloseHandle(proc);
+        if (*isUWP)
+        {
+            return;
+        }
     }
 
-    *isUWP = true;
-
+    if (!strcmp("ApplicationFrameWindow", className))
     {
         SFindUWPChildParams params;
         GetWindowThreadProcessId(hwnd,  &(params.InHostPID));
@@ -243,18 +248,29 @@ static void FindActualPID(HWND hwnd, DWORD* PID, BOOL* isUWP)
         if (params.OutUWPPID != 0)
         {
             *PID = params.OutUWPPID;
+            *isUWP = true;
             return;
         }
     }
 
-    SFindPIDEnumFnParams params;
-    params.InHostWindow = hwnd;
-    params.OutPID = 0;
+    if (!strcmp("ApplicationFrameWindow", className))
+    {
+        SFindPIDEnumFnParams params;
+        params.InHostWindow = hwnd;
+        params.OutPID = 0;
 
-    EnumDesktopWindows(NULL, FindPIDEnumFn, (LPARAM)&params);
+        EnumDesktopWindows(NULL, FindPIDEnumFn, (LPARAM)&params);
 
-    *PID = params.OutPID;
-    *isUWP = true;
+        *PID = params.OutPID;
+        *isUWP = true;
+        return;
+    }
+
+    {
+        GetWindowThreadProcessId(hwnd, PID);
+        *isUWP = false;
+        return;
+    }
 }
 
 static bool IsAltTabWindow(HWND hwnd)
@@ -326,6 +342,35 @@ static HWND FindAltTabWin()
     return 0;
 }
 
+static void BuildLogoIndirectString(const wchar_t* logoPath, uint32_t logoPathLength,
+    const wchar_t* packageFullName, uint32_t packageFullNameLength,
+    const wchar_t* packageName, uint32_t packageNameLength,
+    wchar_t* outStr)
+{
+    uint32_t i = 0;
+
+    memcpy((void*)&outStr[i], (void*)L"@{", sizeof(L"@{"));
+    i += (sizeof(L"@{") / sizeof(wchar_t)) - 1;
+
+    memcpy((void*)&outStr[i], (void*)packageFullName, packageFullNameLength * sizeof(wchar_t));
+    i += packageFullNameLength - 1;
+
+    memcpy((void*)&outStr[i], (void*)L"?ms-resource://", sizeof(L"?ms-resource://"));
+    i += (sizeof(L"?ms-resource://") / sizeof(wchar_t)) - 1;
+
+    memcpy((void*)&outStr[i], (void*)packageName, packageNameLength * sizeof(wchar_t));
+    i += packageNameLength - 1;
+
+    memcpy((void*)&outStr[i], (void*)L"/Files/", sizeof(L"/Files/"));
+    i += (sizeof(L"/Files/") / sizeof(wchar_t)) - 1;
+
+    memcpy((void*)&outStr[i], (void*)logoPath, logoPathLength * sizeof(wchar_t));
+    i += logoPathLength; // Does not count \0 unlike other length
+
+    memcpy((void*)&outStr[i], (void*)L"}", sizeof(L"}"));
+    i += (sizeof(L"}") / sizeof(wchar_t)) - 1;
+}
+
 void GetUWPIcon(HANDLE process, wchar_t* iconPath)
 {
     static wchar_t packageFullName[512];
@@ -375,79 +420,36 @@ void GetUWPIcon(HANDLE process, wchar_t* iconPath)
     }
 
     static wchar_t indirStr[512];
-    {
-        uint32_t i = 0;
+    static wchar_t logoFullPath[512];
 
-        memcpy((void*)&indirStr[i], (void*)L"@{", sizeof(L"@{"));
-        i += (sizeof(L"@{") / sizeof(wchar_t)) - 1;
+    BuildLogoIndirectString(logoPath, logoPathLength,
+        packageFullName, packageFullNameLength,
+        packageFamilyName, packageNameLength,
+        indirStr);
 
-        memcpy((void*)&indirStr[i], (void*)packageFullName, packageFullNameLength * sizeof(wchar_t));
-        i += packageFullNameLength - 1;
+    if (SHLoadIndirectString(indirStr, iconPath, 512 * sizeof(wchar_t), NULL) == S_OK)
+        return;
 
-        memcpy((void*)&indirStr[i], (void*)L"?ms-resource://", sizeof(L"?ms-resource://"));
-        i += (sizeof(L"?ms-resource://") / sizeof(wchar_t)) - 1;
-
-        memcpy((void*)&indirStr[i], (void*)packageFamilyName, packageNameLength * sizeof(wchar_t));
-        i += packageNameLength - 1;
-
-        memcpy((void*)&indirStr[i], (void*)L"/Files/", sizeof(L"/Files/"));
-        i += (sizeof(L"/Files/") / sizeof(wchar_t)) - 1;
-
-        memcpy((void*)&indirStr[i], (void*)logoPath, logoPathLength * sizeof(wchar_t));
-        i += logoPathLength; // Does not count \0 unlike other length
-
-        memcpy((void*)&indirStr[i], (void*)L"}", sizeof(L"}"));
-        i += (sizeof(L"}") / sizeof(wchar_t)) - 1;
-    }
-/*
-    wchar_t _inputBuf[] = 
-        L"@{Microsoft.WindowsStore_22404.1401.2.0_x64__8wekyb3d8bbwe?"
-        L"ms-resource://Microsoft.WindowsStore_8wekyb3d8bbwe/Files/Assets\\AppTiles\\StoreStoreLogo.png}";
-
-        L"@{Microsoft.WindowsStore_22404.1401.2.0_x64__8wekyb3d8bbwe?ms-resource://Microsoft.WindowsStore_8wekyb3d8bbwe/Files/Assets\\AppTiles\\StoreStoreLogo.png}";
-*/
-
-#if 0
-    { 
-        PACKAGE_ID packageId;
-        uint32_t bl = sizeof(PACKAGE_ID);
-        LONG toto = GetPackageId(process, &bl, (BYTE*)&packageId);
-        //APPMODEL_ERROR_NO_PACKAGE
-        PrintLastError();
-    }
-    {
-        wchar_t output[512];
-        uint32_t size = 512;
-
-        GetApplicationUserModelId(process, &size, output);
-        PrintLastError();
-    }
-    {
-        PACKAGE_INFO_REFERENCE packageInfoRef;
-        OpenPackageInfoByFullName(packageFullName, 0, &packageInfoRef);
-
-        PACKAGE_INFO pi[64];
-        uint32_t size = sizeof(pi);
-        uint32_t count = 0;
-        GetPackageInfo(packageInfoRef, 0, &size, (BYTE*)pi, &count);
-
-        ClosePackageInfo(packageInfoRef);
-    }
-#endif
-
-    //static wchar_t logoFullPath[512];
-    {
-        SHLoadIndirectString(indirStr, iconPath, 512 * sizeof(wchar_t), NULL);
-    }
+    // Indirect string construction is empirically designed from
+    // inspecting "resources.pri".
+    // Some UWP app (arc) use "Application" instead of PackageName for
+    // the resource uri. We look again using this alternate path.
+    // This does not seem very robust.
+    BuildLogoIndirectString(logoPath, logoPathLength,
+        packageFullName, packageFullNameLength,
+        L"Application", sizeof(L"Application") / sizeof(wchar_t),
+        indirStr);
+    SHLoadIndirectString(indirStr, iconPath, 512 * sizeof(wchar_t), NULL);
 }
 
 static BOOL FillWinGroups(HWND hwnd, LPARAM lParam)
 {
     MyPrintWindow(hwnd);
-    BOOL isUWP = false;
     if (!IsAltTabWindow(hwnd))
         return true;
     DWORD PID = 0;
+    BOOL isUWP = false;
+
     FindActualPID(hwnd, &PID, &isUWP);
     static char moduleFileName[512];
     GetProcessFileName(PID, moduleFileName);
