@@ -19,6 +19,9 @@
 		"processthreadsapi.h": "c",
 		"ctype.h": "c",
 		"winreg.h": "c",
-		"stdlib.h": "c"
+		"stdlib.h": "c",
+		"macappswitcherhelpers.h": "c",
+		"signal.h": "c",
+		"app.h": "c"
 	}
 }
