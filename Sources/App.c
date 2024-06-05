@@ -201,22 +201,12 @@ static BOOL FindUWPChild(HWND hwnd, LPARAM lParam)
     SFindUWPChildParams* pParams = (SFindUWPChildParams*)lParam;
     DWORD PID = 0;
     GetWindowThreadProcessId(hwnd, &PID);
-    MyPrintWindow(hwnd);
+    // MyPrintWindow(hwnd);
     if (PID != pParams->InHostPID)
     {
         pParams->OutUWPPID = PID;
         return FALSE;
     }
-/*
-    // EnumChildWindows already enumerates recursively - Raymond Chen
-    HWND childUWPWin = NULL;
-    EnumChildWindows(hwnd, FindUWPChild0, (LPARAM)&childUWPWin);
-    if (childUWPWin != NULL)
-    {
-        pParams->UWPWin = childUWPWin;
-        return FALSE;
-    }
-*/
     return TRUE;
 }
 
@@ -443,7 +433,7 @@ static void GetUWPIcon(HANDLE process, wchar_t* iconPath)
 
 static BOOL FillWinGroups(HWND hwnd, LPARAM lParam)
 {
-    MyPrintWindow(hwnd);
+    // MyPrintWindow(hwnd);
     if (!IsAltTabWindow(hwnd))
         return true;
     DWORD PID = 0;
