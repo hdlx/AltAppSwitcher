@@ -6,7 +6,7 @@
 			"request": "launch",
 			"target": "${workspaceFolder}/Output/Debug/MacAppSwitcher.exe",
 			"cwd": "${workspaceFolder}/Output/Debug/",
-			"valuesFormatting": "parseText"
+			"valuesFormatting": "parseText",
 		},
 		{
 			"name": "Attach",
@@ -14,9 +14,14 @@
 			"request": "attach",
 			"program": "${workspaceFolder}/Output/Debug/MacAppSwitcher.exe",
 			"MIMode": "gdb",
+			"processId": "${command:pickProcess}",
 			"setupCommands": [
 				{
-					"text": "-enable-pretty-printing",
+					"text": "set print array off",
+					"ignoreFailures": false
+				},
+				{
+					"text": "disable pretty-printer",
 					"ignoreFailures": false
 				},
 				{

@@ -481,9 +481,10 @@ static BOOL FillWinGroups(HWND hwnd, LPARAM lParam)
                     group->_Icon = ExtractIcon(process, pathStr, 0);
             }
 
-            if (!group->_Icon)
+            if (!group->_Icon &&  group->_UWPIconPath[0] == L'\0')
             {
-                PrintLastError();
+                // Probalby but not necessarily an error
+                // PrintLastError();
                 group->_Icon = LoadIcon(NULL, IDI_APPLICATION);
             }
             CloseHandle(process);
