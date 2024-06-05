@@ -15,7 +15,7 @@ if not os.path.exists("./Output/Debug"):
     os.makedirs("./Output/Debug")
 
 link = "-l dwmapi -l User32 -l Gdi32 -l Gdiplus -l shlwapi"
-gccCmdDbg = "gcc {0} -o Output/Debug/MacAppSwitcher.exe -Werror -g -ggdb -I ./Sources {1} -march=x86-64".format(cFiles, link)
+gccCmdDbg = "gcc {0} -o Output/Debug/MacAppSwitcher.exe -mwindows -Werror -g -ggdb -I ./Sources {1} -march=x86-64".format(cFiles, link)
 gccCmdRel = "gcc {0} -o Output/Release/MacAppSwitcher.exe -mwindows -s -I ./Sources {1} -march=x86-64".format(cFiles, link)
 
 os.system(gccCmdDbg)
