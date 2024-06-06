@@ -5,7 +5,6 @@
 #include <psapi.h>
 #include <dwmapi.h>
 #include <winuser.h>
-#include "MacAppSwitcherHelpers.h"
 #include <signal.h>
 #include <ctype.h>
 #include <processthreadsapi.h>
@@ -14,6 +13,8 @@
 #include <shlwapi.h>
 #include <winreg.h>
 #include <stdlib.h>
+#include "MacAppSwitcherHelpers.h"
+#include "KeyCodeFromConfigName.h"
 
 LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam);
 
@@ -87,6 +88,13 @@ static void DeInitGraphicsResources(SGraphicsResources* pRes)
     VERIFY(Ok == GdipDeleteStringFormat(pRes->_pFormat));
 }
 
+typedef struct KeyConfig
+{
+    DWORD _Hold;
+    DWORD _SwitchApp;
+    DWORD _SwitchWin;
+} KeyConfig;
+
 typedef struct SAppData
 {
     HWND _MainWin;
@@ -111,6 +119,7 @@ typedef struct SFoundWin
 
 static HWND _MainWin;
 static bool _IsSwitchActive = false;
+static KeyConfig _KeyConfig;
 
 static void DisplayWindow(HWND win)
 {
@@ -692,8 +701,6 @@ int StartMacAppSwitcher(HINSTANCE hInstance)
     if (hwnd == NULL)
         return 0;
 
-//SetWindowLong(hwnd, GWL_EXSTYLE, WS_EX_TOOLWINDOW);
-
     // Rounded corners for Win 11
     // Values are from cpp enums DWMWINDOWATTRIBUTE and DWM_WINDOW_CORNER_PREFERENCE
     const uint32_t rounded = 2;
@@ -815,12 +822,12 @@ static void ApplyState(SAppData* pAppData)
 static LRESULT KbProc(int nCode, WPARAM wParam, LPARAM lParam)
 {
     const KBDLLHOOKSTRUCT kbStrut = *(KBDLLHOOKSTRUCT*)lParam;
-    const bool isTab = kbStrut.vkCode == VK_TAB;
-    const bool isAlt = kbStrut.vkCode == VK_LMENU;
+    const bool isTab = kbStrut.vkCode == _KeyConfig._SwitchApp;
+    const bool isAlt = kbStrut.vkCode == _KeyConfig._Hold;
+    const bool isTilde = kbStrut.vkCode == _KeyConfig._SwitchWin;
     const bool isShift = kbStrut.vkCode == VK_LSHIFT;
     const bool releasing = kbStrut.flags & LLKHF_UP;
     const bool altDown = kbStrut.flags & LLKHF_ALTDOWN;
-    const bool isTilde = kbStrut.vkCode == 192;
     const uint32_t data =
         (isTab & 0x1)       << 1 |
         (isAlt & 0x1)       << 2 |
@@ -854,8 +861,50 @@ static void DrawRoundedRect(GpGraphics* pGraphics, GpPen* pPen, GpBrush* pBrush,
         GdipFillPath(pGraphics, pBrush, pPath);
     if (pPen)
         GdipDrawPath(pGraphics, pPen, pPath);
-
     GdipDeletePath(pPath);
+}
+
+void SetKeyConfig()
+{
+    _KeyConfig._Hold = VK_LMENU;
+    _KeyConfig._SwitchApp = VK_TAB;
+    _KeyConfig._SwitchWin = VK_OEM_3;
+    const char* configFile = "MacAppSwitcher.txt";
+    FILE* file = fopen(configFile ,"rb");
+    if (file == NULL)
+    {
+        file = fopen(configFile ,"a");
+        fprintf(file,
+            "hold key: left alt\n"
+            "switch app key: tab\n"
+            "switch window key: tilde\n");
+        fclose(file);
+        return;
+    }
+
+    static char lineBuf[1024];
+    while (fgets(lineBuf, 1024, file))
+    {
+        const char* pValue = strstr(lineBuf, "hold key: ");
+        if (pValue != NULL)
+        {
+            _KeyConfig._Hold = KeyCodeFromConfigName(pValue + sizeof("hold key: ") - 1);
+            continue;
+        }
+        pValue = strstr(lineBuf, "switch app key: ");
+        if (pValue != NULL)
+        {
+            _KeyConfig._SwitchApp = KeyCodeFromConfigName(pValue + sizeof("switch app key: ") - 1);
+            continue;
+        }
+        pValue = strstr(lineBuf, "switch window key: ");
+        if (pValue != NULL)
+        {
+            _KeyConfig._SwitchWin = KeyCodeFromConfigName(pValue + sizeof("switch window key: ") - 1);
+            continue;
+        }
+    }
+    fclose(file);
 }
 
 LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
@@ -878,6 +927,7 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
         pAppData->_KeyState._TabNewInput = false;
         pAppData->_KeyState._TildeNewInput = false;
         pAppData->_KeyState._AltReleasing = false;
+        SetKeyConfig();
         InitGraphicsResources(&pAppData->_GraphicsResources);
         SetWindowLongPtr(hwnd, 0, (LONG_PTR)pAppData);
         VERIFY(SetWindowsHookEx(WH_KEYBOARD_LL, KbProc, 0, 0));
