@@ -35,13 +35,15 @@ typedef struct SWinGroupArr
 
 typedef struct SKeyState
 {
-    bool _TabDown;
-    bool _ShiftDown;
-    bool _AltDown;
-    bool _TildeDown;
-    bool _TabNewInput;
-    bool _TildeNewInput;
-    bool _AltReleasing;
+    bool _SwitchWinDown;
+    bool _InvertKeyDown;
+    bool _HoldWinDown;
+    bool _HoldAppDown;
+    bool _SwitchAppDown;
+    bool _SwitchWinNewInput;
+    bool _SwitchAppNewInput;
+    bool _AppHoldReleasing;
+    bool _WinHoldReleasing;
 } SKeyState;
 
 typedef struct SGraphicsResources
@@ -90,9 +92,11 @@ static void DeInitGraphicsResources(SGraphicsResources* pRes)
 
 typedef struct KeyConfig
 {
-    DWORD _Hold;
-    DWORD _SwitchApp;
-    DWORD _SwitchWin;
+    DWORD _AppHold;
+    DWORD _AppSwitch;
+    DWORD _WinHold;
+    DWORD _WinSwitch;
+    DWORD _Invert;
 } KeyConfig;
 
 typedef struct SAppData
@@ -573,6 +577,7 @@ static DWORD GetParentPID(DWORD PID)
 
 static void InitializeSwitchWin(SAppData* pAppData)
 {
+    printf("INITSWITCHAPP\n");
     HWND win = GetForegroundWindow();
     if (!win)
         return;
@@ -734,39 +739,38 @@ int StartMacAppSwitcher(HINSTANCE hInstance)
 
 static void UpdateKeyState(SKeyState* pKeyState, uint32_t data)
 {
-    const bool isTab =      ((data >> 1) & 0x1) != 0x0;
-    const bool isAlt =      ((data >> 2) & 0x1) != 0x0;
-    const bool isShift =    ((data >> 3) & 0x1) != 0x0;
-    const bool isTilde =    ((data >> 4) & 0x1) != 0x0;
-    const bool releasing =  ((data >> 5) & 0x1) != 0x0;
-    const bool prevTabDown = pKeyState->_TabDown;
-    const bool prevAltDown = pKeyState->_AltDown;
-    const bool prevTildeDown = pKeyState->_TildeDown;
-    if (!releasing)
+    const bool isAppHold =      ((data >> 1) & 0x1) != 0x0;
+    const bool isAppSwitch =    ((data >> 2) & 0x1) != 0x0;
+    const bool isWinHold =      ((data >> 3) & 0x1) != 0x0;
+    const bool isWinSwitch =    ((data >> 4) & 0x1) != 0x0;
+    const bool isInvert =       ((data >> 5) & 0x1) != 0x0;
+    const bool releasing =      ((data >> 6) & 0x1) != 0x0;
+    const bool prevSwitchWinDown = pKeyState->_SwitchWinDown;
+    const bool prevHoldWinDown = pKeyState->_HoldWinDown;
+    const bool prevHoldAppDown = pKeyState->_HoldAppDown;
+    const bool prevSwitchAppDown = pKeyState->_SwitchAppDown;
+    const bool value = !releasing;
+
     {
-        if (isTab)
-            pKeyState->_TabDown = true;
-        else if (isAlt)
-            pKeyState->_AltDown = true;
-        else if (isShift)
-            pKeyState->_ShiftDown = true;
-        else if (isTilde)
-            pKeyState->_TildeDown = true;
+        if (isAppHold)
+            pKeyState->_HoldAppDown = value;
+        if (isAppSwitch)
+            pKeyState->_SwitchAppDown = value;
+        if (isWinHold)
+            pKeyState->_HoldWinDown = value;
+        if (isWinSwitch)
+            pKeyState->_SwitchWinDown = value;
+        if (isInvert)
+            pKeyState->_InvertKeyDown = value;
     }
-    else
-    {
-        if (isTab)
-            pKeyState->_TabDown = false;
-        else if (isAlt)
-            pKeyState->_AltDown = false;
-        else if (isShift)
-            pKeyState->_ShiftDown = false;
-        else if (isTilde)
-            pKeyState->_TildeDown = false;
-    }
-    pKeyState->_TabNewInput = !prevTabDown && pKeyState->_TabDown;
-    pKeyState->_TildeNewInput = !prevTildeDown && pKeyState->_TildeDown;
-    pKeyState->_AltReleasing = prevAltDown && !pKeyState->_AltDown;
+
+    pKeyState->_SwitchWinNewInput = !prevSwitchWinDown && pKeyState->_SwitchWinDown;
+    pKeyState->_SwitchAppNewInput = !prevSwitchAppDown && pKeyState->_SwitchAppDown;
+    pKeyState->_WinHoldReleasing = prevHoldWinDown && !pKeyState->_HoldWinDown;
+    pKeyState->_AppHoldReleasing = prevHoldAppDown && !pKeyState->_HoldAppDown;
+
+    if (pKeyState->_AppHoldReleasing)
+        printf("d");
 }
 
 static int Modulo(int a, int b)
@@ -780,20 +784,20 @@ static void ApplyState(SAppData* pAppData)
     const SKeyState* pKeyState = &(pAppData->_KeyState);
 
     const bool switchAppInput =
-        pAppData->_KeyState._TabNewInput &&
-        pAppData->_KeyState._AltDown;
+        pAppData->_KeyState._SwitchAppNewInput &&
+        pAppData->_KeyState._HoldAppDown;
     const bool switchWinInput =
-        pAppData->_KeyState._TildeNewInput &&
-        pAppData->_KeyState._AltDown;
-    const int direction = pAppData->_KeyState._ShiftDown ? -1 : 1;
+        pAppData->_KeyState._SwitchWinNewInput &&
+        pAppData->_KeyState._HoldWinDown;
+    const int direction = pAppData->_KeyState._InvertKeyDown ? -1 : 1;
 
     // Denit.
-    if (pAppData->_IsSwitchingApp && (pAppData->_KeyState._AltReleasing || switchWinInput))
+    if (pAppData->_IsSwitchingApp && (pAppData->_KeyState._AppHoldReleasing || switchWinInput))
     {
         ApplySwitchApp(pAppData);
         DeinitializeSwitchApp(pAppData);
     }
-    else if (pAppData->_IsSwitchingWin && (pAppData->_KeyState._AltReleasing || switchAppInput))
+    else if (pAppData->_IsSwitchingWin && (pAppData->_KeyState._WinHoldReleasing || switchAppInput))
     {
         DeinitializeSwitchWin(pAppData);
     }
@@ -822,22 +826,29 @@ static void ApplyState(SAppData* pAppData)
 static LRESULT KbProc(int nCode, WPARAM wParam, LPARAM lParam)
 {
     const KBDLLHOOKSTRUCT kbStrut = *(KBDLLHOOKSTRUCT*)lParam;
-    const bool isTab = kbStrut.vkCode == _KeyConfig._SwitchApp;
-    const bool isAlt = kbStrut.vkCode == _KeyConfig._Hold;
-    const bool isTilde = kbStrut.vkCode == _KeyConfig._SwitchWin;
+    const bool isAppHold = kbStrut.vkCode == _KeyConfig._AppHold;
+    const bool isAppSwitch = kbStrut.vkCode == _KeyConfig._AppSwitch;
+    const bool isWinHold = kbStrut.vkCode == _KeyConfig._WinHold;
+    const bool isWinSwitch = kbStrut.vkCode == _KeyConfig._WinSwitch;
+    const bool isInvert = kbStrut.vkCode == _KeyConfig._Invert;
+    const bool isTab = kbStrut.vkCode == VK_TAB;
     const bool isShift = kbStrut.vkCode == VK_LSHIFT;
     const bool releasing = kbStrut.flags & LLKHF_UP;
     const bool altDown = kbStrut.flags & LLKHF_ALTDOWN;
+    const bool isWinKey = kbStrut.vkCode == VK_LWIN || kbStrut.vkCode == VK_RWIN;
+    const bool useThisWinKey = isWinKey && (kbStrut.vkCode == _KeyConfig._AppHold || kbStrut.vkCode == _KeyConfig._WinHold);
     const uint32_t data =
-        (isTab & 0x1)       << 1 |
-        (isAlt & 0x1)       << 2 |
-        (isShift & 0x1)     << 3 |
-        (isTilde & 0x1)     << 4 |
-        (releasing & 0x1)   << 5;
+        (isAppHold & 0x1)   << 1 |
+        (isAppSwitch & 0x1) << 2 |
+        (isWinHold & 0x1)   << 3 |
+        (isWinSwitch & 0x1) << 4 |
+        (isInvert & 0x1)    << 5 |
+        (releasing & 0x1)   << 6;
     SendMessage(_MainWin, WM_APP, (*(WPARAM*)(&data)), 0);
     const bool bypassMsg =
-        ((isTab || isTilde) && altDown && !releasing) || // Bypass normal alt - tab
-        (_IsSwitchActive && altDown && isShift && !releasing); // Bypass keyboard language shortcut
+        (isTab  && altDown && !releasing) || // Bypass normal alt - tab
+        (_IsSwitchActive && altDown && isShift && !releasing) || // Bypass keyboard language shortcut
+        useThisWinKey; 
     if (bypassMsg)
         return 1;
     return CallNextHookEx(NULL, nCode, wParam, lParam);
@@ -866,18 +877,37 @@ static void DrawRoundedRect(GpGraphics* pGraphics, GpPen* pPen, GpBrush* pBrush,
 
 void SetKeyConfig()
 {
-    _KeyConfig._Hold = VK_LMENU;
-    _KeyConfig._SwitchApp = VK_TAB;
-    _KeyConfig._SwitchWin = VK_OEM_3;
-    const char* configFile = "MacAppSwitcher.txt";
+    _KeyConfig._AppHold = VK_LMENU;
+    _KeyConfig._AppSwitch = VK_TAB;
+    _KeyConfig._WinHold = VK_LMENU;
+    _KeyConfig._WinSwitch = VK_OEM_3;
+    _KeyConfig._Invert = VK_LSHIFT;
+    const char* configFile = "MacAppSwitcherConfig.txt";
     FILE* file = fopen(configFile ,"rb");
     if (file == NULL)
     {
         file = fopen(configFile ,"a");
         fprintf(file,
-            "hold key: left alt\n"
-            "switch app key: tab\n"
-            "switch window key: tilde\n");
+            "// MacAppSwitcher config file \n"
+            "// \n"
+            "// Key bindings possible values: \n"
+            "//     left alt\n"
+            "//     right alt\n"
+            "//     alt\n"
+            "//     tilde\n"
+            "//     left super (left windows)\n"
+            "//     right super (right windows)\n"
+            "//     left control\n"
+            "//     right control\n"
+            "//     left shift\n"
+            "//     right shift\n"
+            "//     tab\n"
+            "\n"
+            "app hold key: left alt\n"
+            "app switch key: tab\n"
+            "window hold key: left alt\n"
+            "window switch key: tilde\n"
+            "invert order key: left shift\n");
         fclose(file);
         return;
     }
@@ -885,24 +915,23 @@ void SetKeyConfig()
     static char lineBuf[1024];
     while (fgets(lineBuf, 1024, file))
     {
-        const char* pValue = strstr(lineBuf, "hold key: ");
-        if (pValue != NULL)
-        {
-            _KeyConfig._Hold = KeyCodeFromConfigName(pValue + sizeof("hold key: ") - 1);
+        if (!strncmp(lineBuf, "//", 2))
             continue;
-        }
-        pValue = strstr(lineBuf, "switch app key: ");
-        if (pValue != NULL)
-        {
-            _KeyConfig._SwitchApp = KeyCodeFromConfigName(pValue + sizeof("switch app key: ") - 1);
-            continue;
-        }
-        pValue = strstr(lineBuf, "switch window key: ");
-        if (pValue != NULL)
-        {
-            _KeyConfig._SwitchWin = KeyCodeFromConfigName(pValue + sizeof("switch window key: ") - 1);
-            continue;
-        }
+        const char* pValue = NULL;
+        #define TRY_GET_KEY(var, token) \
+        pValue = strstr(lineBuf, token); \
+        if (pValue != NULL) \
+        { \
+            var = KeyCodeFromConfigName(pValue + sizeof(token) - 1); \
+            continue; \
+        } \
+
+        TRY_GET_KEY(_KeyConfig._AppHold, "app hold key: ")
+        TRY_GET_KEY(_KeyConfig._AppSwitch, "app switch key: ")
+        TRY_GET_KEY(_KeyConfig._WinHold, "window hold key: ")
+        TRY_GET_KEY(_KeyConfig._WinSwitch, "window switch key: ")
+        TRY_GET_KEY(_KeyConfig._Invert, "invert order key: ")
+        #undef TRY_GET_KEY
     }
     fclose(file);
 }
@@ -920,13 +949,14 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
         pAppData->_MainWin = hwnd;
         pAppData->_Selection = 0;
         pAppData->_WinGroups._Size = 0;
-        pAppData->_KeyState._TabDown = false;
-        pAppData->_KeyState._TildeDown = false;
-        pAppData->_KeyState._AltDown = false;
-        pAppData->_KeyState._ShiftDown = false;
-        pAppData->_KeyState._TabNewInput = false;
-        pAppData->_KeyState._TildeNewInput = false;
-        pAppData->_KeyState._AltReleasing = false;
+        pAppData->_KeyState._SwitchWinDown = false;
+        pAppData->_KeyState._SwitchAppDown = false;
+        pAppData->_KeyState._HoldWinDown = false;
+        pAppData->_KeyState._InvertKeyDown = false;
+        pAppData->_KeyState._SwitchAppNewInput = false;
+        pAppData->_KeyState._SwitchWinNewInput = false;
+        pAppData->_KeyState._AppHoldReleasing = false;
+        pAppData->_KeyState._WinHoldReleasing = false;
         SetKeyConfig();
         InitGraphicsResources(&pAppData->_GraphicsResources);
         SetWindowLongPtr(hwnd, 0, (LONG_PTR)pAppData);

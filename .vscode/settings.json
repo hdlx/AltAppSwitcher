@@ -22,6 +22,8 @@
 		"stdlib.h": "c",
 		"macappswitcherhelpers.h": "c",
 		"signal.h": "c",
-		"app.h": "c"
+		"app.h": "c",
+		"stdbool.h": "c",
+		"stdint.h": "c"
 	}
 }
