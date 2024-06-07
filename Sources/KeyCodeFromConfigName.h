@@ -1,2 +1,1 @@
-#include <minwindef.h>
-DWORD KeyCodeFromConfigName(const char* p);
+unsigned long KeyCodeFromConfigName(const char* p);
