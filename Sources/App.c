@@ -889,8 +889,7 @@ void SetKeyConfig()
         file = fopen(configFile ,"a");
         fprintf(file,
             "// MacAppSwitcher config file \n"
-            "// \n"
-            "// Key bindings possible values: \n"
+            "// Possible key bindings values: \n"
             "//     left alt\n"
             "//     right alt\n"
             "//     alt\n"
