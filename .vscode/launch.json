@@ -9,6 +9,17 @@
 			"valuesFormatting": "parseText",
 		},
 		{
+			"name": "CPP GDB debug MacAppSwitcher",
+			"type": "cppdbg",
+			"request": "launch",
+			"program": "${workspaceFolder}/Output/Debug/MacAppSwitcher.exe",
+			"MIMode": "gdb",
+			"args": [],
+			"stopAtEntry": false,
+			"cwd": "${workspaceFolder}/Output/Debug/",
+			"environment": []
+		},
+		{
 			"name": "Attach",
 			"type": "cppdbg",
 			"request": "attach",

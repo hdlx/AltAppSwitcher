@@ -768,9 +768,6 @@ static void UpdateKeyState(SKeyState* pKeyState, uint32_t data)
     pKeyState->_SwitchAppNewInput = !prevSwitchAppDown && pKeyState->_SwitchAppDown;
     pKeyState->_WinHoldReleasing = prevHoldWinDown && !pKeyState->_HoldWinDown;
     pKeyState->_AppHoldReleasing = prevHoldAppDown && !pKeyState->_HoldAppDown;
-
-    if (pKeyState->_AppHoldReleasing)
-        printf("d");
 }
 
 static int Modulo(int a, int b)
@@ -951,6 +948,7 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
         pAppData->_KeyState._SwitchWinDown = false;
         pAppData->_KeyState._SwitchAppDown = false;
         pAppData->_KeyState._HoldWinDown = false;
+        pAppData->_KeyState._HoldAppDown = false;
         pAppData->_KeyState._InvertKeyDown = false;
         pAppData->_KeyState._SwitchAppNewInput = false;
         pAppData->_KeyState._SwitchWinNewInput = false;
