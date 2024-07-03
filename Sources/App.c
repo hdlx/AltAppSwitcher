@@ -873,16 +873,17 @@ static LRESULT KbProc(int nCode, WPARAM wParam, LPARAM lParam)
     if (bypassMsg)
     {
         // https://stackoverflow.com/questions/2914989/how-can-i-deal-with-depressed-windows-logo-key-when-using-sendinput
+        if (releasing && (isWinHold || isAppHold))
         {
             INPUT inputs[3] = {};
             ZeroMemory(inputs, sizeof(inputs));
             inputs[0].type = INPUT_KEYBOARD;
-            inputs[0].ki.wVk = VK_LCONTROL;
+            inputs[0].ki.wVk = VK_RCONTROL;
             inputs[1].type = INPUT_KEYBOARD;
             inputs[1].ki.wVk = kbStrut.vkCode;
-            inputs[1].ki.dwFlags = releasing ? KEYEVENTF_KEYUP : 0x00000000;
+            inputs[1].ki.dwFlags = KEYEVENTF_KEYUP;
             inputs[2].type = INPUT_KEYBOARD;
-            inputs[2].ki.wVk = VK_LCONTROL;
+            inputs[2].ki.wVk = VK_RCONTROL;
             inputs[2].ki.dwFlags = KEYEVENTF_KEYUP;
             UINT uSent = SendInput(ARRAYSIZE(inputs), inputs, sizeof(INPUT));
         }
@@ -979,56 +980,6 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
     {
     case WM_NCCREATE: 
     {
-        //AttachThreadInput
-        DWORD PID;
-        const DWORD TID = GetWindowThreadProcessId(hwnd, &PID);
-
-        PROCESSENTRY32 entry;
-        entry.dwSize = sizeof(PROCESSENTRY32);
-
-        HANDLE snapshot = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
-
-        if (Process32First(snapshot, &entry) == TRUE)
-        {
-            while (Process32Next(snapshot, &entry) == TRUE)
-            {
-                if (stricmp(entry.szExeFile, "explorer.exe") == 0)
-                {  
-                    HANDLE hProcess = OpenProcess(PROCESS_ALL_ACCESS, FALSE, entry.th32ProcessID);
-
-                    {
-                        HANDLE h = CreateToolhelp32Snapshot(TH32CS_SNAPTHREAD, 0);
-                        if (h != INVALID_HANDLE_VALUE)
-                        {
-                            THREADENTRY32 te;
-                            te.dwSize = sizeof(te);
-                            if (Thread32First(h, &te))
-                            {
-                                do
-                                {
-                                    if (te.dwSize >= FIELD_OFFSET(THREADENTRY32, th32OwnerProcessID) + sizeof(te.th32OwnerProcessID))
-                                    {
-                                        if (te.th32OwnerProcessID == entry.th32ProcessID)
-                                        {
-                                            printf("Process 0x%04x Thread 0x%04x\n",
-                                                te.th32OwnerProcessID, te.th32ThreadID);
-                                            if (!AttachThreadInput(TID, te.th32ThreadID, true))
-                                                PrintLastError();
-                                        }
-                                    }
-                                    te.dwSize = sizeof(te);
-                                } while (Thread32Next(h, &te));
-                            }
-                            CloseHandle(h);
-                        }
-                    }
-
-                    CloseHandle(hProcess);
-                }
-            }
-        }
-        CloseHandle(snapshot);
-
         _AppData._IsSwitchingApp = false;
         _AppData._IsSwitchingWin = false;
         _AppData._MainWin = hwnd;
