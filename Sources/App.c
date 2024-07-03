@@ -88,6 +88,7 @@ static void DeInitGraphicsResources(SGraphicsResources* pRes)
     VERIFY(Ok == GdipDeleteBrush(pRes->_pBrushText));
     VERIFY(Ok == GdipDeleteBrush(pRes->_pBrushBg));
     VERIFY(Ok == GdipDeleteStringFormat(pRes->_pFormat));
+    VERIFY(Ok == GdipDeleteFont(pRes->_pFont));
 }
 
 typedef struct KeyConfig
@@ -672,11 +673,14 @@ static void DeinitializeSwitchWin(SAppData* pAppData)
 
 int StartMacAppSwitcher(HINSTANCE hInstance)
 {
-    GdiplusStartupInput gdiplusStartupInput = {};
-    gdiplusStartupInput.GdiplusVersion = 1;
     ULONG_PTR gdiplusToken = 0;
-    uint32_t status = GdiplusStartup(&gdiplusToken, &gdiplusStartupInput, NULL);
-    VERIFY(!status);
+    {
+        GdiplusStartupInput gdiplusStartupInput = {};
+        gdiplusStartupInput.GdiplusVersion = 1;
+        uint32_t status = GdiplusStartup(&gdiplusToken, &gdiplusStartupInput, NULL);
+        VERIFY(!status);
+    }
+
     // Register the window class.
     const char CLASS_NAME[]  = "MacStyleSwitch";
     WNDCLASS wc = { };
@@ -687,6 +691,7 @@ int StartMacAppSwitcher(HINSTANCE hInstance)
     wc.style = CS_HREDRAW | CS_VREDRAW | CS_DROPSHADOW;
     wc.hbrBackground = GetSysColorBrush(COLOR_WINDOW);
     RegisterClass(&wc);
+
     // Create the window.
     const int yPos = GetSystemMetrics(SM_CYSCREEN) / 2;
     const int xPos = GetSystemMetrics(SM_CXSCREEN) / 2;
@@ -699,7 +704,7 @@ int StartMacAppSwitcher(HINSTANCE hInstance)
         0, 0, 0, 0,
         NULL, // Parent window
         NULL, // Menu
-        hInstance,// Instance handle    
+        hInstance, // Instance handle
         NULL // Additional application data
     );
     VERIFY(hwnd);
@@ -977,7 +982,7 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 {
     switch (uMsg)
     {
-    case WM_NCCREATE: 
+    case WM_NCCREATE:
     {
         _AppData._IsSwitchingApp = false;
         _AppData._IsSwitchingWin = false;
@@ -998,7 +1003,7 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
         VERIFY(SetWindowsHookEx(WH_KEYBOARD_LL, KbProc, 0, 0));
         return TRUE;
     }
-   case WM_DESTROY:
+    case WM_NCDESTROY:
         DeInitGraphicsResources(&_AppData._GraphicsResources);
         if (_AppData._GraphicsResources._DCBuffer)
             DeleteDC(_AppData._GraphicsResources._DCBuffer);
@@ -1085,21 +1090,6 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
     }
     case WM_ERASEBKGND:
         return (LRESULT)1;
-    case WM_APP:
-    {
-        // UpdateKeyState(&_AppData._KeyState, *((uint32_t*)&wParam));
-        //ApplyState(&_AppData);
-        return 0;
-    }
-    case WM_KEYDOWN:
-    {
-        return 0;
-    }
-    /*
-    case WM_ERASEBKGND:
-    {
-        return 0;
-    }*/
     }
     return DefWindowProc(hwnd, uMsg, wParam, lParam);
 } 

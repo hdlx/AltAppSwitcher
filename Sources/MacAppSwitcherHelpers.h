@@ -1,7 +1,7 @@
 #include <stdio.h>
 #include <windows.h>
 #include <psapi.h>
-#define VERIFY(arg) if (!(arg)) MSSError(#arg)
+#define VERIFY(arg) if (!(arg)) { MSSError(#arg); }
 
 static void PrintLastError()
 {
