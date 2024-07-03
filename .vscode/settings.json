@@ -24,6 +24,7 @@
 		"signal.h": "c",
 		"app.h": "c",
 		"stdbool.h": "c",
-		"stdint.h": "c"
+		"stdint.h": "c",
+		"system_error": "c"
 	}
 }
