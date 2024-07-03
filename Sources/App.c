@@ -861,7 +861,7 @@ static LRESULT KbProc(int nCode, WPARAM wParam, LPARAM lParam)
     const bool bypassMsg =
         // (isTab && altDown && !releasing) || // Bypass normal alt - tab
         // (_IsSwitchActive && altDown && isShift && !releasing) || // Bypass keyboard language shortcut
-        (_IsSwitchActive || _IsDeinitializing) && (isWinSwitch || isAppSwitch || isWinHold || isAppHold);
+        (_IsSwitchActive || _IsDeinitializing) && (isWinSwitch || isAppSwitch || isWinHold || isAppHold || isInvert);
 
     SendMessage(_AppData._MainWin, WM_APP, (*(WPARAM*)(&data)), 0);
     const bool stuff = 
@@ -873,7 +873,7 @@ static LRESULT KbProc(int nCode, WPARAM wParam, LPARAM lParam)
     if (bypassMsg)
     {
         // https://stackoverflow.com/questions/2914989/how-can-i-deal-with-depressed-windows-logo-key-when-using-sendinput
-        if (releasing && (isWinHold || isAppHold))
+        if (releasing && (isWinHold || isAppHold || isInvert))
         {
             INPUT inputs[3] = {};
             ZeroMemory(inputs, sizeof(inputs));
@@ -887,7 +887,6 @@ static LRESULT KbProc(int nCode, WPARAM wParam, LPARAM lParam)
             inputs[2].ki.dwFlags = KEYEVENTF_KEYUP;
             UINT uSent = SendInput(ARRAYSIZE(inputs), inputs, sizeof(INPUT));
         }
-       // CallNextHookEx(NULL, nCode, wParam, lParam);
         return 1;
     }
     return CallNextHookEx(NULL, nCode, wParam, lParam);
@@ -1103,4 +1102,4 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
     }*/
     }
     return DefWindowProc(hwnd, uMsg, wParam, lParam);
-}
+} 
