@@ -65,5 +65,6 @@ static void MyPrintWindow(HWND win)
     VERIFY(process);
     static char pathStr[512];
     GetModuleFileNameEx(process, NULL, pathStr, 512);
+    CloseHandle(process);
     printf("    Filename: %s \n", pathStr);
 }

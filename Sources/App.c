@@ -62,6 +62,7 @@ static void InitGraphicsResources(SGraphicsResources* pRes)
 {
     pRes->_DCDirty = true;
     pRes->_DCBuffer = NULL;
+    pRes->_Bitmap = NULL;
     // Text
     {
         GpStringFormat* pGenericFormat;
@@ -1021,7 +1022,10 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
         if (pGraphRes->_DCDirty)
         {
             if (pGraphRes->_DCBuffer)
+            {
                 DeleteDC(pGraphRes->_DCBuffer);
+                DeleteObject(pGraphRes->_Bitmap);
+            }
             pGraphRes->_DCBuffer = CreateCompatibleDC(ps.hdc);
             pGraphRes->_Bitmap = CreateCompatibleBitmap(
                 ps.hdc,
@@ -1063,6 +1067,7 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
                 GpImage* img = NULL;
                 GdipLoadImageFromFile(pWinGroup->_UWPIconPath, &img);
                 GdipDrawImageRectI(pGraphics, img, x, padding, iconSize, iconSize);
+                GdipDisposeImage(img);
             }
             else if (pWinGroup->_Icon)
             {
@@ -1082,7 +1087,6 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
             }
             x += iconContainerSize;
         }
-       // HDC hdc = BeginPaint(hwnd, &ps);
         BitBlt(ps.hdc, clientRect.left, clientRect.top, clientRect.right - clientRect.left, clientRect.bottom - clientRect.top, pGraphRes->_DCBuffer, 0, 0, SRCCOPY);
         GdipDeleteGraphics(pGraphics);
         EndPaint(hwnd, &ps);
