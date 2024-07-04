@@ -84,12 +84,15 @@ static void InitGraphicsResources(SGraphicsResources* pRes)
 
 static void DeInitGraphicsResources(SGraphicsResources* pRes)
 {
-    pRes->_DCDirty = true;
-    pRes->_DCBuffer = NULL;
+    VERIFY(Ok == DeleteDC(pRes->_DCBuffer));
+    VERIFY(Ok == DeleteObject(pRes->_Bitmap));
     VERIFY(Ok == GdipDeleteBrush(pRes->_pBrushText));
     VERIFY(Ok == GdipDeleteBrush(pRes->_pBrushBg));
     VERIFY(Ok == GdipDeleteStringFormat(pRes->_pFormat));
     VERIFY(Ok == GdipDeleteFont(pRes->_pFont));
+    pRes->_DCDirty = true;
+    pRes->_DCBuffer = NULL;
+    pRes->_Bitmap = NULL;
 }
 
 typedef struct KeyConfig
