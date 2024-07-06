@@ -1,0 +1,2 @@
+import compileCommon
+compileCommon.CompileDbg()

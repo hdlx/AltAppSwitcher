@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <windows.h>
 #include <psapi.h>
+#include <stdint.h>
 #define VERIFY(arg) if (!(arg)) { MSSError(#arg); }
 
 static void PrintLastError()
@@ -15,12 +16,12 @@ static void PrintLastError()
     LocalFree(msg);
 }
 
-void GetCurrentProcessName(char* processName, uint32_t strMaxSize)
+static void GetCurrentProcessName(char* processName, uint32_t strMaxSize)
 {
-    HMODULE module;
+    HMODULE module[1] = {};
     DWORD sizeNeeded;
-    if (EnumProcessModules(GetCurrentProcess(), &module, sizeof(module), &sizeNeeded))
-        GetModuleBaseName(GetCurrentProcess(), module, processName, strMaxSize);
+    if (EnumProcessModules(GetCurrentProcess(), module, sizeof(module), &sizeNeeded))
+        GetModuleBaseName(GetCurrentProcess(), module[0], processName, strMaxSize);
 }
 
 static void Lowercase(char* str)
@@ -60,7 +61,7 @@ static void MyPrintWindow(HWND win)
     printf("   TEXT: %s \n", buf);
     DWORD dwPID = 0x0000000000000000;
     VERIFY(GetWindowThreadProcessId(win, &dwPID));
-    printf("    PID: %i \n", dwPID);
+    printf("    PID: %i \n", (int)dwPID);
     HANDLE process = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION | PROCESS_VM_READ, FALSE, dwPID);
     VERIFY(process);
     static char pathStr[512];

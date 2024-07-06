@@ -1,45 +1,13 @@
 {
 	"configurations": [
 		{
-			"name": "GDB debug MacAppSwitcher",
-			"type": "gdb",
+			"type": "lldb-mi",
 			"request": "launch",
+			"name": "LLDB launch dbg",
 			"target": "${workspaceFolder}/Output/Debug/MacAppSwitcher.exe",
 			"cwd": "${workspaceFolder}/Output/Debug/",
 			"valuesFormatting": "parseText",
-		},
-		{
-			"name": "CPP GDB debug MacAppSwitcher",
-			"type": "cppdbg",
-			"request": "launch",
-			"program": "${workspaceFolder}/Output/Debug/MacAppSwitcher.exe",
-			"MIMode": "gdb",
-			"args": [],
-			"stopAtEntry": false,
-			"cwd": "${workspaceFolder}/Output/Debug/",
-			"environment": []
-		},
-		{
-			"name": "Attach",
-			"type": "cppdbg",
-			"request": "attach",
-			"program": "${workspaceFolder}/Output/Debug/MacAppSwitcher.exe",
-			"MIMode": "gdb",
-			"processId": "${command:pickProcess}",
-			"setupCommands": [
-				{
-					"text": "set print array off",
-					"ignoreFailures": false
-				},
-				{
-					"text": "disable pretty-printer",
-					"ignoreFailures": false
-				},
-				{
-					"text": "-gdb-set disassembly-flavor intel",
-					"ignoreFailures": false
-				}
-			]
+			"preLaunchTask": "Build debug"
 		}
 	]
 }

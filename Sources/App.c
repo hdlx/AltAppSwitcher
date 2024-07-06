@@ -5,8 +5,6 @@
 #include <psapi.h>
 #include <dwmapi.h>
 #include <winuser.h>
-#include <signal.h>
-#include <ctype.h>
 #include <processthreadsapi.h>
 #include <gdiplus.h>
 #include <appmodel.h>
@@ -73,7 +71,7 @@ static void InitGraphicsResources(SGraphicsResources* pRes)
         VERIFY(Ok == GdipSetStringFormatLineAlign(pRes->_pFormat, StringAlignmentCenter));
         VERIFY(Ok == GdipGetGenericFontFamilySansSerif(&pFontFamily));
         pRes->_FontSize = 10;
-        VERIFY(Ok == GdipCreateFont(pFontFamily, pRes->_FontSize, FontStyleBold, MetafileFrameUnitPixel, &pRes->_pFont));
+        VERIFY(Ok == GdipCreateFont(pFontFamily, pRes->_FontSize, FontStyleBold, (int)MetafileFrameUnitPixel, &pRes->_pFont));
     }
     // Brushes
     {
@@ -154,6 +152,7 @@ static BOOL GetProcessFileName(DWORD PID, char* outFileName)
     const HANDLE process = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, FALSE, PID);
     GetModuleFileNameEx(process, NULL, outFileName, 512);
     CloseHandle(process);
+    return true;
 }
 
 static BOOL CALLBACK FindIMEWin(HWND hwnd, LPARAM lParam)
@@ -163,6 +162,7 @@ static BOOL CALLBACK FindIMEWin(HWND hwnd, LPARAM lParam)
     if (strcmp("IME", className))
         return TRUE;
     (*(HWND*)lParam) = hwnd;
+    return TRUE;
 }
 
 typedef struct SFindPIDEnumFnParams
@@ -204,6 +204,8 @@ static BOOL FindPIDEnumFn(HWND hwnd, LPARAM lParam)
         return TRUE;
 
     pParams->OutPID = PID;
+
+    return TRUE;
 }
 
 typedef struct SFindUWPChildParams
@@ -1080,7 +1082,12 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
                 const uint32_t digitsCount = winCount > 99 ? 3 : winCount > 9 ? 2 : 1;
                 const uint32_t width = digitsCount * (uint32_t)(0.7 * (float)pGraphRes->_FontSize) + 5;
                 const uint32_t height = (pGraphRes->_FontSize + 4);
-                RectF rectf = { x + iconSize + padding/2 - width - 3, padding + iconSize + padding/2 - height - 3, width, height };
+                uint32_t rect[4] = {
+                    x + iconSize + padding / 2 - width - 3, 
+                    padding + iconSize + padding / 2 - height - 3,
+                    width,
+                    height };
+                RectF rectf = { (float)rect[0], (float)rect[1], (float)rect[2], (float)rect[3] };
                 swprintf(count, 4, L"%i", winCount);
                 DrawRoundedRect(pGraphics, NULL, pGraphRes->_pBrushBg, rectf.X, rectf.Y, rectf.X + rectf.Width, rectf.Y + rectf.Height, 5);
                 VERIFY(!GdipDrawString(pGraphics, count, digitsCount, pGraphRes->_pFont, &rectf, pGraphRes->_pFormat, pGraphRes->_pBrushText));
@@ -1093,7 +1100,7 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
         return 0;
     }
     case WM_ERASEBKGND:
-        return 0;
+        return (LRESULT)0;
     }
     return DefWindowProc(hwnd, uMsg, wParam, lParam);
 } 
