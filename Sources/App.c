@@ -111,11 +111,8 @@ typedef struct SAppData
     bool _IsSwitchingApp;
     bool _IsSwitchingWin;
     int _Selection;
-    HINSTANCE _MsgHookDll;
-    HOOKPROC _MsgHookProc;
     SWinGroupArr _WinGroups;
     SWinGroup _CurrentWinGroup;
-    HHOOK _MsgHook;
     SKeyState _KeyState;
     SGraphicsResources _GraphicsResources;
 } SAppData;
@@ -1096,7 +1093,7 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
         return 0;
     }
     case WM_ERASEBKGND:
-        return NULL;
+        return 0;
     }
     return DefWindowProc(hwnd, uMsg, wParam, lParam);
 } 
