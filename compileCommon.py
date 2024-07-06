@@ -20,9 +20,9 @@ def LinkArgs():
     return "-l dwmapi -l User32 -l Gdi32 -l Gdiplus -l shlwapi"
 
 def CompileDbg():
-    cmd = "clang {0} -o Output/Debug/MacAppSwitcher.exe -Werror -g -glldb -I ./Sources {1} -target x86_64-mingw64".format(CFiles(), LinkArgs())
+    cmd = "clang {0}  -I ./Sources {1} -o Output/Debug/MacAppSwitcher.exe -Werror -g -glldb -target x86_64-mingw64".format(CFiles(), LinkArgs())
     os.system(cmd)
 
 def CompileRel():
-    cmd = "clang {0} -o Output/Release/MacAppSwitcher.exe -mwindows -s -I ./Sources {1} -target x86_64-mingw64".format(CFiles(), LinkArgs())
+    cmd = "clang {0} -I ./Sources {1} -o Output/Release/MacAppSwitcher.exe -mwindows -s -Os -Oz -target x86_64-mingw64".format(CFiles(), LinkArgs())
     os.system(cmd)
