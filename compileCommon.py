@@ -7,22 +7,25 @@ def CFiles():
         for file in files:
             if file.endswith(".c"):
                 cFiles += (root + "/" + file + " ")
-
-    if not os.path.exists("./Output"):
-        os.makedirs("./Output")
-    if not os.path.exists("./Output/Release"):
-        os.makedirs("./Output/Release")
-    if not os.path.exists("./Output/Debug"):
-        os.makedirs("./Output/Debug")
     return cFiles
 
 def LinkArgs():
     return "-l dwmapi -l User32 -l Gdi32 -l Gdiplus -l shlwapi"
 
 def CompileDbg():
-    cmd = "clang {0}  -I ./Sources {1} -o Output/Debug/MacAppSwitcher.exe -Werror -g -glldb -target x86_64-mingw64".format(CFiles(), LinkArgs())
+    dir = "./Output/Debug"
+    if not os.path.exists(dir):
+        os.makedirs(dir)
+    file = f"{dir}/MacAppSwitcher.exe"
+    cmd = f"clang {CFiles()} -I ./Sources {LinkArgs()} -o {file} -Werror -g -glldb -target x86_64-mingw64"
     os.system(cmd)
+    return file
 
-def CompileRel():
-    cmd = "clang {0} -I ./Sources {1} -o Output/Release/MacAppSwitcher.exe -mwindows -s -Os -Oz -target x86_64-mingw64".format(CFiles(), LinkArgs())
+def CompileRel(arch = "x86_64"):
+    dir = f"./Output/Release/{arch}"
+    if not os.path.exists(dir):
+        os.makedirs(dir)
+    file = f"{dir}/MacAppSwitcher.exe"
+    cmd = f"clang {CFiles()} -I ./Sources {LinkArgs()} -o {file} -mwindows -s -Os -Oz -target {arch}-mingw64"
     os.system(cmd)
+    return file
