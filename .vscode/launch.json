@@ -8,6 +8,15 @@
 			"cwd": "${workspaceFolder}/Output/Debug/",
 			"valuesFormatting": "parseText",
 			"preLaunchTask": "Build debug"
+		},
+		{
+			"type": "lldb-mi",
+			"request": "attach",
+			"executable": "${workspaceFolder}/Output/Debug/MacAppSwitcher.exe",
+			"name": "Attach dbg",
+			"target": "[PID]",
+			"cwd": "${workspaceRoot}",
+			"valuesFormatting": "parseText"
 		}
 	]
-}
+}	
