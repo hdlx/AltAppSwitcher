@@ -32,8 +32,8 @@ static void Lowercase(char* str)
 
 static void FilePrintLastError()
 {
-    FILE* file = fopen("./MacAppSwitcherLog.txt", "wb");
     DWORD err = GetLastError();
+    FILE* file = fopen("./MacAppSwitcherLog.txt", "wb");
     if (err == 0 || file == NULL)
         return;
     LPSTR msg = NULL;

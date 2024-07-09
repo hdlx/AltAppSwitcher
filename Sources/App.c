@@ -613,6 +613,8 @@ static void ApplySwitchApp(const SAppData* pAppData)
         for (int i = group->_WindowCount - 1; i >= 0 ; i--)
         {
             const HWND win = group->_Windows[i];
+            if (!IsWindow(win))
+                continue;
             WINDOWPLACEMENT placement;
             GetWindowPlacement(win, &placement);
             placement.length = sizeof(WINDOWPLACEMENT);
@@ -628,6 +630,8 @@ static void ApplySwitchApp(const SAppData* pAppData)
         for (int i = group->_WindowCount - 1; i >= 0 ; i--)
         {
             const HWND win = group->_Windows[i];
+            if (!IsWindow(win))
+                continue;
             winPosHandle = DeferWindowPos(winPosHandle, win, HWND_TOPMOST, 0, 0, 0, 0, winFlags);
         }
         EndDeferWindowPos(winPosHandle);
@@ -637,11 +641,15 @@ static void ApplySwitchApp(const SAppData* pAppData)
         for (int i = group->_WindowCount - 1; i >= 0 ; i--)
         {
             const HWND win = group->_Windows[i];
+            if (!IsWindow(win))
+                continue;
             winPosHandle = DeferWindowPos(winPosHandle, win, HWND_NOTOPMOST, 0, 0, 0, 0, winFlags);
         }
         EndDeferWindowPos(winPosHandle);
     }
     // Setting focus to the first window of the group
+    if (!IsWindow(group->_Windows[0]))
+        return;
     VERIFY(ForceSetForeground(group->_Windows[0]));
 }
 
