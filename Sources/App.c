@@ -541,7 +541,7 @@ static void FitWindow(HWND hwnd, uint32_t iconCount)
     POINT p;
     p.x = centerX-halfSizeX;
     p.y = centerY-halfSizeY;
-    SetWindowPos(hwnd, 0, p.x, p.y, sizeX, sizeY, SWP_SHOWWINDOW | SWP_NOOWNERZORDER);
+    SetWindowPos(hwnd, 0, p.x, p.y, sizeX, sizeY, SWP_NOOWNERZORDER);
 }
 
 static void InitializeSwitchApp(SAppData* pAppData)
@@ -554,8 +554,8 @@ static void InitializeSwitchApp(SAppData* pAppData)
     pWinGroups->_Size = 0;
     EnumDesktopWindows(NULL, FillWinGroups, (LPARAM)pWinGroups);
     FitWindow(_AppData._MainWin, pWinGroups->_Size);
-    _AppData._GraphicsResources._DCDirty = true;
     DisplayWindow(_AppData._MainWin);
+    _AppData._GraphicsResources._DCDirty = true;
     _AppData._Selection = 0;
     _AppData._IsSwitchingApp = true;
 }
