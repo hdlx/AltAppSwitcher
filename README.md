@@ -5,7 +5,7 @@ This program brings MacOS-like application switching to Windows. Use `alt + tab`
 ![](./Assets/ScreenshotWin10.png)
 
 ## Using MacAppSwitcher:
-Get the executable from the release page https://github.com/hdlx/MacAppSwitcher/releases/. x86_64 and ARM64 (AArch64) architectures are available. Please note that I was not able to test the ARM64 one myself.
+Get the executable from the release page https://github.com/hdlx/MacAppSwitcher/releases/. **x86_64** and **ARM64** (AArch64) architectures are available. Please note that I was not able to test the ARM64 one myself.
 
 **Run it as an administator.**
 
