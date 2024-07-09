@@ -30,15 +30,15 @@ static void Lowercase(char* str)
         str[i] = tolower(str[i]);
 }
 
-static void FPrintLastError()
+static void FilePrintLastError()
 {
-    FILE* file = fopen("D:\\toto.txt", "a+");
+    FILE* file = fopen("./MacAppSwitcherLog.txt", "wb");
     DWORD err = GetLastError();
-    if (err == 0)
+    if (err == 0 || file == NULL)
         return;
     LPSTR msg = NULL;
     FormatMessage(FORMAT_MESSAGE_ALLOCATE_BUFFER | FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS,
-                                 NULL, err, MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT), (LPSTR)&msg, 0, NULL);
+        NULL, err, MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT), (LPSTR)&msg, 0, NULL);
     fprintf(file, "%s", msg);
     LocalFree(msg);
     fclose(file);
@@ -47,7 +47,7 @@ static void FPrintLastError()
 static void MSSError(const char* msg)
 {
     printf("Call failed: %s\n", msg);
-    PrintLastError();
+    FilePrintLastError();
     DebugBreak();
 }
 
