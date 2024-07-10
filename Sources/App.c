@@ -498,6 +498,8 @@ static BOOL FillWinGroups(HWND hwnd, LPARAM lParam)
                 else
                     group->_Icon = ExtractIcon(process, pathStr, 0);
             }
+            // also try :
+            // https://stackoverflow.com/questions/55767277/how-do-i-set-a-taskbar-icon-for-win32-application
 
             if (!group->_Icon &&  group->_UWPIconPath[0] == L'\0')
             {
