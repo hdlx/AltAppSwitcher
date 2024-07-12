@@ -32,18 +32,14 @@ typedef struct SWinGroupArr
     uint32_t _Size;
 } SWinGroupArr;
 
-typedef struct SKeyState
+typedef struct KeyState
 {
     bool _SwitchWinDown;
     bool _InvertKeyDown;
     bool _HoldWinDown;
     bool _HoldAppDown;
     bool _SwitchAppDown;
-    bool _SwitchWinNewInput;
-    bool _SwitchAppNewInput;
-    bool _AppHoldReleasing;
-    bool _WinHoldReleasing;
-} SKeyState;
+} KeyState;
 
 typedef struct SGraphicsResources
 {
@@ -56,6 +52,57 @@ typedef struct SGraphicsResources
     GpFont* _pFont;
     GpStringFormat* _pFormat;
 } SGraphicsResources;
+
+typedef struct KeyConfig
+{
+    DWORD _AppHold;
+    DWORD _AppSwitch;
+    DWORD _WinHold;
+    DWORD _WinSwitch;
+    DWORD _Invert;
+} KeyConfig;
+
+typedef struct AppState
+{
+    bool _IsSwitchingApp;
+    bool _IsSwitchingWin;
+    int _Selection;
+    SWinGroupArr _WinGroups;
+    SWinGroup _CurrentWinGroup;
+    pthread_mutex_t _MutexIsWriting;
+    bool _IsWriting;
+} AppState;
+
+typedef enum Action
+{
+    ActionNone,
+    ActionApplySwitchApp,
+    ActionDeinitSwitchWin,
+    ActionNextWin,
+    ActionPrevWin,
+    ActionNextApp,
+    ActionPrevApp
+} Action;
+
+typedef struct SAppData
+{
+    HWND _MainWin;
+    KeyState _KeyState;
+    Action _Action;
+    AppState _AppState;
+    SGraphicsResources _GraphicsResources;
+    bool _ActionInProgress;
+    pthread_mutex_t _MutexActionInProgress;
+} SAppData;
+
+typedef struct SFoundWin
+{
+    HWND _Data[64];
+    uint32_t _Size;
+} SFoundWin;
+
+static SAppData _AppData;
+static KeyConfig _KeyConfig;
 
 static void InitGraphicsResources(SGraphicsResources* pRes)
 {
@@ -93,39 +140,6 @@ static void DeInitGraphicsResources(SGraphicsResources* pRes)
     pRes->_DCBuffer = NULL;
     pRes->_Bitmap = NULL;
 }
-
-typedef struct KeyConfig
-{
-    DWORD _AppHold;
-    DWORD _AppSwitch;
-    DWORD _WinHold;
-    DWORD _WinSwitch;
-    DWORD _Invert;
-} KeyConfig;
-
-typedef struct SAppData
-{
-    HWND _MainWin;
-    bool _IsSwitchingApp;
-    bool _IsSwitchingWin;
-    int _Selection;
-    SWinGroupArr _WinGroups;
-    SWinGroup _CurrentWinGroup;
-    SKeyState _KeyState;
-    SGraphicsResources _GraphicsResources;
-    pthread_mutex_t _Mutex;
-} SAppData;
-
-typedef struct SFoundWin
-{
-    HWND _Data[64];
-    uint32_t _Size;
-} SFoundWin;
-
-static SAppData _AppData;
-static bool _IsSwitchActive = false;
-static bool _IsDeinitializing = false;
-static KeyConfig _KeyConfig;
 
 static void DisplayWindow(HWND win)
 {
@@ -542,7 +556,7 @@ static void FitWindow(HWND hwnd, uint32_t iconCount)
 
 static void InitializeSwitchApp()
 {
-    SWinGroupArr* pWinGroups = &(_AppData._WinGroups);
+    SWinGroupArr* pWinGroups = &(_AppData._AppState._WinGroups);
     for (uint32_t i = 0; i < 64; i++)
     {
         pWinGroups->_Data[i]._WindowCount = 0;
@@ -552,9 +566,6 @@ static void InitializeSwitchApp()
     FitWindow(_AppData._MainWin, pWinGroups->_Size);
     DisplayWindow(_AppData._MainWin);
     _AppData._GraphicsResources._DCDirty = true;
-    _AppData._Selection = 0;
-    _AppData._IsSwitchingApp = true;
-    _AppData._Mutex = PTHREAD_MUTEX_INITIALIZER;
 }
 
 static DWORD GetParentPID(DWORD PID)
@@ -594,17 +605,17 @@ static void InitializeSwitchWin()
     BOOL isUWP = false;
     //GetWindowThreadProcessId(win, &PID);
     FindActualPID(win, &PID, &isUWP);
-    SWinGroup* pWinGroup = &(_AppData._CurrentWinGroup);
+    SWinGroup* pWinGroup = &(_AppData._AppState._CurrentWinGroup);
     GetProcessFileName(PID, pWinGroup->_ModuleFileName);
     pWinGroup->_WindowCount = 0;
     EnumDesktopWindows(NULL, FillCurrentWinGroup, (LPARAM)pWinGroup);
-    _AppData._Selection = 0;
-    _AppData._IsSwitchingWin = true;
+    _AppData._AppState._Selection = 0;
+    _AppData._AppState._IsSwitchingWin = true;
 }
 
 static void ApplySwitchApp()
 {
-    const SWinGroup* group = &_AppData._WinGroups._Data[_AppData._Selection];
+    const SWinGroup* group = &_AppData._AppState._WinGroups._Data[_AppData._AppState._Selection];
     // It would be nice to ha a "deferred show window"
     {
         for (int i = group->_WindowCount - 1; i >= 0 ; i--)
@@ -652,7 +663,7 @@ static void ApplySwitchApp()
 
 static void ApplySwitchWin()
 {
-    const HWND win = _AppData._CurrentWinGroup._Windows[_AppData._Selection];
+    const HWND win = _AppData._AppState._CurrentWinGroup._Windows[_AppData._AppState._Selection];
 
     const UINT winFlags = SWP_SHOWWINDOW | SWP_NOSIZE | SWP_NOMOVE | SWP_NOREPOSITION | SWP_NOACTIVATE;
     {
@@ -671,12 +682,12 @@ static void ApplySwitchWin()
 static void DeinitializeSwitchApp()
 {
     HideWindow(_AppData._MainWin);
-    _AppData._IsSwitchingApp = false;
+    _AppData._AppState._IsSwitchingApp = false;
 }
 
 static void DeinitializeSwitchWin()
 {
-    _AppData._IsSwitchingWin = false;
+    _AppData._AppState._IsSwitchingWin = false;
 }
 
 int StartMacAppSwitcher(HINSTANCE hInstance)
@@ -748,88 +759,60 @@ int StartMacAppSwitcher(HINSTANCE hInstance)
     return 0;
 }
 
-static void UpdateKeyState(SKeyState* pKeyState, uint32_t data)
-{
-    const bool isAppHold =      ((data >> 1) & 0x1) != 0x0;
-    const bool isAppSwitch =    ((data >> 2) & 0x1) != 0x0;
-    const bool isWinHold =      ((data >> 3) & 0x1) != 0x0;
-    const bool isWinSwitch =    ((data >> 4) & 0x1) != 0x0;
-    const bool isInvert =       ((data >> 5) & 0x1) != 0x0;
-    const bool releasing =      ((data >> 6) & 0x1) != 0x0;
-    const bool prevSwitchWinDown = pKeyState->_SwitchWinDown;
-    const bool prevHoldWinDown = pKeyState->_HoldWinDown;
-    const bool prevHoldAppDown = pKeyState->_HoldAppDown;
-    const bool prevSwitchAppDown = pKeyState->_SwitchAppDown;
-    const bool value = !releasing;
-
-    {
-        if (isAppHold)
-            pKeyState->_HoldAppDown = value;
-        if (isAppSwitch)
-            pKeyState->_SwitchAppDown = value;
-        if (isWinHold)
-            pKeyState->_HoldWinDown = value;
-        if (isWinSwitch)
-            pKeyState->_SwitchWinDown = value;
-        if (isInvert)
-            pKeyState->_InvertKeyDown = value;
-    }
-
-    pKeyState->_SwitchWinNewInput = !prevSwitchWinDown && pKeyState->_SwitchWinDown;
-    pKeyState->_SwitchAppNewInput = !prevSwitchAppDown && pKeyState->_SwitchAppDown;
-    pKeyState->_WinHoldReleasing = prevHoldWinDown && !pKeyState->_HoldWinDown;
-    pKeyState->_AppHoldReleasing = prevHoldAppDown && !pKeyState->_HoldAppDown;
-}
-
 static int Modulo(int a, int b)
 {
     return (a % b + b) % b;
 }
 
-static void ApplyState()
+static void ProcessAction()
 {
-    const bool switchAppInput =
-        _AppData._KeyState._SwitchAppNewInput &&
-        _AppData._KeyState._HoldAppDown;
-    const bool switchWinInput =
-        _AppData._KeyState._SwitchWinNewInput &&
-        _AppData._KeyState._HoldWinDown;
-    const int direction = _AppData._KeyState._InvertKeyDown ? -1 : 1;
-
-    _IsDeinitializing = false;
+    pthread_mutex_lock(&_AppData._AppState._MutexIsWriting);
+    _AppData._AppState._IsWriting = true;
+    pthread_mutex_unlock(&_AppData._AppState._MutexIsWriting);
 
     // Denit.
-    if (_AppData._IsSwitchingApp && (_AppData._KeyState._AppHoldReleasing || switchWinInput))
+    if (_AppData._Action == ActionApplySwitchApp)
     {
         ApplySwitchApp();
         DeinitializeSwitchApp();
-        _IsDeinitializing = true;
     }
-    else if (_AppData._IsSwitchingWin && (_AppData._KeyState._WinHoldReleasing || switchAppInput))
+    else if (_AppData._Action == ActionDeinitSwitchWin)
     {
         DeinitializeSwitchWin();
-        _IsDeinitializing = true;
     }
-
-    // Init. / process action
-    if (switchAppInput)
+    else if (_AppData._Action == ActionNextApp ||
+        _AppData._Action == ActionPrevApp)
     {
-        if (!_AppData._IsSwitchingApp)
+        if (!_AppData._AppState._IsSwitchingApp)
+        {
             InitializeSwitchApp();
-        _AppData._Selection += direction;
-        _AppData._Selection = Modulo(_AppData._Selection, _AppData._WinGroups._Size);
+            _AppData._AppState._IsSwitchingApp = true;
+        }
+        _AppData._AppState._Selection += _AppData._Action == ActionNextApp ? 1 : -1;
+        _AppData._AppState._Selection = Modulo(_AppData._AppState._Selection, _AppData._AppState._WinGroups._Size);
         InvalidateRect(_AppData._MainWin, 0, TRUE);
     }
-    else if (switchWinInput)
+    else if (_AppData._Action == ActionNextWin ||
+        _AppData._Action == ActionPrevWin)
     {
-        if (!_AppData._IsSwitchingWin)
+        if (!_AppData._AppState._IsSwitchingWin)
+        {
             InitializeSwitchWin();
-        _AppData._Selection += direction;
-        _AppData._Selection = Modulo(_AppData._Selection, _AppData._CurrentWinGroup._WindowCount);
+            _AppData._AppState._IsSwitchingWin = true;
+        }
+        _AppData._AppState._Selection += _AppData._Action == ActionNextWin ? 1 : -1;
+        _AppData._AppState._Selection = Modulo(_AppData._AppState._Selection, _AppData._AppState._CurrentWinGroup._WindowCount);
         ApplySwitchWin();
     }
 
-    _IsSwitchActive = _AppData._IsSwitchingApp || _AppData._IsSwitchingWin;
+    pthread_mutex_lock(&_AppData._AppState._MutexIsWriting);
+    _AppData._AppState._IsWriting = false;
+    pthread_mutex_unlock(&_AppData._AppState._MutexIsWriting);
+
+    pthread_mutex_lock(&_AppData._MutexActionInProgress);
+    _AppData._ActionInProgress = false;
+    _AppData._Action = ActionNone;
+    pthread_mutex_unlock(&_AppData._MutexActionInProgress);
 }
 
 static LRESULT KbProc(int nCode, WPARAM wParam, LPARAM lParam)
@@ -850,29 +833,84 @@ static LRESULT KbProc(int nCode, WPARAM wParam, LPARAM lParam)
         isInvert ||
         isTab ||
         isShift;
+
     if (!isWatchedKey)
         return CallNextHookEx(NULL, nCode, wParam, lParam);
 
-    pthread_mutex_lock(&_AppData._Mutex);
+    {
+        pthread_mutex_lock(&_AppData._MutexActionInProgress);
+        if (_AppData._ActionInProgress)
+        {
+            pthread_mutex_unlock(&_AppData._MutexActionInProgress);
+            return CallNextHookEx(NULL, nCode, wParam, lParam);
+        }
+        _AppData._ActionInProgress = true;
+        pthread_mutex_unlock(&_AppData._MutexActionInProgress);
+    }
 
     const bool releasing = kbStrut.flags & LLKHF_UP;
-    // const bool altDown = kbStrut.flags & LLKHF_ALTDOWN;
-    // const bool isWinKey = kbStrut.vkCode == VK_LWIN || kbStrut.vkCode == VK_RWIN;
-    // const bool useThisWinKey = isWinKey && (kbStrut.vkCode == _KeyConfig._AppHold || kbStrut.vkCode == _KeyConfig._WinHold);
-    const uint32_t data =
-        (isAppHold & 0x1)   << 1 |
-        (isAppSwitch & 0x1) << 2 |
-        (isWinHold & 0x1)   << 3 |
-        (isWinSwitch & 0x1) << 4 |
-        (isInvert & 0x1)    << 5 |
-        (releasing & 0x1)   << 6;
-    UpdateKeyState(&_AppData._KeyState, data);
-    ApplyState();
+    const KeyState prevKeyState = _AppData._KeyState;
+
+    // Update keyState
+    {
+        if (isAppHold)
+            _AppData._KeyState._HoldAppDown = !releasing;
+        if (isAppSwitch)
+            _AppData._KeyState._SwitchAppDown = !releasing;
+        if (isWinHold)
+            _AppData._KeyState._HoldWinDown = !releasing;
+        if (isWinSwitch)
+            _AppData._KeyState._SwitchWinDown = !releasing;
+        if (isInvert)
+            _AppData._KeyState._InvertKeyDown = !releasing;
+    }
+
+    // Setup action
+    {
+        const bool switchWinInput = !prevKeyState._SwitchWinDown && _AppData._KeyState._SwitchWinDown;
+        const bool switchAppInput = !prevKeyState._SwitchAppDown && _AppData._KeyState._SwitchAppDown;
+        const bool winHoldReleasing = prevKeyState._HoldWinDown && !_AppData._KeyState._HoldWinDown;
+        const bool appHoldReleasing = prevKeyState._HoldAppDown && !_AppData._KeyState._HoldAppDown;
+
+        const bool switchAppAction =
+            switchAppInput &&
+            _AppData._KeyState._HoldAppDown;
+        const bool switchWinAction =
+            switchWinInput &&
+            _AppData._KeyState._HoldWinDown;
+
+        if (switchAppAction)
+            _AppData._Action = _AppData._KeyState._InvertKeyDown ? ActionPrevApp : ActionNextApp;
+        else if (switchWinAction && !_AppData._KeyState._InvertKeyDown)
+            _AppData._Action = _AppData._KeyState._InvertKeyDown ? ActionPrevWin : ActionNextWin;
+        else if (_AppData._AppState._IsSwitchingApp && (appHoldReleasing || switchWinInput))
+            _AppData._Action = ActionApplySwitchApp;
+        else if (_AppData._AppState._IsSwitchingWin && (winHoldReleasing || switchAppInput))
+            _AppData._Action = ActionDeinitSwitchWin;
+
+        if (_AppData._AppState._IsSwitchingApp &&
+            (_AppData._Action == ActionNextWin ||
+            _AppData._Action == ActionPrevWin))
+            _AppData._Action = ActionApplySwitchApp;
+    }
+
     const bool bypassMsg =
-        // (isTab && altDown && !releasing) || // Bypass normal alt - tab
-        // (_IsSwitchActive && altDown && isShift && !releasing) || // Bypass keyboard language shortcut
-        (_IsSwitchActive || _IsDeinitializing) && (isWinSwitch || isAppSwitch || isWinHold || isAppHold || isInvert);
-    pthread_mutex_unlock(&_AppData._Mutex);
+        ((_AppData._Action == ActionApplySwitchApp || _AppData._Action == ActionDeinitSwitchWin) &&
+        (isWinSwitch || isAppSwitch || isWinHold || isAppHold || isInvert)) ||
+        _AppData._Action == ActionPrevWin ||
+        _AppData._Action == ActionNextWin ||
+        _AppData._Action == ActionPrevApp ||
+        _AppData._Action == ActionNextApp;
+
+    if (_AppData._Action == ActionNone)
+    {
+        pthread_mutex_lock(&_AppData._MutexActionInProgress);
+        _AppData._ActionInProgress = false;
+        _AppData._Action = ActionNone;
+        pthread_mutex_unlock(&_AppData._MutexActionInProgress);
+    }
+    else
+        ProcessAction();
 
     if (bypassMsg)
     {
@@ -980,20 +1018,22 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
     {
     case WM_NCCREATE:
     {
-        _AppData._IsSwitchingApp = false;
-        _AppData._IsSwitchingWin = false;
+        _AppData._AppState._IsSwitchingApp = false;
+        _AppData._AppState._IsSwitchingWin = false;
         _AppData._MainWin = hwnd;
-        _AppData._Selection = 0;
-        _AppData._WinGroups._Size = 0;
+        _AppData._AppState._Selection = 0;
+        _AppData._AppState._WinGroups._Size = 0;
+        _AppData._AppState._IsWriting = PTHREAD_MUTEX_INITIALIZER;
+        
+        _AppData._AppState._MutexIsWriting = false;
+
         _AppData._KeyState._SwitchWinDown = false;
         _AppData._KeyState._SwitchAppDown = false;
         _AppData._KeyState._HoldWinDown = false;
         _AppData._KeyState._HoldAppDown = false;
         _AppData._KeyState._InvertKeyDown = false;
-        _AppData._KeyState._SwitchAppNewInput = false;
-        _AppData._KeyState._SwitchWinNewInput = false;
-        _AppData._KeyState._AppHoldReleasing = false;
-        _AppData._KeyState._WinHoldReleasing = false;
+        _AppData._MutexActionInProgress = PTHREAD_MUTEX_INITIALIZER;
+        _AppData._ActionInProgress = false;
         SetKeyConfig();
         InitGraphicsResources(&_AppData._GraphicsResources);
         VERIFY(SetWindowsHookEx(WH_KEYBOARD_LL, KbProc, 0, 0));
@@ -1009,7 +1049,12 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
         return 0;
     case WM_PAINT:
     {
-        pthread_mutex_lock(&_AppData._Mutex);
+        pthread_mutex_lock(&_AppData._AppState._MutexIsWriting);
+        const bool skip = _AppData._AppState._IsWriting = false;
+        pthread_mutex_unlock(&_AppData._AppState._MutexIsWriting);
+        if (skip)
+            return 0;
+
         PAINTSTRUCT ps;
         BeginPaint(hwnd, &ps);
         RECT clientRect;
@@ -1045,10 +1090,10 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
         const uint32_t iconSize = GetSystemMetrics(SM_CXICON) ;
         const uint32_t padding = (iconContainerSize - iconSize) / 2;
         uint32_t x = padding;
-        for (uint32_t i = 0; i < _AppData._WinGroups._Size; i++)
+        for (uint32_t i = 0; i < _AppData._AppState._WinGroups._Size; i++)
         {
-            const SWinGroup* pWinGroup = &_AppData._WinGroups._Data[i];
-            if (i == (uint32_t)_AppData._Selection)
+            const SWinGroup* pWinGroup = &_AppData._AppState._WinGroups._Data[i];
+            if (i == (uint32_t)_AppData._AppState._Selection)
             {
                 COLORREF cr = GetSysColor(COLOR_WINDOWFRAME);
                 ARGB gdipColor = cr | 0xFF000000;
@@ -1092,7 +1137,6 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
         BitBlt(ps.hdc, clientRect.left, clientRect.top, clientRect.right - clientRect.left, clientRect.bottom - clientRect.top, pGraphRes->_DCBuffer, 0, 0, SRCCOPY);
         GdipDeleteGraphics(pGraphics);
         EndPaint(hwnd, &ps);
-        pthread_mutex_unlock(&_AppData._Mutex);
         return 0;
     }
     case WM_ERASEBKGND:
