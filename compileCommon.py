@@ -10,7 +10,7 @@ def CFiles():
     return cFiles
 
 def LinkArgs():
-    return "-l dwmapi -l User32 -l Gdi32 -l Gdiplus -l shlwapi"
+    return "-l dwmapi -l User32 -l Gdi32 -l Gdiplus -l shlwapi -l pthread"
 
 def CompileDbg():
     dir = "./Output/Debug"

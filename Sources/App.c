@@ -11,6 +11,7 @@
 #include <shlwapi.h>
 #include <winreg.h>
 #include <stdlib.h>
+#include <pthread.h>
 #include "MacAppSwitcherHelpers.h"
 #include "KeyCodeFromConfigName.h"
 
@@ -105,7 +106,6 @@ typedef struct KeyConfig
 typedef struct SAppData
 {
     HWND _MainWin;
-    bool _WindowDisplayed;
     bool _IsSwitchingApp;
     bool _IsSwitchingWin;
     int _Selection;
@@ -113,6 +113,7 @@ typedef struct SAppData
     SWinGroup _CurrentWinGroup;
     SKeyState _KeyState;
     SGraphicsResources _GraphicsResources;
+    pthread_mutex_t _Mutex;
 } SAppData;
 
 typedef struct SFoundWin
@@ -560,6 +561,7 @@ static void InitializeSwitchApp(SAppData* pAppData)
     _AppData._GraphicsResources._DCDirty = true;
     _AppData._Selection = 0;
     _AppData._IsSwitchingApp = true;
+    _AppData._Mutex = PTHREAD_MUTEX_INITIALIZER;
 }
 
 static DWORD GetParentPID(DWORD PID)
@@ -863,6 +865,8 @@ static LRESULT KbProc(int nCode, WPARAM wParam, LPARAM lParam)
     if (!isWatchedKey)
         return CallNextHookEx(NULL, nCode, wParam, lParam);
 
+    pthread_mutex_lock(&_AppData._Mutex);
+
     const bool releasing = kbStrut.flags & LLKHF_UP;
     // const bool altDown = kbStrut.flags & LLKHF_ALTDOWN;
     // const bool isWinKey = kbStrut.vkCode == VK_LWIN || kbStrut.vkCode == VK_RWIN;
@@ -876,18 +880,13 @@ static LRESULT KbProc(int nCode, WPARAM wParam, LPARAM lParam)
         (releasing & 0x1)   << 6;
     UpdateKeyState(&_AppData._KeyState, data);
     ApplyState(&_AppData);
+
+    pthread_mutex_unlock(&_AppData._Mutex);
+
     const bool bypassMsg =
         // (isTab && altDown && !releasing) || // Bypass normal alt - tab
         // (_IsSwitchActive && altDown && isShift && !releasing) || // Bypass keyboard language shortcut
         (_IsSwitchActive || _IsDeinitializing) && (isWinSwitch || isAppSwitch || isWinHold || isAppHold || isInvert);
-
-    SendMessage(_AppData._MainWin, WM_APP, (*(WPARAM*)(&data)), 0);
-    const bool stuff = 
-        _AppData._KeyState._SwitchWinNewInput ||
-        _AppData._KeyState._SwitchAppNewInput ||
-        _AppData._KeyState._WinHoldReleasing ||
-        _AppData._KeyState._AppHoldReleasing;
-
     if (bypassMsg)
     {
         // https://stackoverflow.com/questions/2914989/how-can-i-deal-with-depressed-windows-logo-key-when-using-sendinput
@@ -1026,6 +1025,7 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
         return 0;
     case WM_PAINT:
     {
+        pthread_mutex_lock(&_AppData._Mutex);
         PAINTSTRUCT ps;
         BeginPaint(hwnd, &ps);
         RECT clientRect;
@@ -1107,6 +1107,7 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
         BitBlt(ps.hdc, clientRect.left, clientRect.top, clientRect.right - clientRect.left, clientRect.bottom - clientRect.top, pGraphRes->_DCBuffer, 0, 0, SRCCOPY);
         GdipDeleteGraphics(pGraphics);
         EndPaint(hwnd, &ps);
+        pthread_mutex_unlock(&_AppData._Mutex);
         return 0;
     }
     case WM_ERASEBKGND:
