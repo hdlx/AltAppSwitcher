@@ -29,6 +29,6 @@ def CompileRel(arch = "x86_64"):
     if not os.path.exists(dir):
         os.makedirs(dir)
     file = f"{dir}/MacAppSwitcher.exe"
-    cmd = f"clang {CFiles()} -I ./Sources {LinkArgs()} -o {file} {WarningOptions()} -s -Os -Oz -target {arch}-mingw64"
+    cmd = f"clang {CFiles()} -I ./Sources {LinkArgs()} -o {file} -mwindows {WarningOptions()} -s -Os -Oz -target {arch}-mingw64"
     os.system(cmd)
     return file
