@@ -294,7 +294,7 @@ static bool IsAltTabWindow(HWND hwnd)
         return false;
     static char buf[512];
     GetClassName(hwnd, buf, 512);
-    for (int i = 0; i < sizeof(WindowsClassNamesToSkip) / sizeof(WindowsClassNamesToSkip[0]); i++)
+    for (uint32_t i = 0; i < sizeof(WindowsClassNamesToSkip) / sizeof(WindowsClassNamesToSkip[0]); i++)
     {
         if (!strcmp(WindowsClassNamesToSkip[i], buf))
             return false;
@@ -540,7 +540,7 @@ static void FitWindow(HWND hwnd, uint32_t iconCount)
     SetWindowPos(hwnd, 0, p.x, p.y, sizeX, sizeY, SWP_NOOWNERZORDER);
 }
 
-static void InitializeSwitchApp(SAppData* pAppData)
+static void InitializeSwitchApp()
 {
     SWinGroupArr* pWinGroups = &(_AppData._WinGroups);
     for (uint32_t i = 0; i < 64; i++)
@@ -577,7 +577,7 @@ static DWORD GetParentPID(DWORD PID)
     return parentPID;
 }
 
-static void InitializeSwitchWin(SAppData* pAppData)
+static void InitializeSwitchWin()
 {
     HWND win = GetForegroundWindow();
     if (!win)
@@ -602,7 +602,7 @@ static void InitializeSwitchWin(SAppData* pAppData)
     _AppData._IsSwitchingWin = true;
 }
 
-static void ApplySwitchApp(const SAppData* pAppData)
+static void ApplySwitchApp()
 {
     const SWinGroup* group = &_AppData._WinGroups._Data[_AppData._Selection];
     // It would be nice to ha a "deferred show window"
@@ -650,7 +650,7 @@ static void ApplySwitchApp(const SAppData* pAppData)
     VERIFY(ForceSetForeground(group->_Windows[0]));
 }
 
-static void ApplySwitchWin(const SAppData* pAppData)
+static void ApplySwitchWin()
 {
     const HWND win = _AppData._CurrentWinGroup._Windows[_AppData._Selection];
 
@@ -668,13 +668,13 @@ static void ApplySwitchWin(const SAppData* pAppData)
     ForceSetForeground(win);
 }
 
-static void DeinitializeSwitchApp(SAppData* pAppData)
+static void DeinitializeSwitchApp()
 {
     HideWindow(_AppData._MainWin);
     _AppData._IsSwitchingApp = false;
 }
 
-static void DeinitializeSwitchWin(SAppData* pAppData)
+static void DeinitializeSwitchWin()
 {
     _AppData._IsSwitchingWin = false;
 }
@@ -786,7 +786,7 @@ static int Modulo(int a, int b)
     return (a % b + b) % b;
 }
 
-static void ApplyState(SAppData* pAppData)
+static void ApplyState()
 {
     const bool switchAppInput =
         _AppData._KeyState._SwitchAppNewInput &&
@@ -801,13 +801,13 @@ static void ApplyState(SAppData* pAppData)
     // Denit.
     if (_AppData._IsSwitchingApp && (_AppData._KeyState._AppHoldReleasing || switchWinInput))
     {
-        ApplySwitchApp(pAppData);
-        DeinitializeSwitchApp(pAppData);
+        ApplySwitchApp();
+        DeinitializeSwitchApp();
         _IsDeinitializing = true;
     }
     else if (_AppData._IsSwitchingWin && (_AppData._KeyState._WinHoldReleasing || switchAppInput))
     {
-        DeinitializeSwitchWin(pAppData);
+        DeinitializeSwitchWin();
         _IsDeinitializing = true;
     }
 
@@ -815,7 +815,7 @@ static void ApplyState(SAppData* pAppData)
     if (switchAppInput)
     {
         if (!_AppData._IsSwitchingApp)
-            InitializeSwitchApp(pAppData);
+            InitializeSwitchApp();
         _AppData._Selection += direction;
         _AppData._Selection = Modulo(_AppData._Selection, _AppData._WinGroups._Size);
         InvalidateRect(_AppData._MainWin, 0, TRUE);
@@ -823,10 +823,10 @@ static void ApplyState(SAppData* pAppData)
     else if (switchWinInput)
     {
         if (!_AppData._IsSwitchingWin)
-            InitializeSwitchWin(pAppData);
+            InitializeSwitchWin();
         _AppData._Selection += direction;
         _AppData._Selection = Modulo(_AppData._Selection, _AppData._CurrentWinGroup._WindowCount);
-        ApplySwitchWin(pAppData);
+        ApplySwitchWin();
     }
 
     _IsSwitchActive = _AppData._IsSwitchingApp || _AppData._IsSwitchingWin;
@@ -867,7 +867,7 @@ static LRESULT KbProc(int nCode, WPARAM wParam, LPARAM lParam)
         (isInvert & 0x1)    << 5 |
         (releasing & 0x1)   << 6;
     UpdateKeyState(&_AppData._KeyState, data);
-    ApplyState(&_AppData);
+    ApplyState();
 
     pthread_mutex_unlock(&_AppData._Mutex);
 
@@ -1049,7 +1049,7 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
         for (uint32_t i = 0; i < _AppData._WinGroups._Size; i++)
         {
             const SWinGroup* pWinGroup = &_AppData._WinGroups._Data[i];
-            if (i == _AppData._Selection)
+            if (i == (uint32_t)_AppData._Selection)
             {
                 COLORREF cr = GetSysColor(COLOR_WINDOWFRAME);
                 ARGB gdipColor = cr | 0xFF000000;

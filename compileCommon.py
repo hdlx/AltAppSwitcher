@@ -12,12 +12,15 @@ def CFiles():
 def LinkArgs():
     return "-l dwmapi -l User32 -l Gdi32 -l Gdiplus -l shlwapi -l pthread"
 
+def WarningOptions():
+    return "-Werror -Wall -Wextra -Wno-unused-function -Wno-unused-macros"
+
 def CompileDbg():
     dir = "./Output/Debug"
     if not os.path.exists(dir):
         os.makedirs(dir)
     file = f"{dir}/MacAppSwitcher.exe"
-    cmd = f"clang {CFiles()} -I ./Sources {LinkArgs()} -o {file} -Werror -Wall -Wno-unused-function -g -glldb -target x86_64-mingw64"
+    cmd = f"clang {CFiles()} -I ./Sources {LinkArgs()} -o {file} {WarningOptions()} -g -glldb -target x86_64-mingw64"
     os.system(cmd)
     return file
 
@@ -26,6 +29,6 @@ def CompileRel(arch = "x86_64"):
     if not os.path.exists(dir):
         os.makedirs(dir)
     file = f"{dir}/MacAppSwitcher.exe"
-    cmd = f"clang {CFiles()} -I ./Sources {LinkArgs()} -o {file} -mwindows -Werror -Wall -Wno-unused-function -s -Os -Oz -target {arch}-mingw64"
+    cmd = f"clang {CFiles()} -I ./Sources {LinkArgs()} -o {file} {WarningOptions()} -s -Os -Oz -target {arch}-mingw64"
     os.system(cmd)
     return file
