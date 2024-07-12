@@ -868,11 +868,12 @@ static LRESULT KbProc(int nCode, WPARAM wParam, LPARAM lParam)
         (releasing & 0x1)   << 6;
     UpdateKeyState(&_AppData._KeyState, data);
     ApplyState();
-
     const bool bypassMsg =
         // (isTab && altDown && !releasing) || // Bypass normal alt - tab
         // (_IsSwitchActive && altDown && isShift && !releasing) || // Bypass keyboard language shortcut
         (_IsSwitchActive || _IsDeinitializing) && (isWinSwitch || isAppSwitch || isWinHold || isAppHold || isInvert);
+    pthread_mutex_unlock(&_AppData._Mutex);
+
     if (bypassMsg)
     {
         // https://stackoverflow.com/questions/2914989/how-can-i-deal-with-depressed-windows-logo-key-when-using-sendinput
@@ -891,10 +892,8 @@ static LRESULT KbProc(int nCode, WPARAM wParam, LPARAM lParam)
             UINT uSent = SendInput(ARRAYSIZE(inputs), inputs, sizeof(INPUT));
             VERIFY(uSent == 3);
         }
-        pthread_mutex_unlock(&_AppData._Mutex);
         return 1;
     }
-    pthread_mutex_unlock(&_AppData._Mutex);
     return CallNextHookEx(NULL, nCode, wParam, lParam);
 }
 
