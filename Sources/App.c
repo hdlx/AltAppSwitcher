@@ -93,6 +93,7 @@ typedef struct SAppData
     SGraphicsResources _GraphicsResources;
     bool _ActionInProgress;
     pthread_mutex_t _MutexActionInProgress;
+    pthread_t _ProcessActionThread;
 } SAppData;
 
 typedef struct SFoundWin
@@ -764,8 +765,9 @@ static int Modulo(int a, int b)
     return (a % b + b) % b;
 }
 
-static void ProcessAction()
+static void* ProcessAction(void* arg)
 {
+    (void)arg;
     pthread_mutex_lock(&_AppData._AppState._MutexIsWriting);
     _AppData._AppState._IsWriting = true;
     pthread_mutex_unlock(&_AppData._AppState._MutexIsWriting);
@@ -813,6 +815,8 @@ static void ProcessAction()
     _AppData._ActionInProgress = false;
     _AppData._Action = ActionNone;
     pthread_mutex_unlock(&_AppData._MutexActionInProgress);
+
+    return (void*)0;
 }
 
 static LRESULT KbProc(int nCode, WPARAM wParam, LPARAM lParam)
@@ -910,7 +914,9 @@ static LRESULT KbProc(int nCode, WPARAM wParam, LPARAM lParam)
         pthread_mutex_unlock(&_AppData._MutexActionInProgress);
     }
     else
-        ProcessAction();
+    {
+        pthread_create(&_AppData._ProcessActionThread, NULL, *ProcessAction, (void*)0);
+    }
 
     if (bypassMsg)
     {
