@@ -17,7 +17,7 @@ def CompileDbg():
     if not os.path.exists(dir):
         os.makedirs(dir)
     file = f"{dir}/MacAppSwitcher.exe"
-    cmd = f"clang {CFiles()} -I ./Sources {LinkArgs()} -o {file} -Werror -g -glldb -target x86_64-mingw64"
+    cmd = f"clang {CFiles()} -I ./Sources {LinkArgs()} -o {file} -Werror -Wall -Wno-unused-function -g -glldb -target x86_64-mingw64"
     os.system(cmd)
     return file
 
@@ -26,6 +26,6 @@ def CompileRel(arch = "x86_64"):
     if not os.path.exists(dir):
         os.makedirs(dir)
     file = f"{dir}/MacAppSwitcher.exe"
-    cmd = f"clang {CFiles()} -I ./Sources {LinkArgs()} -o {file} -mwindows -s -Os -Oz -target {arch}-mingw64"
+    cmd = f"clang {CFiles()} -I ./Sources {LinkArgs()} -o {file} -mwindows -Werror -Wall -Wno-unused-function -s -Os -Oz -target {arch}-mingw64"
     os.system(cmd)
     return file

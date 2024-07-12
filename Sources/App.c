@@ -428,7 +428,6 @@ static void GetUWPIcon(HANDLE process, wchar_t* iconPath)
     }
 
     static wchar_t indirStr[512];
-    static wchar_t logoFullPath[512];
 
     BuildLogoIndirectString(logoPath, logoPathLength,
         packageFullName, packageFullNameLength,
@@ -461,12 +460,6 @@ static BOOL FillWinGroups(HWND hwnd, LPARAM lParam)
     FindActualPID(hwnd, &PID, &isUWP);
     static char moduleFileName[512];
     GetProcessFileName(PID, moduleFileName);
-    int32_t lastBackslash = 0;
-    for (uint32_t i = 0; moduleFileName[i] != '\0'; i++)
-    {
-        if (moduleFileName[i] == '\\')
-            lastBackslash = i;
-    }
 
     SWinGroupArr* winAppGroupArr = (SWinGroupArr*)(lParam);
     SWinGroup* group = NULL;
@@ -708,8 +701,6 @@ int StartMacAppSwitcher(HINSTANCE hInstance)
     RegisterClass(&wc);
 
     // Create the window.
-    const int yPos = GetSystemMetrics(SM_CYSCREEN) / 2;
-    const int xPos = GetSystemMetrics(SM_CXSCREEN) / 2;
     HWND hwnd = CreateWindowEx(
         WS_EX_TOPMOST | WS_EX_TOOLWINDOW, // Optional window styles (WS_EX_)
         CLASS_NAME, // Window class
@@ -797,9 +788,6 @@ static int Modulo(int a, int b)
 
 static void ApplyState(SAppData* pAppData)
 {
-    const SWinGroupArr* winGroups = &(_AppData._WinGroups);
-    const SKeyState* pKeyState = &(_AppData._KeyState);
-
     const bool switchAppInput =
         _AppData._KeyState._SwitchAppNewInput &&
         _AppData._KeyState._HoldAppDown;
@@ -903,6 +891,7 @@ static LRESULT KbProc(int nCode, WPARAM wParam, LPARAM lParam)
             inputs[2].ki.wVk = VK_RCONTROL;
             inputs[2].ki.dwFlags = KEYEVENTF_KEYUP;
             UINT uSent = SendInput(ARRAYSIZE(inputs), inputs, sizeof(INPUT));
+            VERIFY(uSent == 3);
         }
         return 1;
     }
@@ -911,10 +900,6 @@ static LRESULT KbProc(int nCode, WPARAM wParam, LPARAM lParam)
 
 static void DrawRoundedRect(GpGraphics* pGraphics, GpPen* pPen, GpBrush* pBrush, uint32_t l, uint32_t t, uint32_t r, uint32_t d, uint32_t di)
 {
-    const uint32_t sX = t - d;
-    const uint32_t sY = r - l;
-    const uint32_t osX = (sX / 2) + d;
-    const uint32_t osY = (sY / 2) + d;
     GpPath* pPath;
     GdipCreatePath(0, &pPath);
     GdipAddPathArcI(pPath, l, t, di, di, 180, 90);
@@ -1046,6 +1031,7 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
             pGraphRes->_DCDirty = false;
         }
         HBITMAP oldBitmap = SelectObject(pGraphRes->_DCBuffer,  pGraphRes->_Bitmap);
+        (void)oldBitmap;
         HBRUSH bgBrush = CreateSolidBrush(GetSysColor(COLOR_WINDOW));
         FillRect(pGraphRes->_DCBuffer, &clientRect, bgBrush);
         DeleteObject(bgBrush);
