@@ -869,8 +869,6 @@ static LRESULT KbProc(int nCode, WPARAM wParam, LPARAM lParam)
     UpdateKeyState(&_AppData._KeyState, data);
     ApplyState();
 
-    pthread_mutex_unlock(&_AppData._Mutex);
-
     const bool bypassMsg =
         // (isTab && altDown && !releasing) || // Bypass normal alt - tab
         // (_IsSwitchActive && altDown && isShift && !releasing) || // Bypass keyboard language shortcut
@@ -893,8 +891,10 @@ static LRESULT KbProc(int nCode, WPARAM wParam, LPARAM lParam)
             UINT uSent = SendInput(ARRAYSIZE(inputs), inputs, sizeof(INPUT));
             VERIFY(uSent == 3);
         }
+        pthread_mutex_unlock(&_AppData._Mutex);
         return 1;
     }
+    pthread_mutex_unlock(&_AppData._Mutex);
     return CallNextHookEx(NULL, nCode, wParam, lParam);
 }
 
