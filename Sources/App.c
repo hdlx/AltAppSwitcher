@@ -909,12 +909,12 @@ static LRESULT KbProc(int nCode, WPARAM wParam, LPARAM lParam)
         else if (switchApp)
         {
             _AppData._AppState._IsSwitchingApp = true;
-            _AppData._AppState._Selection += isInvert ? -1 : 1;
+            _AppData._AppState._Selection += _AppData._KeyState._InvertKeyDown ? -1 : 1;
         }
         else if (switchWin)
         {
             _AppData._AppState._IsSwitchingWin = true;
-            _AppData._AppState._Selection += isInvert ? -1 : 1;
+            _AppData._AppState._Selection += _AppData._KeyState._InvertKeyDown ? -1 : 1;
         }
 
         (void)isApplying;
@@ -925,6 +925,13 @@ static LRESULT KbProc(int nCode, WPARAM wParam, LPARAM lParam)
     }
 
     pthread_mutex_unlock(&_AppData._MutexState);
+
+    if (_AppData._AppState._IsSwitchingApp == _AppData._PrevAppState._IsSwitchingApp &&
+        _AppData._AppState._IsSwitchingWin == _AppData._PrevAppState._IsSwitchingWin &&
+        _AppData._AppState._Selection == _AppData._PrevAppState._Selection)
+    {
+        return CallNextHookEx(NULL, nCode, wParam, lParam);
+    }
 
     {
         pthread_create(&_AppData._ProcessActionThread, NULL, *ApplyStateTransition, (void*)0);
