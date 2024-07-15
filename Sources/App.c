@@ -13,6 +13,7 @@
 #include <winreg.h>
 #include <stdlib.h>
 #include <pthread.h>
+#include <windowsx.h>
 #include "MacAppSwitcherHelpers.h"
 #include "KeyCodeFromConfigName.h"
 
@@ -72,8 +73,9 @@ typedef enum Mode
 
 typedef struct AppState
 {
-    Mode _Mode; // Enum instead, with "none"?
+    Mode _Mode;
     int _Selection;
+    pthread_mutex_t _Mutex;
 } AppState;
 
 
@@ -97,10 +99,6 @@ typedef struct SAppData
     SGraphicsResources _GraphicsResources;
     SWinGroupArr _WinGroups;
     SWinGroup _CurrentWinGroup;
-    pthread_mutex_t _MutexState;
-    pthread_mutex_t _MutexTargetState;
-    pthread_mutex_t _MutexIsProcessingState;
-    bool _IsProcessingState;
     PTP_POOL _ThreadPool;
     PTP_WORK _ThreadPoolWork;
 } SAppData;
@@ -783,17 +781,11 @@ static void* ApplyStateTransition(void* arg)
 {
     (void)arg;
 
-    pthread_mutex_lock(&_AppData._MutexState);
+    pthread_mutex_lock(&_AppData._State._Mutex);
 
-    {
-        pthread_mutex_lock(&_AppData._MutexIsProcessingState);
-        _AppData._IsProcessingState = true;
-        pthread_mutex_unlock(&_AppData._MutexIsProcessingState);
-    }
-
-    pthread_mutex_lock(&_AppData._MutexTargetState);
+    pthread_mutex_lock(&_AppData._TargetState._Mutex);
     const AppState targetState = _AppData._TargetState;
-    pthread_mutex_unlock(&_AppData._MutexTargetState);
+    pthread_mutex_unlock(&_AppData._TargetState._Mutex);
 
     // Denit.
     if (_AppData._State._Mode == ModeApp && targetState._Mode != ModeApp)
@@ -829,13 +821,7 @@ static void* ApplyStateTransition(void* arg)
         ApplySwitchWin();
     }
 
-    {
-        pthread_mutex_lock(&_AppData._MutexIsProcessingState);
-        _AppData._IsProcessingState = false;
-        pthread_mutex_unlock(&_AppData._MutexIsProcessingState);
-    }
-
-    pthread_mutex_unlock(&_AppData._MutexState);
+    pthread_mutex_unlock(&_AppData._State._Mutex);
     return (void*)0;
 }
 
@@ -872,7 +858,7 @@ static LRESULT KbProc(int nCode, WPARAM wParam, LPARAM lParam)
     if (!isWatchedKey)
         return CallNextHookEx(NULL, nCode, wParam, lParam);
 
-    pthread_mutex_lock(&_AppData._MutexTargetState);
+    pthread_mutex_lock(&_AppData._TargetState._Mutex);
 
     const bool releasing = kbStrut.flags & LLKHF_UP;
     const KeyState prevKeyState = _AppData._KeyState;
@@ -941,7 +927,7 @@ static LRESULT KbProc(int nCode, WPARAM wParam, LPARAM lParam)
             (isWinSwitch || isAppSwitch || isWinHold || isAppHold || isInvert);
     }
 
-    pthread_mutex_unlock(&_AppData._MutexTargetState);
+    pthread_mutex_unlock(&_AppData._TargetState._Mutex);
 
     if (_AppData._TargetState._Mode == prevTargetState._Mode &&
         _AppData._TargetState._Selection == prevTargetState._Selection)
@@ -1073,10 +1059,8 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
         _AppData._KeyState._HoldWinDown = false;
         _AppData._KeyState._HoldAppDown = false;
         _AppData._KeyState._InvertKeyDown = false;
-        _AppData._MutexState = PTHREAD_MUTEX_INITIALIZER;
-        _AppData._MutexTargetState = PTHREAD_MUTEX_INITIALIZER;
-        _AppData._MutexIsProcessingState = PTHREAD_MUTEX_INITIALIZER;
-        _AppData._IsProcessingState = false;
+        _AppData._State._Mutex = PTHREAD_MUTEX_INITIALIZER;
+        _AppData._TargetState._Mutex = PTHREAD_MUTEX_INITIALIZER;
         _AppData._ThreadPool = CreateThreadpool(NULL);
         _AppData._ThreadPoolWork = CreateThreadpoolWork(&WorkCB, NULL, NULL);
         SetThreadpoolThreadMaximum(_AppData._ThreadPool, 1);
@@ -1085,6 +1069,39 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
         InitGraphicsResources(&_AppData._GraphicsResources);
         VERIFY(SetWindowsHookEx(WH_KEYBOARD_LL, KbProc, 0, 0));
         return TRUE;
+    }
+    case WM_MOUSEMOVE:
+    {
+        if (pthread_mutex_trylock(&_AppData._State._Mutex))
+            return 0;
+        const uint32_t iconContainerSize = GetSystemMetrics(SM_CXICONSPACING);
+        const int posX = GET_X_LPARAM(lParam);
+        _AppData._State._Selection = posX / iconContainerSize;
+        InvalidateRect(_AppData._MainWin, 0, TRUE);
+        pthread_mutex_lock(&_AppData._TargetState._Mutex);
+        _AppData._TargetState._Selection = _AppData._State._Selection;
+        pthread_mutex_unlock(&_AppData._TargetState._Mutex);
+        pthread_mutex_unlock(&_AppData._State._Mutex);
+        return 0;
+    }
+    case WM_LBUTTONUP:
+    {
+        pthread_mutex_lock(&_AppData._State._Mutex);
+        ApplySwitchApp();
+        DeinitializeSwitchApp();
+        pthread_mutex_unlock(&_AppData._State._Mutex);
+        return 0;
+    }
+    case WM_MOUSEACTIVATE:
+    {
+        if (pthread_mutex_trylock(&_AppData._State._Mutex))
+            return 0;
+        const uint32_t iconContainerSize = GetSystemMetrics(SM_CXICONSPACING);
+        const int posX = GET_X_LPARAM(lParam);
+        _AppData._State._Selection = posX / iconContainerSize;
+        InvalidateRect(_AppData._MainWin, 0, TRUE);
+        pthread_mutex_unlock(&_AppData._State._Mutex);
+        return 0;
     }
     case WM_NCDESTROY:
         DeInitGraphicsResources(&_AppData._GraphicsResources);
@@ -1098,10 +1115,7 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
         return 0;
     case WM_PAINT:
     {
-        pthread_mutex_lock(&_AppData._MutexIsProcessingState);
-        const bool skip = _AppData._IsProcessingState;
-        pthread_mutex_unlock(&_AppData._MutexIsProcessingState);
-        if (skip)
+        if (pthread_mutex_trylock(&_AppData._State._Mutex))
             return 0;
 
         PAINTSTRUCT ps;
@@ -1136,12 +1150,13 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
         GdipSetSmoothingMode(pGraphics, 5);
 
         const uint32_t iconContainerSize = GetSystemMetrics(SM_CXICONSPACING);
-        const uint32_t iconSize = GetSystemMetrics(SM_CXICON) ;
+        const uint32_t iconSize = GetSystemMetrics(SM_CXICON);
         const uint32_t padding = (iconContainerSize - iconSize) / 2;
         uint32_t x = padding;
         for (uint32_t i = 0; i < _AppData._WinGroups._Size; i++)
         {
             const SWinGroup* pWinGroup = &_AppData._WinGroups._Data[i];
+
             if (i == (uint32_t)_AppData._State._Selection)
             {
                 COLORREF cr = GetSysColor(COLOR_WINDOWFRAME);
@@ -1186,6 +1201,7 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
         BitBlt(ps.hdc, clientRect.left, clientRect.top, clientRect.right - clientRect.left, clientRect.bottom - clientRect.top, pGraphRes->_DCBuffer, 0, 0, SRCCOPY);
         GdipDeleteGraphics(pGraphics);
         EndPaint(hwnd, &ps);
+        pthread_mutex_unlock(&_AppData._State._Mutex);
         return 0;
     }
     case WM_ERASEBKGND:
