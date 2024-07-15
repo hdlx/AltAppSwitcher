@@ -334,9 +334,9 @@ static bool IsAltTabWindow(HWND hwnd)
 
 static bool ForceSetForeground(HWND win)
 {
-    const DWORD dwCurrentThread = GetCurrentThreadId();
-    const DWORD dwFGThread = GetWindowThreadProcessId(GetForegroundWindow(), NULL);
-    AttachThreadInput(dwCurrentThread, dwFGThread, TRUE);
+    const DWORD dwCurrentThread = GetWindowThreadProcessId(win, NULL);
+    const DWORD dwFGThread = GetWindowThreadProcessId(win, NULL);
+    AttachThreadInput(dwFGThread, dwCurrentThread, TRUE);
     WINDOWPLACEMENT placement;
     placement.length = sizeof(WINDOWPLACEMENT);
     GetWindowPlacement(win, &placement);
@@ -346,7 +346,7 @@ static bool ForceSetForeground(HWND win)
     SetFocus(win);
     SetActiveWindow(win);
     EnableWindow(win, TRUE);
-    AttachThreadInput(dwCurrentThread, dwFGThread, FALSE);
+    AttachThreadInput(dwFGThread, dwCurrentThread, FALSE);
     return true;
 }
 
@@ -625,7 +625,7 @@ static void ApplySwitchApp()
     if (_AppData._State._Mode != ModeApp)
         return;
     const SWinGroup* group = &_AppData._WinGroups._Data[_AppData._State._Selection];
-    // It would be nice to ha a "deferred show window"
+    // It would be nice to hava "deferred show window"
     {
         for (int i = group->_WindowCount - 1; i >= 0 ; i--)
         {
@@ -799,7 +799,8 @@ static void* ApplyStateTransition(void* arg)
     {
         DeinitializeSwitchWin();
     }
-    else if (targetState._Mode == ModeApp)
+
+    if (targetState._Mode == ModeApp)
     {
         if (_AppData._State._Mode != ModeApp)
         {
@@ -900,13 +901,14 @@ static LRESULT KbProc(int nCode, WPARAM wParam, LPARAM lParam)
             isApplying = true;
         }
         else if (prevTargetState._Mode == ModeWin &&
-            winHoldReleasing)
+            (switchAppInput || winHoldReleasing))
         {
             _AppData._TargetState._Mode = ModeNone;
             _AppData._TargetState._Selection = 0;
             isApplying = true;
         }
-        else if (switchApp)
+
+        if (switchApp)
         {
             _AppData._TargetState._Mode = ModeApp;
             _AppData._TargetState._Selection += _AppData._KeyState._InvertKeyDown ? -1 : 1;
