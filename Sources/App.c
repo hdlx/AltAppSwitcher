@@ -153,13 +153,16 @@ static void DeInitGraphicsResources(SGraphicsResources* pRes)
 
 static void DisplayWindow(HWND win)
 {
-    SetWindowPos(win, HWND_TOP, 0, 0, 0, 0, SWP_SHOWWINDOW | SWP_NOSIZE | SWP_NOMOVE | SWP_NOREPOSITION | SWP_NOACTIVATE);
-    SetWindowPos(win, HWND_TOPMOST, 0, 0, 0, 0, SWP_SHOWWINDOW | SWP_NOSIZE | SWP_NOMOVE | SWP_NOREPOSITION | SWP_NOACTIVATE);
+    //SetWindowPos(win, HWND_TOP, 0, 0, 0, 0, SWP_SHOWWINDOW | SWP_NOSIZE | SWP_NOMOVE | SWP_NOREPOSITION | SWP_NOACTIVATE);
+    //SetWindowPos(win, HWND_TOPMOST, 0, 0, 0, 0, SWP_SHOWWINDOW | SWP_NOSIZE | SWP_NOMOVE | SWP_NOREPOSITION | SWP_NOACTIVATE);
+    ShowWindowAsync(win, SW_SHOW);
 }
 
 static void HideWindow(HWND win)
 {
-    SetWindowPos(win, HWND_TOPMOST, 0, 0, 0, 0, SWP_HIDEWINDOW | SWP_NOSIZE | SWP_NOMOVE | SWP_NOREPOSITION | SWP_NOACTIVATE);
+    ShowWindowAsync(win, SW_HIDE);
+
+    //SetWindowPos(win, HWND_TOPMOST, 0, 0, 0, 0, SWP_HIDEWINDOW | SWP_NOSIZE | SWP_NOMOVE | SWP_NOREPOSITION | SWP_NOACTIVATE);
 }
 
 static const char* WindowsClassNamesToSkip[] =
@@ -574,8 +577,8 @@ static void InitializeSwitchApp()
     pWinGroups->_Size = 0;
     EnumDesktopWindows(NULL, FillWinGroups, (LPARAM)pWinGroups);
     FitWindow(_AppData._MainWin, pWinGroups->_Size);
-    DisplayWindow(_AppData._MainWin);
     _AppData._GraphicsResources._DCDirty = true;
+    DisplayWindow(_AppData._MainWin);
 }
 
 static DWORD GetParentPID(DWORD PID)
@@ -1074,8 +1077,7 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
         _AppData._MutexIsProcessingState = PTHREAD_MUTEX_INITIALIZER;
         _AppData._IsProcessingState = false;
         _AppData._ThreadPool = CreateThreadpool(NULL);
-        _AppData._ThreadPoolWork = CreateThreadpoolWork(&WorkCB,NULL,NULL);
-
+        _AppData._ThreadPoolWork = CreateThreadpoolWork(&WorkCB, NULL, NULL);
         SetThreadpoolThreadMaximum(_AppData._ThreadPool, 1);
 
         SetKeyConfig();
