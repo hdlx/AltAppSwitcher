@@ -334,9 +334,9 @@ static bool IsAltTabWindow(HWND hwnd)
 
 static bool ForceSetForeground(HWND win)
 {
-    const DWORD dwCurrentThread = GetWindowThreadProcessId(win, NULL);
-    const DWORD dwFGThread = GetWindowThreadProcessId(win, NULL);
-    AttachThreadInput(dwFGThread, dwCurrentThread, TRUE);
+    const DWORD currentThread = GetCurrentThreadId();
+    const DWORD FGWThread = GetWindowThreadProcessId(GetForegroundWindow(), NULL);
+    AttachThreadInput(currentThread, FGWThread, TRUE);
     WINDOWPLACEMENT placement;
     placement.length = sizeof(WINDOWPLACEMENT);
     GetWindowPlacement(win, &placement);
@@ -346,7 +346,7 @@ static bool ForceSetForeground(HWND win)
     SetFocus(win);
     SetActiveWindow(win);
     EnableWindow(win, TRUE);
-    AttachThreadInput(dwFGThread, dwCurrentThread, FALSE);
+    AttachThreadInput(currentThread, FGWThread, FALSE);
     return true;
 }
 
