@@ -937,7 +937,7 @@ static LRESULT KbProc(int nCode, WPARAM wParam, LPARAM lParam)
         }
 
         bypassMsg = 
-            (switchApp ||switchWin || isApplying) &&
+            ((_AppData._TargetState._Mode != ModeNone) || isApplying) &&
             (isWinSwitch || isAppSwitch || isWinHold || isAppHold || isInvert);
     }
 
@@ -946,12 +946,13 @@ static LRESULT KbProc(int nCode, WPARAM wParam, LPARAM lParam)
     if (_AppData._TargetState._Mode == prevTargetState._Mode &&
         _AppData._TargetState._Selection == prevTargetState._Selection)
     {
+        if (bypassMsg)
+            return 1;
         return CallNextHookEx(NULL, nCode, wParam, lParam);
     }
 
     {
         SubmitThreadpoolWork(_AppData._ThreadPoolWork);
-        //pthread_create((pthread_t*)0, NULL, *ApplyStateTransition, (void*)0);
     }
 
     if (bypassMsg)
@@ -1079,7 +1080,7 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
         _AppData._ThreadPool = CreateThreadpool(NULL);
         _AppData._ThreadPoolWork = CreateThreadpoolWork(&WorkCB, NULL, NULL);
         SetThreadpoolThreadMaximum(_AppData._ThreadPool, 1);
-
+        SetThreadpoolThreadMinimum(_AppData._ThreadPool, 1);
         SetKeyConfig();
         InitGraphicsResources(&_AppData._GraphicsResources);
         VERIFY(SetWindowsHookEx(WH_KEYBOARD_LL, KbProc, 0, 0));
