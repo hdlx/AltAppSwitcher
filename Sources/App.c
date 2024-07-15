@@ -111,6 +111,7 @@ typedef struct SFoundWin
 
 static SAppData _AppData;
 static KeyConfig _KeyConfig;
+static bool _Mouse = true;
 
 static void InitGraphicsResources(SGraphicsResources* pRes)
 {
@@ -981,7 +982,37 @@ static void DrawRoundedRect(GpGraphics* pGraphics, GpPen* pPen, GpBrush* pBrush,
     GdipDeletePath(pPath);
 }
 
-void SetKeyConfig()
+static bool TryGetKey(const char* lineBuf, const char* token, DWORD* keyToSet)
+{
+    const char* pValue = strstr(lineBuf, token);
+    if (pValue != NULL)
+    {
+        *keyToSet = KeyCodeFromConfigName(pValue + strlen(token) - 1);
+        return true;
+    }
+    return false;
+}
+
+static bool TryGetBool(const char* lineBuf, const char* token, bool* boolToSet)
+{
+    const char* pValue = strstr(lineBuf, token);
+    if (pValue != NULL)
+    {
+        if (strstr(pValue + strlen(token) - 1, "true") != NULL)
+        {
+            *boolToSet = true;
+            return true;
+        }
+        else if (strstr(pValue + strlen(token) - 1, "false") != NULL)
+        {
+            *boolToSet = false;
+            return true;
+        }
+    }
+    return false;
+}
+
+static void SetKeyConfig()
 {
     _KeyConfig._AppHold = VK_LMENU;
     _KeyConfig._AppSwitch = VK_TAB;
@@ -995,6 +1026,7 @@ void SetKeyConfig()
         file = fopen(configFile ,"a");
         fprintf(file,
             "// MacAppSwitcher config file \n"
+            "// \n"
             "// Possible key bindings values: \n"
             "//     left alt\n"
             "//     right alt\n"
@@ -1003,7 +1035,6 @@ void SetKeyConfig()
             "//     left super (left windows)\n"
             "//     right super (right windows)\n"
             "//     left control\n"
-            "//     right control\n"
             "//     left shift\n"
             "//     right shift\n"
             "//     tab\n"
@@ -1012,7 +1043,10 @@ void SetKeyConfig()
             "app switch key: tab\n"
             "window hold key: left alt\n"
             "window switch key: tilde\n"
-            "invert order key: left shift\n");
+            "invert order key: left shift\n"
+            "\n"
+            "// Other options \n"
+            "allow mouse: true \n");
         fclose(file);
         return;
     }
@@ -1022,21 +1056,18 @@ void SetKeyConfig()
     {
         if (!strncmp(lineBuf, "//", 2))
             continue;
-        const char* pValue = NULL;
-        #define TRY_GET_KEY(var, token) \
-        pValue = strstr(lineBuf, token); \
-        if (pValue != NULL) \
-        { \
-            var = KeyCodeFromConfigName(pValue + sizeof(token) - 1); \
-            continue; \
-        } \
-
-        TRY_GET_KEY(_KeyConfig._AppHold, "app hold key: ")
-        TRY_GET_KEY(_KeyConfig._AppSwitch, "app switch key: ")
-        TRY_GET_KEY(_KeyConfig._WinHold, "window hold key: ")
-        TRY_GET_KEY(_KeyConfig._WinSwitch, "window switch key: ")
-        TRY_GET_KEY(_KeyConfig._Invert, "invert order key: ")
-        #undef TRY_GET_KEY
+        if (TryGetKey(lineBuf, "app hold key: ", &_KeyConfig._AppHold))
+            continue;
+        if (TryGetKey(lineBuf, "app switch key: ", &_KeyConfig._AppSwitch))
+            continue;
+        if (TryGetKey(lineBuf, "window hold key: ", &_KeyConfig._WinHold))
+            continue;
+        if (TryGetKey(lineBuf, "window switch key: ", &_KeyConfig._WinSwitch))
+            continue;
+        if (TryGetKey(lineBuf, "invert order key: ", &_KeyConfig._Invert))
+            continue;
+        if (TryGetBool(lineBuf, "allow mouse: ", &_Mouse))
+            continue;
     }
     fclose(file);
 }
@@ -1066,12 +1097,15 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
         SetThreadpoolThreadMaximum(_AppData._ThreadPool, 1);
         SetThreadpoolThreadMinimum(_AppData._ThreadPool, 1);
         SetKeyConfig();
+        
         InitGraphicsResources(&_AppData._GraphicsResources);
         VERIFY(SetWindowsHookEx(WH_KEYBOARD_LL, KbProc, 0, 0));
         return TRUE;
     }
     case WM_MOUSEMOVE:
     {
+        if (!_Mouse)
+            return 0;
         if (pthread_mutex_trylock(&_AppData._State._Mutex))
             return 0;
         const uint32_t iconContainerSize = GetSystemMetrics(SM_CXICONSPACING);
@@ -1086,20 +1120,11 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
     }
     case WM_LBUTTONUP:
     {
+        if (!_Mouse)
+            return 0;
         pthread_mutex_lock(&_AppData._State._Mutex);
         ApplySwitchApp();
         DeinitializeSwitchApp();
-        pthread_mutex_unlock(&_AppData._State._Mutex);
-        return 0;
-    }
-    case WM_MOUSEACTIVATE:
-    {
-        if (pthread_mutex_trylock(&_AppData._State._Mutex))
-            return 0;
-        const uint32_t iconContainerSize = GetSystemMetrics(SM_CXICONSPACING);
-        const int posX = GET_X_LPARAM(lParam);
-        _AppData._State._Selection = posX / iconContainerSize;
-        InvalidateRect(_AppData._MainWin, 0, TRUE);
         pthread_mutex_unlock(&_AppData._State._Mutex);
         return 0;
     }
