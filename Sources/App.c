@@ -1,3 +1,4 @@
+#include <threadpoolapiset.h>
 #include <windows.h>
 #include <tlhelp32.h>
 #include <stdbool.h>
@@ -100,6 +101,8 @@ typedef struct SAppData
     pthread_mutex_t _MutexTargetState;
     pthread_mutex_t _MutexIsProcessingState;
     bool _IsProcessingState;
+    PTP_POOL _ThreadPool;
+    PTP_WORK _ThreadPoolWork;
 } SAppData;
 
 typedef struct SFoundWin
@@ -833,6 +836,17 @@ static void* ApplyStateTransition(void* arg)
     return (void*)0;
 }
 
+void WorkCB(PTP_CALLBACK_INSTANCE instance,
+    PVOID parameter,
+    PTP_WORK work)
+{
+    (void)instance;
+    (void)parameter;
+    (void)work;
+    ApplyStateTransition((void*)0);
+    return;
+}
+
 static LRESULT KbProc(int nCode, WPARAM wParam, LPARAM lParam)
 {
     const KBDLLHOOKSTRUCT kbStrut = *(KBDLLHOOKSTRUCT*)lParam;
@@ -933,7 +947,8 @@ static LRESULT KbProc(int nCode, WPARAM wParam, LPARAM lParam)
     }
 
     {
-        pthread_create((pthread_t*)0, NULL, *ApplyStateTransition, (void*)0);
+        SubmitThreadpoolWork(_AppData._ThreadPoolWork);
+        //pthread_create((pthread_t*)0, NULL, *ApplyStateTransition, (void*)0);
     }
 
     if (bypassMsg)
@@ -1036,6 +1051,7 @@ void SetKeyConfig()
     fclose(file);
 }
 
+
 LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 {
     switch (uMsg)
@@ -1057,6 +1073,10 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
         _AppData._MutexTargetState = PTHREAD_MUTEX_INITIALIZER;
         _AppData._MutexIsProcessingState = PTHREAD_MUTEX_INITIALIZER;
         _AppData._IsProcessingState = false;
+        _AppData._ThreadPool = CreateThreadpool(NULL);
+        _AppData._ThreadPoolWork = CreateThreadpoolWork(&WorkCB,NULL,NULL);
+
+        SetThreadpoolThreadMaximum(_AppData._ThreadPool, 1);
 
         SetKeyConfig();
         InitGraphicsResources(&_AppData._GraphicsResources);
@@ -1069,6 +1089,8 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
             DeleteDC(_AppData._GraphicsResources._DCBuffer);
         if (_AppData._GraphicsResources._Bitmap)
             DeleteObject(_AppData._GraphicsResources._Bitmap);
+        CloseThreadpool(_AppData._ThreadPool);
+        CloseThreadpoolWork(_AppData._ThreadPoolWork);
         PostQuitMessage(0);
         return 0;
     case WM_PAINT:
