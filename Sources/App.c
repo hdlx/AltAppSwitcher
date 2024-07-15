@@ -78,18 +78,6 @@ typedef struct AppState
     pthread_mutex_t _Mutex;
 } AppState;
 
-
-typedef enum Action
-{
-    ActionNone,
-    ActionApplySwitchApp,
-    ActionDeinitSwitchWin,
-    ActionNextWin,
-    ActionPrevWin,
-    ActionNextApp,
-    ActionPrevApp
-} Action;
-
 typedef struct SAppData
 {
     HWND _MainWin;
