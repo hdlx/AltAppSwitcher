@@ -565,6 +565,17 @@ static void InitializeSwitchApp()
     EnumDesktopWindows(NULL, FillWinGroups, (LPARAM)pWinGroups);
     FitWindow(_AppData._MainWin, pWinGroups->_Size);
     _AppData._GraphicsResources._DCDirty = true;
+    {
+        // Hack to give the focus to our win.
+        // Otherwise, AttachThreadInput might fail (ex: cmd prompt as admin)
+        WINDOWPLACEMENT placement;
+        GetWindowPlacement(_AppData._MainWin, &placement);
+        placement.flags = WPF_ASYNCWINDOWPLACEMENT;
+        placement.showCmd = SW_SHOWMINIMIZED;
+        SetWindowPlacement(_AppData._MainWin, &placement);
+        placement.showCmd = SW_SHOWDEFAULT;
+        SetWindowPlacement(_AppData._MainWin, &placement);
+    }
     DisplayWindow(_AppData._MainWin);
 }
 
