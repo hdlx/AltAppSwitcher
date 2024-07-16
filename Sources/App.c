@@ -571,12 +571,14 @@ static void InitializeSwitchApp()
         WINDOWPLACEMENT placement;
         GetWindowPlacement(_AppData._MainWin, &placement);
         placement.flags = WPF_ASYNCWINDOWPLACEMENT;
-        placement.showCmd = SW_SHOWMINIMIZED;
-        SetWindowPlacement(_AppData._MainWin, &placement);
-        placement.showCmd = SW_SHOWDEFAULT;
+        placement.showCmd = SW_MINIMIZE;
+       // SetWindowPlacement(_AppData._MainWin, &placement);
+        //placement.showCmd = SW_HIDE;
+        //SetWindowPlacement(_AppData._MainWin, &placement);
+        placement.showCmd = SW_RESTORE;
         SetWindowPlacement(_AppData._MainWin, &placement);
     }
-    DisplayWindow(_AppData._MainWin);
+   // DisplayWindow(_AppData._MainWin);
 }
 
 static DWORD GetParentPID(DWORD PID)
