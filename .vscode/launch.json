@@ -12,9 +12,9 @@
 		{
 			"type": "lldb-mi",
 			"request": "attach",
-			"executable": "${workspaceFolder}/Output/Debug/MacAppSwitcher.exe",
+			"executable": "${workspaceFolder}/Output/Release/x86_64/MacAppSwitcher.exe",
 			"name": "Attach dbg",
-			"target": "[PID]",
+			"target": "40056",
 			"cwd": "${workspaceRoot}",
 			"valuesFormatting": "parseText"
 		}

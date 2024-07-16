@@ -965,7 +965,7 @@ static void DrawRoundedRect(GpGraphics* pGraphics, GpPen* pPen, GpBrush* pBrush,
     GdipClosePathFigure(pPath);
     if (pBrush)
         GdipFillPath(pGraphics, pBrush, pPath);
-    if (pPen)
+    if (pPen)   
         GdipDrawPath(pGraphics, pPen, pPath);
     GdipDeletePath(pPath);
 }
@@ -1063,9 +1063,10 @@ static void SetKeyConfig()
 
 LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 {
+    static bool mouseInside = false;
     switch (uMsg)
     {
-    case WM_NCCREATE:
+    case WM_CREATE:
     {
         _AppData._State._Mode = ModeNone;
         _AppData._State._Selection = 0;
@@ -1085,7 +1086,6 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
         SetThreadpoolThreadMaximum(_AppData._ThreadPool, 1);
         SetThreadpoolThreadMinimum(_AppData._ThreadPool, 1);
         SetKeyConfig();
-        
         InitGraphicsResources(&_AppData._GraphicsResources);
         VERIFY(SetWindowsHookEx(WH_KEYBOARD_LL, KbProc, 0, 0));
         return TRUE;
@@ -1094,6 +1094,13 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
     {
         if (!_Mouse)
             return 0;
+        if (!mouseInside)
+        {
+            // Mouse move event is fired on window show if the mouse is already in client area.
+            // Skip first event so only actual move triggers mouse selection.
+            mouseInside = true;
+            return 0;
+        }
         if (pthread_mutex_trylock(&_AppData._State._Mutex))
             return 0;
         const uint32_t iconContainerSize = GetSystemMetrics(SM_CXICONSPACING);
@@ -1106,10 +1113,19 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
         pthread_mutex_unlock(&_AppData._State._Mutex);
         return 0;
     }
+    case WM_SHOWWINDOW:
+    {
+        mouseInside = false;
+        return 0;
+    }
     case WM_LBUTTONUP:
     {
         if (!_Mouse)
             return 0;
+        pthread_mutex_lock(&_AppData._TargetState._Mutex);
+        _AppData._TargetState._Selection = 0;
+        _AppData._TargetState._Mode = ModeNone;
+        pthread_mutex_unlock(&_AppData._TargetState._Mutex);
         pthread_mutex_lock(&_AppData._State._Mutex);
         ApplySwitchApp();
         DeinitializeSwitchApp();
