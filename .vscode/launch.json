@@ -1,22 +1,12 @@
 {
 	"configurations": [
 		{
-			"type": "lldb-mi",
+			"type": "lldb",
 			"request": "launch",
-			"name": "LLDB launch dbg",
-			"target": "${workspaceFolder}/Output/Debug/MacAppSwitcher.exe",
-			"cwd": "${workspaceFolder}/Output/Debug/",
-			"valuesFormatting": "parseText",
-			"preLaunchTask": "Build debug"
-		},
-		{
-			"type": "lldb-mi",
-			"request": "attach",
-			"executable": "${workspaceFolder}/Output/Release/x86_64/MacAppSwitcher.exe",
-			"name": "Attach dbg",
-			"target": "40056",
-			"cwd": "${workspaceRoot}",
-			"valuesFormatting": "parseText"
+			"name": "Launch",
+			"program": "${workspaceFolder}/Output/Debug/MacAppSwitcher.exe",
+			"args": [],
+			"cwd": "${workspaceFolder}"
 		}
 	]
 }
