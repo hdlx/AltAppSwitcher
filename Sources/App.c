@@ -572,7 +572,7 @@ static void InitializeSwitchApp()
         GetWindowPlacement(_AppData._MainWin, &placement);
         placement.flags = WPF_ASYNCWINDOWPLACEMENT;
         placement.showCmd = SW_MINIMIZE;
-       // SetWindowPlacement(_AppData._MainWin, &placement);
+        SetWindowPlacement(_AppData._MainWin, &placement);
         //placement.showCmd = SW_HIDE;
         //SetWindowPlacement(_AppData._MainWin, &placement);
         placement.showCmd = SW_RESTORE;
