@@ -6,7 +6,7 @@
 			"name": "Launch",
 			"program": "${workspaceFolder}/Output/Debug/MacAppSwitcher.exe",
 			"args": [],
-			"cwd": "${workspaceFolder}",
+			"cwd": "${workspaceFolder}/Output/Debug",
 			"preLaunchTask": "Build debug",
 		}
 	]

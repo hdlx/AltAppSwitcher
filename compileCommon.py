@@ -13,7 +13,7 @@ def LinkArgs():
     return "-l dwmapi -l User32 -l Gdi32 -l Gdiplus -l shlwapi -l pthread"
 
 def WarningOptions():
-    return "-Werror -Wall -Wextra -Wno-unused-function -Wno-unused-macros"
+    return "-Werror -Wall -Wextra -Wno-unused-function -Wno-used-but-marked-unused"
 
 def CompileDbg():
     dir = "./Output/Debug"

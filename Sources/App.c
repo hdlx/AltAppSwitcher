@@ -329,7 +329,7 @@ static bool ForceSetForeground(HWND win)
 {
     const DWORD currentThread = GetCurrentThreadId();
     const DWORD FGWThread = GetWindowThreadProcessId(GetForegroundWindow(), NULL);
-    AttachThreadInput(currentThread, FGWThread, TRUE);
+    VERIFY(AttachThreadInput(currentThread, FGWThread, TRUE) != FALSE);
     WINDOWPLACEMENT placement;
     placement.length = sizeof(WINDOWPLACEMENT);
     GetWindowPlacement(win, &placement);

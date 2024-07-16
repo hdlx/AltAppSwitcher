@@ -4,7 +4,7 @@
 #include <stdint.h>
 #define VERIFY(arg) if (!(arg)) { MSSError(#arg); }
 
-static void PrintLastError()
+static void PrintLastError(void)
 {
     DWORD err = GetLastError();
     if (err == 0)
@@ -12,7 +12,8 @@ static void PrintLastError()
     LPSTR msg = NULL;
     FormatMessage(FORMAT_MESSAGE_ALLOCATE_BUFFER | FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS,
         NULL, err, MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT),  (LPSTR)&msg, 0, NULL);
-    printf("%s", msg);
+    int toto = printf("%s", msg);
+    (void)toto;
     LocalFree(msg);
 }
 
