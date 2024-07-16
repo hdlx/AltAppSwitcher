@@ -1124,7 +1124,6 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
             return 0;
         pthread_mutex_lock(&_AppData._TargetState._Mutex);
         _AppData._TargetState._Selection = 0;
-        _AppData._TargetState._Mode = ModeNone;
         pthread_mutex_unlock(&_AppData._TargetState._Mutex);
         pthread_mutex_lock(&_AppData._State._Mutex);
         ApplySwitchApp();
