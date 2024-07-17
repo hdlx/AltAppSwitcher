@@ -607,7 +607,7 @@ static void CreateWin()
         _AppData._Instance, // Instance handle
         NULL // Additional application data
     );
-    
+
     VERIFY(hwnd);
     // Rounded corners for Win 11
     // Values are from cpp enums DWMWINDOWATTRIBUTE and DWM_WINDOW_CORNER_PREFERENCE
@@ -1239,7 +1239,7 @@ int StartMacAppSwitcher(HINSTANCE hInstance)
         VERIFY(SetWindowsHookEx(WH_KEYBOARD_LL, KbProc, 0, 0));
     }
 
-    VERIFY(AllowSetForegroundWindow(GetCurrentProcessId()));
+    (AllowSetForegroundWindow(GetCurrentProcessId()));
 
     HANDLE token;
     OpenProcessToken(
