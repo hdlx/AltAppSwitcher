@@ -81,6 +81,7 @@ typedef struct AppState
 typedef struct SAppData
 {
     HWND _MainWin;
+    HINSTANCE _Instance;
     KeyState _KeyState;
     AppState _TargetState;
     AppState _State;
@@ -89,6 +90,7 @@ typedef struct SAppData
     SWinGroup _CurrentWinGroup;
     PTP_POOL _ThreadPool;
     PTP_WORK _ThreadPoolWork;
+    DWORD _MainThread;
 } SAppData;
 
 typedef struct SFoundWin
@@ -136,20 +138,6 @@ static void DeInitGraphicsResources(SGraphicsResources* pRes)
     pRes->_DCDirty = true;
     pRes->_DCBuffer = NULL;
     pRes->_Bitmap = NULL;
-}
-
-static void DisplayWindow(HWND win)
-{
-    //SetWindowPos(win, HWND_TOP, 0, 0, 0, 0, SWP_SHOWWINDOW | SWP_NOSIZE | SWP_NOMOVE | SWP_NOREPOSITION | SWP_NOACTIVATE);
-    //SetWindowPos(win, HWND_TOPMOST, 0, 0, 0, 0, SWP_SHOWWINDOW | SWP_NOSIZE | SWP_NOMOVE | SWP_NOREPOSITION | SWP_NOACTIVATE);
-    ShowWindowAsync(win, SW_SHOW);
-}
-
-static void HideWindow(HWND win)
-{
-    ShowWindowAsync(win, SW_HIDE);
-
-    //SetWindowPos(win, HWND_TOPMOST, 0, 0, 0, 0, SWP_HIDEWINDOW | SWP_NOSIZE | SWP_NOMOVE | SWP_NOREPOSITION | SWP_NOACTIVATE);
 }
 
 static const char* WindowsClassNamesToSkip[] =
@@ -554,37 +542,21 @@ static void FitWindow(HWND hwnd, uint32_t iconCount)
     SetWindowPos(hwnd, 0, p.x, p.y, sizeX, sizeY, SWP_NOOWNERZORDER);
 }
 
-static void InitializeSwitchApp()
+static void ComputeWinPosAndSize(uint32_t iconCount, uint32_t* px, uint32_t* py, uint32_t* sx, uint32_t* sy)
 {
-    SWinGroupArr* pWinGroups = &(_AppData._WinGroups);
-    for (uint32_t i = 0; i < 64; i++)
-    {
-        pWinGroups->_Data[i]._WindowCount = 0;
-    }
-    pWinGroups->_Size = 0;
-    EnumDesktopWindows(NULL, FillWinGroups, (LPARAM)pWinGroups);
-    FitWindow(_AppData._MainWin, pWinGroups->_Size);
-    _AppData._GraphicsResources._DCDirty = true;
-    {
-        // Hack to give the focus to our win.
-        // Otherwise, AttachThreadInput might fail (ex: cmd prompt as admin)
-        WINDOWPLACEMENT placement;
-        GetWindowPlacement(_AppData._MainWin, &placement);
-        placement.length = sizeof(WINDOWPLACEMENT);
-        placement.flags = WPF_ASYNCWINDOWPLACEMENT;
-        placement.showCmd = SW_SHOWMINIMIZED;
-        SetWindowPlacement(_AppData._MainWin, &placement);
-    }
-    {
-        WINDOWPLACEMENT placement;
-        GetWindowPlacement(_AppData._MainWin, &placement);
-        placement.length = sizeof(WINDOWPLACEMENT);
-        placement.flags = WPF_ASYNCWINDOWPLACEMENT;
-        placement.showCmd = SW_SHOWDEFAULT;
-        SetWindowPlacement(_AppData._MainWin, &placement);
-    }
-    DisplayWindow(_AppData._MainWin);
+    const int centerY = GetSystemMetrics(SM_CYSCREEN) / 2;
+    const int centerX = GetSystemMetrics(SM_CXSCREEN) / 2;
+    const uint32_t iconContainerSize = GetSystemMetrics(SM_CXICONSPACING);
+    const uint32_t sizeX = iconCount * iconContainerSize;
+    const uint32_t halfSizeX = sizeX / 2;
+    const uint32_t sizeY = 1 * iconContainerSize;
+    const uint32_t halfSizeY = sizeY / 2;
+    *px = centerX-halfSizeX;
+    *py = centerY-halfSizeY;
+    *sx = sizeX;
+    *sy = sizeY;
 }
+
 
 static DWORD GetParentPID(DWORD PID)
 {
@@ -604,6 +576,60 @@ static DWORD GetParentPID(DWORD PID)
     }
     CloseHandle(h);
     return parentPID;
+}
+
+static const char CLASS_NAME[]  = "MacStyleSwitch";
+
+static void DestroyWin()
+{
+    DestroyWindow(_AppData._MainWin);
+    _AppData._MainWin = NULL;
+}
+
+static void CreateWin()
+{
+    if (_AppData._MainWin)
+        DestroyWin();
+    uint32_t px, py, sx, sy;
+    ComputeWinPosAndSize(_AppData._WinGroups._Size, &px, &py, &sx, &sy);
+
+    HWND hwnd = CreateWindowEx(
+        WS_EX_TOPMOST | WS_EX_TOOLWINDOW, // Optional window styles (WS_EX_)
+        CLASS_NAME, // Window class
+        "", // Window text
+        WS_BORDER | WS_POPUP | WS_VISIBLE, // Window style
+        // Pos and size
+        px, py, sx, sy,
+        NULL, // Parent window
+        NULL, // Menu
+        _AppData._Instance, // Instance handle
+        NULL // Additional application data
+    );
+
+    VERIFY(hwnd);
+    // Rounded corners for Win 11
+    // Values are from cpp enums DWMWINDOWATTRIBUTE and DWM_WINDOW_CORNER_PREFERENCE
+    const uint32_t rounded = 2;
+    DwmSetWindowAttribute(hwnd, 33, &rounded, sizeof(rounded));
+
+    // SetFocus(hwnd);
+    // SetActiveWindow(hwnd);
+    InvalidateRect(hwnd, 0, TRUE);
+    UpdateWindow(hwnd);
+    ShowWindow(hwnd, SW_SHOWDEFAULT);
+    ForceSetForeground(hwnd);
+    _AppData._MainWin = hwnd;
+}
+
+static void InitializeSwitchApp()
+{
+    SWinGroupArr* pWinGroups = &(_AppData._WinGroups);
+    for (uint32_t i = 0; i < 64; i++)
+    {
+        pWinGroups->_Data[i]._WindowCount = 0;
+    }
+    pWinGroups->_Size = 0;
+    EnumDesktopWindows(NULL, FillWinGroups, (LPARAM)pWinGroups);
 }
 
 static void InitializeSwitchWin()
@@ -701,82 +727,12 @@ static void ApplySwitchWin()
 
 static void DeinitializeSwitchApp()
 {
-    HideWindow(_AppData._MainWin);
     _AppData._State._Mode = ModeNone;
 }
 
 static void DeinitializeSwitchWin()
 {
     _AppData._State._Mode = ModeNone;
-}
-
-int StartMacAppSwitcher(HINSTANCE hInstance)
-{
-    ULONG_PTR gdiplusToken = 0;
-    {
-        GdiplusStartupInput gdiplusStartupInput = {};
-        gdiplusStartupInput.GdiplusVersion = 1;
-        uint32_t status = GdiplusStartup(&gdiplusToken, &gdiplusStartupInput, NULL);
-        VERIFY(!status);
-    }
-
-    // Register the window class.
-    const char CLASS_NAME[]  = "MacStyleSwitch";
-    WNDCLASS wc = { };
-    wc.lpfnWndProc   = WindowProc;
-    wc.hInstance     = hInstance;
-    wc.lpszClassName = CLASS_NAME;
-    wc.cbWndExtra = sizeof(SAppData*);
-    wc.style = CS_HREDRAW | CS_VREDRAW | CS_DROPSHADOW;
-    wc.hbrBackground = GetSysColorBrush(COLOR_WINDOW);
-    RegisterClass(&wc);
-
-    // Create the window.
-    HWND hwnd = CreateWindowEx(
-        WS_EX_TOPMOST | WS_EX_TOOLWINDOW, // Optional window styles (WS_EX_)
-        CLASS_NAME, // Window class
-        "", // Window text
-        WS_BORDER | WS_POPUP, // Window style
-        // Size and position
-        0, 0, 0, 0,
-        NULL, // Parent window
-        NULL, // Menu
-        hInstance, // Instance handle
-        NULL // Additional application data
-    );
-    VERIFY(hwnd);
-    if (hwnd == NULL)
-        return 0;
-
-    // Rounded corners for Win 11
-    // Values are from cpp enums DWMWINDOWATTRIBUTE and DWM_WINDOW_CORNER_PREFERENCE
-    const uint32_t rounded = 2;
-    DwmSetWindowAttribute(hwnd, 33, &rounded, sizeof(rounded));
-
-    _AppData._MainWin = hwnd; // Ugly. For keyboard hook.
-    VERIFY(AllowSetForegroundWindow(GetCurrentProcessId()));
-
-    HANDLE token;
-    OpenProcessToken(
-        GetCurrentProcess(),
-        TOKEN_ADJUST_PRIVILEGES | TOKEN_QUERY,
-        &token);
-    TOKEN_PRIVILEGES priv;
-    priv.PrivilegeCount = 1;
-    LookupPrivilegeValue(NULL, "SeDebugPrivilege", &(priv.Privileges[0].Luid));
-    priv.Privileges[0].Attributes = SE_PRIVILEGE_ENABLED;
-    VERIFY(AdjustTokenPrivileges(token, false, &priv, sizeof(priv), 0, 0));
-    CloseHandle(token);
-
-    MSG msg = { };
-    while (GetMessage(&msg, NULL, 0, 0) > 0)
-    {
-        TranslateMessage(&msg);
-        DispatchMessage(&msg);
-    }
-
-    GdiplusShutdown(gdiplusToken);
-    return 0;
 }
 
 static int Modulo(int a, int b)
@@ -794,11 +750,14 @@ static void* ApplyStateTransition(void* arg)
     const AppState targetState = _AppData._TargetState;
     pthread_mutex_unlock(&_AppData._TargetState._Mutex);
 
+    bool invalidateRect = false;
+
     // Denit.
     if (_AppData._State._Mode == ModeApp && targetState._Mode != ModeApp)
     {
         ApplySwitchApp();
         DeinitializeSwitchApp();
+        PostThreadMessage(_AppData._MainThread, 1993, 0,0);
     }
     else if (_AppData._State._Mode == ModeWin && targetState._Mode != ModeWin)
     {
@@ -811,10 +770,11 @@ static void* ApplyStateTransition(void* arg)
         {
             InitializeSwitchApp();
             _AppData._State._Mode = ModeApp;
+            PostThreadMessage(_AppData._MainThread, 1994, 0,0);
         }
         _AppData._State._Selection = targetState._Selection;
         _AppData._State._Selection = Modulo(_AppData._State._Selection, _AppData._WinGroups._Size);
-        InvalidateRect(_AppData._MainWin, 0, TRUE);
+        invalidateRect = true;
     }
     else if (targetState._Mode == ModeWin)
     {
@@ -826,9 +786,16 @@ static void* ApplyStateTransition(void* arg)
         _AppData._State._Selection = targetState._Selection;
         _AppData._State._Selection = Modulo(_AppData._State._Selection, _AppData._CurrentWinGroup._WindowCount);
         ApplySwitchWin();
-    }
+    } 
 
     pthread_mutex_unlock(&_AppData._State._Mutex);
+
+    if (invalidateRect)
+    {
+        InvalidateRect(_AppData._MainWin, 0, TRUE);
+        UpdateWindow(_AppData._MainWin);
+    }
+
     return (void*)0;
 }
 
@@ -1084,30 +1051,7 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
     static bool mouseInside = false;
     switch (uMsg)
     {
-    case WM_CREATE:
-    {
-        _AppData._State._Mode = ModeNone;
-        _AppData._State._Selection = 0;
-        _AppData._TargetState._Mode = ModeNone;
-        _AppData._TargetState._Selection = 0;
-        _AppData._MainWin = hwnd;
-        _AppData._WinGroups._Size = 0;
-        _AppData._KeyState._SwitchWinDown = false;
-        _AppData._KeyState._SwitchAppDown = false;
-        _AppData._KeyState._HoldWinDown = false;
-        _AppData._KeyState._HoldAppDown = false;
-        _AppData._KeyState._InvertKeyDown = false;
-        _AppData._State._Mutex = PTHREAD_MUTEX_INITIALIZER;
-        _AppData._TargetState._Mutex = PTHREAD_MUTEX_INITIALIZER;
-        _AppData._ThreadPool = CreateThreadpool(NULL);
-        _AppData._ThreadPoolWork = CreateThreadpoolWork(&WorkCB, NULL, NULL);
-        SetThreadpoolThreadMaximum(_AppData._ThreadPool, 1);
-        SetThreadpoolThreadMinimum(_AppData._ThreadPool, 1);
-        SetKeyConfig();
-        InitGraphicsResources(&_AppData._GraphicsResources);
-        VERIFY(SetWindowsHookEx(WH_KEYBOARD_LL, KbProc, 0, 0));
-        return TRUE;
-    }
+    case WM_NCMOUSEMOVE:
     case WM_MOUSEMOVE:
     {
         if (!_Mouse)
@@ -1125,15 +1069,17 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
         const int posX = GET_X_LPARAM(lParam);
         _AppData._State._Selection = posX / iconContainerSize;
         InvalidateRect(_AppData._MainWin, 0, TRUE);
+        UpdateWindow(_AppData._MainWin);
         pthread_mutex_lock(&_AppData._TargetState._Mutex);
         _AppData._TargetState._Selection = _AppData._State._Selection;
         pthread_mutex_unlock(&_AppData._TargetState._Mutex);
         pthread_mutex_unlock(&_AppData._State._Mutex);
         return 0;
     }
-    case WM_SHOWWINDOW:
+    case WM_CREATE:
     {
         mouseInside = false;
+        SetCapture(hwnd);
         return 0;
     }
     case WM_LBUTTONUP:
@@ -1146,24 +1092,17 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
         pthread_mutex_lock(&_AppData._State._Mutex);
         ApplySwitchApp();
         DeinitializeSwitchApp();
+        DestroyWin();
         pthread_mutex_unlock(&_AppData._State._Mutex);
         return 0;
     }
-    case WM_NCDESTROY:
-        DeInitGraphicsResources(&_AppData._GraphicsResources);
-        if (_AppData._GraphicsResources._DCBuffer)
-            DeleteDC(_AppData._GraphicsResources._DCBuffer);
-        if (_AppData._GraphicsResources._Bitmap)
-            DeleteObject(_AppData._GraphicsResources._Bitmap);
-        CloseThreadpool(_AppData._ThreadPool);
-        CloseThreadpoolWork(_AppData._ThreadPoolWork);
-        PostQuitMessage(0);
+    case WM_DESTROY:
+        //PostQuitMessage(0);
         return 0;
     case WM_PAINT:
     {
         if (pthread_mutex_trylock(&_AppData._State._Mutex))
             return 0;
-
         PAINTSTRUCT ps;
         BeginPaint(hwnd, &ps);
         RECT clientRect;
@@ -1251,7 +1190,93 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
         return 0;
     }
     case WM_ERASEBKGND:
-        return (LRESULT)0;
+        return (LRESULT)1;
     }
     return DefWindowProc(hwnd, uMsg, wParam, lParam);
-} 
+}
+
+int StartMacAppSwitcher(HINSTANCE hInstance)
+{
+    ULONG_PTR gdiplusToken = 0;
+    {
+        GdiplusStartupInput gdiplusStartupInput = {};
+        gdiplusStartupInput.GdiplusVersion = 1;
+        uint32_t status = GdiplusStartup(&gdiplusToken, &gdiplusStartupInput, NULL);
+        VERIFY(!status);
+    }
+
+    {
+        WNDCLASS wc = { };
+        wc.lpfnWndProc   = WindowProc;
+        wc.hInstance     = _AppData._Instance;
+        wc.lpszClassName = CLASS_NAME;
+        wc.cbWndExtra = sizeof(SAppData*);
+        wc.style = CS_OWNDC| CS_HREDRAW | CS_VREDRAW | CS_DROPSHADOW;
+        wc.hbrBackground = GetSysColorBrush(COLOR_WINDOW);
+        RegisterClass(&wc);
+    }
+
+    {
+        _AppData._State._Mode = ModeNone;
+        _AppData._State._Selection = 0;
+        _AppData._TargetState._Mode = ModeNone;
+        _AppData._TargetState._Selection = 0;
+        _AppData._MainWin = NULL;
+        _AppData._Instance = hInstance;
+        _AppData._WinGroups._Size = 0;
+        _AppData._KeyState._SwitchWinDown = false;
+        _AppData._KeyState._SwitchAppDown = false;
+        _AppData._KeyState._HoldWinDown = false;
+        _AppData._KeyState._HoldAppDown = false;
+        _AppData._KeyState._InvertKeyDown = false;
+        _AppData._State._Mutex = PTHREAD_MUTEX_INITIALIZER;
+        _AppData._TargetState._Mutex = PTHREAD_MUTEX_INITIALIZER;
+        _AppData._ThreadPool = CreateThreadpool(NULL);
+        _AppData._ThreadPoolWork = CreateThreadpoolWork(&WorkCB, NULL, NULL);
+        _AppData._MainThread = GetCurrentThreadId();
+        SetThreadpoolThreadMaximum(_AppData._ThreadPool, 1);
+        SetThreadpoolThreadMinimum(_AppData._ThreadPool, 1);
+        SetKeyConfig();
+        InitGraphicsResources(&_AppData._GraphicsResources);
+        VERIFY(SetWindowsHookEx(WH_KEYBOARD_LL, KbProc, 0, 0));
+    }
+
+    VERIFY(AllowSetForegroundWindow(GetCurrentProcessId()));
+
+    HANDLE token;
+    OpenProcessToken(
+        GetCurrentProcess(),
+        TOKEN_ADJUST_PRIVILEGES | TOKEN_QUERY,
+        &token);
+    TOKEN_PRIVILEGES priv;
+    priv.PrivilegeCount = 1;
+    LookupPrivilegeValue(NULL, "SeDebugPrivilege", &(priv.Privileges[0].Luid));
+    priv.Privileges[0].Attributes = SE_PRIVILEGE_ENABLED;
+    VERIFY(AdjustTokenPrivileges(token, false, &priv, sizeof(priv), 0, 0));
+    CloseHandle(token);
+
+    MSG msg = { };
+    while (GetMessage(&msg, NULL, 0, 0) > 0)
+    {
+        if (msg.message == 1994)
+            CreateWin();
+        if (msg.message == 1993)
+            DestroyWin();
+        TranslateMessage(&msg);
+        DispatchMessage(&msg);
+    }
+
+    {
+        DeInitGraphicsResources(&_AppData._GraphicsResources);
+        if (_AppData._GraphicsResources._DCBuffer)
+            DeleteDC(_AppData._GraphicsResources._DCBuffer);
+        if (_AppData._GraphicsResources._Bitmap)
+            DeleteObject(_AppData._GraphicsResources._Bitmap);
+        CloseThreadpool(_AppData._ThreadPool);
+        CloseThreadpoolWork(_AppData._ThreadPoolWork);
+    }
+
+    GdiplusShutdown(gdiplusToken);
+    UnregisterClass(CLASS_NAME, hInstance);
+    return 0;
+}
