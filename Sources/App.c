@@ -570,15 +570,20 @@ static void InitializeSwitchApp()
         // Otherwise, AttachThreadInput might fail (ex: cmd prompt as admin)
         WINDOWPLACEMENT placement;
         GetWindowPlacement(_AppData._MainWin, &placement);
+        placement.length = sizeof(WINDOWPLACEMENT);
         placement.flags = WPF_ASYNCWINDOWPLACEMENT;
-        placement.showCmd = SW_MINIMIZE;
-        SetWindowPlacement(_AppData._MainWin, &placement);
-        //placement.showCmd = SW_HIDE;
-        //SetWindowPlacement(_AppData._MainWin, &placement);
-        placement.showCmd = SW_RESTORE;
+        placement.showCmd = SW_SHOWMINIMIZED;
         SetWindowPlacement(_AppData._MainWin, &placement);
     }
-   // DisplayWindow(_AppData._MainWin);
+    {
+        WINDOWPLACEMENT placement;
+        GetWindowPlacement(_AppData._MainWin, &placement);
+        placement.length = sizeof(WINDOWPLACEMENT);
+        placement.flags = WPF_ASYNCWINDOWPLACEMENT;
+        placement.showCmd = SW_SHOWDEFAULT;
+        SetWindowPlacement(_AppData._MainWin, &placement);
+    }
+    DisplayWindow(_AppData._MainWin);
 }
 
 static DWORD GetParentPID(DWORD PID)
