@@ -1206,7 +1206,7 @@ int StartMacAppSwitcher(HINSTANCE hInstance)
         wc.hInstance     = _AppData._Instance;
         wc.lpszClassName = CLASS_NAME;
         wc.cbWndExtra = sizeof(SAppData*);
-        wc.style = CS_HREDRAW | CS_VREDRAW | CS_DROPSHADOW;
+        wc.style = CS_HREDRAW | CS_VREDRAW;
         wc.hbrBackground = GetSysColorBrush(COLOR_WINDOW);
         RegisterClass(&wc);
     }
