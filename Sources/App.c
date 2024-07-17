@@ -1,3 +1,4 @@
+#include <minwindef.h>
 #include <threadpoolapiset.h>
 #include <windows.h>
 #include <tlhelp32.h>
@@ -590,6 +591,7 @@ static void CreateWin()
 {
     if (_AppData._MainWin)
         DestroyWin();
+    _AppData._GraphicsResources._DCDirty = true;
     uint32_t px, py, sx, sy;
     ComputeWinPosAndSize(_AppData._WinGroups._Size, &px, &py, &sx, &sy);
 
@@ -605,16 +607,17 @@ static void CreateWin()
         _AppData._Instance, // Instance handle
         NULL // Additional application data
     );
-
+    
     VERIFY(hwnd);
     // Rounded corners for Win 11
     // Values are from cpp enums DWMWINDOWATTRIBUTE and DWM_WINDOW_CORNER_PREFERENCE
     const uint32_t rounded = 2;
     DwmSetWindowAttribute(hwnd, 33, &rounded, sizeof(rounded));
-
-    InvalidateRect(hwnd, 0, FALSE);
+    InvalidateRect(hwnd, NULL, FALSE);
+    UpdateWindow(hwnd);
     ShowWindow(hwnd, SW_SHOWDEFAULT);
     _AppData._MainWin = hwnd;
+    _AppData._GraphicsResources._DCDirty = true;
 }
 
 static void InitializeSwitchApp()
