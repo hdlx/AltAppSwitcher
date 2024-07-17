@@ -612,12 +612,8 @@ static void CreateWin()
     const uint32_t rounded = 2;
     DwmSetWindowAttribute(hwnd, 33, &rounded, sizeof(rounded));
 
-    // SetFocus(hwnd);
-    // SetActiveWindow(hwnd);
-    InvalidateRect(hwnd, 0, TRUE);
-    UpdateWindow(hwnd);
+    InvalidateRect(hwnd, 0, FALSE);
     ShowWindow(hwnd, SW_SHOWDEFAULT);
-    ForceSetForeground(hwnd);
     _AppData._MainWin = hwnd;
 }
 
@@ -786,13 +782,13 @@ static void* ApplyStateTransition(void* arg)
         _AppData._State._Selection = targetState._Selection;
         _AppData._State._Selection = Modulo(_AppData._State._Selection, _AppData._CurrentWinGroup._WindowCount);
         ApplySwitchWin();
-    } 
+    }
 
     pthread_mutex_unlock(&_AppData._State._Mutex);
 
     if (invalidateRect)
     {
-        InvalidateRect(_AppData._MainWin, 0, TRUE);
+        InvalidateRect(_AppData._MainWin, 0, FALSE);
         UpdateWindow(_AppData._MainWin);
     }
 
@@ -900,20 +896,20 @@ static LRESULT KbProc(int nCode, WPARAM wParam, LPARAM lParam)
             ((_AppData._TargetState._Mode != ModeNone) || isApplying) &&
             (isWinSwitch || isAppSwitch || isWinHold || isAppHold || isInvert);
     }
+    const bool noChange = 
+        _AppData._TargetState._Mode == prevTargetState._Mode &&
+        _AppData._TargetState._Selection == prevTargetState._Selection;
 
     pthread_mutex_unlock(&_AppData._TargetState._Mutex);
 
-    if (_AppData._TargetState._Mode == prevTargetState._Mode &&
-        _AppData._TargetState._Selection == prevTargetState._Selection)
+    if (noChange)
     {
         if (bypassMsg)
             return 1;
         return CallNextHookEx(NULL, nCode, wParam, lParam);
     }
 
-    {
-        SubmitThreadpoolWork(_AppData._ThreadPoolWork);
-    }
+    SubmitThreadpoolWork(_AppData._ThreadPoolWork);
 
     if (bypassMsg)
     {
@@ -1051,7 +1047,6 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
     static bool mouseInside = false;
     switch (uMsg)
     {
-    case WM_NCMOUSEMOVE:
     case WM_MOUSEMOVE:
     {
         if (!_Mouse)
@@ -1065,10 +1060,10 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
         }
         if (pthread_mutex_trylock(&_AppData._State._Mutex))
             return 0;
-        const uint32_t iconContainerSize = GetSystemMetrics(SM_CXICONSPACING);
+        const int iconContainerSize = (int)GetSystemMetrics(SM_CXICONSPACING);
         const int posX = GET_X_LPARAM(lParam);
-        _AppData._State._Selection = posX / iconContainerSize;
-        InvalidateRect(_AppData._MainWin, 0, TRUE);
+        _AppData._State._Selection = min(max(0, posX / iconContainerSize), (int)_AppData._WinGroups._Size);
+        InvalidateRect(_AppData._MainWin, 0, FALSE);
         UpdateWindow(_AppData._MainWin);
         pthread_mutex_lock(&_AppData._TargetState._Mutex);
         _AppData._TargetState._Selection = _AppData._State._Selection;
@@ -1190,7 +1185,7 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
         return 0;
     }
     case WM_ERASEBKGND:
-        return (LRESULT)1;
+        return (LRESULT)0;
     }
     return DefWindowProc(hwnd, uMsg, wParam, lParam);
 }
@@ -1211,7 +1206,7 @@ int StartMacAppSwitcher(HINSTANCE hInstance)
         wc.hInstance     = _AppData._Instance;
         wc.lpszClassName = CLASS_NAME;
         wc.cbWndExtra = sizeof(SAppData*);
-        wc.style = CS_OWNDC| CS_HREDRAW | CS_VREDRAW | CS_DROPSHADOW;
+        wc.style = CS_HREDRAW | CS_VREDRAW | CS_DROPSHADOW | CS_DBLCLKS;
         wc.hbrBackground = GetSysColorBrush(COLOR_WINDOW);
         RegisterClass(&wc);
     }
