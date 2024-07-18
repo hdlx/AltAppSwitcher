@@ -1,5 +1,6 @@
 #include <minwindef.h>
 #include <threadpoolapiset.h>
+#include <time.h>
 #include <windows.h>
 #include <tlhelp32.h>
 #include <stdbool.h>
@@ -584,6 +585,13 @@ static const char CLASS_NAME[]  = "MacStyleSwitch";
 static void DestroyWin()
 {
     DestroyWindow(_AppData._MainWin);
+    if (_AppData._GraphicsResources._DCBuffer)
+    {
+        DeleteDC(_AppData._GraphicsResources._DCBuffer);
+        DeleteObject(_AppData._GraphicsResources._Bitmap);
+        _AppData._GraphicsResources._DCBuffer = NULL;
+        _AppData._GraphicsResources._Bitmap = NULL;
+    }
     _AppData._MainWin = NULL;
 }
 
