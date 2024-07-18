@@ -604,7 +604,7 @@ static void CreateWin()
     ComputeWinPosAndSize(_AppData._WinGroups._Size, &px, &py, &sx, &sy);
 
     HWND hwnd = CreateWindowEx(
-        WS_EX_TOPMOST, // Optional window styles (WS_EX_)
+        WS_EX_TOPMOST | WS_EX_TOOLWINDOW, // Optional window styles (WS_EX_)
         CLASS_NAME, // Window class
         "", // Window text
         WS_BORDER | WS_POPUP | WS_VISIBLE, // Window style
