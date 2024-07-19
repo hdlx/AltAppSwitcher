@@ -7,6 +7,7 @@
 #include <stdint.h>
 #include <psapi.h>
 #include <dwmapi.h>
+#include <winnt.h>
 #include <winuser.h>
 #include <processthreadsapi.h>
 #include <gdiplus.h>
@@ -77,7 +78,7 @@ typedef struct AppState
 {
     Mode _Mode;
     int _Selection;
-    pthread_mutex_t _Mutex;
+//    pthread_mutex_t _Mutex;
 } AppState;
 
 typedef struct SAppData
@@ -747,15 +748,15 @@ static int Modulo(int a, int b)
     return (a % b + b) % b;
 }
 
-static void* ApplyStateTransition(void* arg)
+static void* ApplyStateTransition(const AppState targetState)
 {
-    (void)arg;
+  //  (void)arg;
 
-    pthread_mutex_lock(&_AppData._State._Mutex);
+//    pthread_mutex_lock(&_AppData._State._Mutex);
 
-    pthread_mutex_lock(&_AppData._TargetState._Mutex);
-    const AppState targetState = _AppData._TargetState;
-    pthread_mutex_unlock(&_AppData._TargetState._Mutex);
+  //  pthread_mutex_lock(&_AppData._TargetState._Mutex);
+    // const AppState targetState = _AppData._TargetState;
+//    pthread_mutex_unlock(&_AppData._TargetState._Mutex);
 
     bool invalidateRect = false;
 
@@ -795,7 +796,7 @@ static void* ApplyStateTransition(void* arg)
         ApplySwitchWin();
     }
 
-    pthread_mutex_unlock(&_AppData._State._Mutex);
+  //  pthread_mutex_unlock(&_AppData._State._Mutex);
 
     if (invalidateRect)
     {
@@ -813,7 +814,7 @@ void WorkCB(PTP_CALLBACK_INSTANCE instance,
     (void)instance;
     (void)parameter;
     (void)work;
-    ApplyStateTransition((void*)0);
+   // ApplyStateTransition((void*)0);
     return;
 }
 
@@ -839,7 +840,7 @@ static LRESULT KbProc(int nCode, WPARAM wParam, LPARAM lParam)
     if (!isWatchedKey)
         return CallNextHookEx(NULL, nCode, wParam, lParam);
 
-    pthread_mutex_lock(&_AppData._TargetState._Mutex);
+   // pthread_mutex_lock(&_AppData._TargetState._Mutex);
 
     const bool releasing = kbStrut.flags & LLKHF_UP;
     const KeyState prevKeyState = _AppData._KeyState;
@@ -911,8 +912,6 @@ static LRESULT KbProc(int nCode, WPARAM wParam, LPARAM lParam)
         _AppData._TargetState._Mode == prevTargetState._Mode &&
         _AppData._TargetState._Selection == prevTargetState._Selection;
 
-    pthread_mutex_unlock(&_AppData._TargetState._Mutex);
-
     if (noChange)
     {
         if (bypassMsg)
@@ -920,7 +919,11 @@ static LRESULT KbProc(int nCode, WPARAM wParam, LPARAM lParam)
         return CallNextHookEx(NULL, nCode, wParam, lParam);
     }
 
-    SubmitThreadpoolWork(_AppData._ThreadPoolWork);
+    LPARAM param;
+    memcpy(&param, &_AppData._TargetState, sizeof(AppState));
+    PostThreadMessage(_AppData._MainThread, 1991, 0, param);
+
+    //SubmitThreadpoolWork(_AppData._ThreadPoolWork);
 
     if (bypassMsg)
     {
@@ -1069,17 +1072,17 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
             mouseInside = true;
             return 0;
         }
-        if (pthread_mutex_trylock(&_AppData._State._Mutex))
-            return 0;
+       // if (pthread_mutex_trylock(&_AppData._State._Mutex))
+       //     return 0;
         const int iconContainerSize = (int)GetSystemMetrics(SM_CXICONSPACING);
         const int posX = GET_X_LPARAM(lParam);
         _AppData._State._Selection = min(max(0, posX / iconContainerSize), (int)_AppData._WinGroups._Size);
         InvalidateRect(_AppData._MainWin, 0, FALSE);
         UpdateWindow(_AppData._MainWin);
-        pthread_mutex_lock(&_AppData._TargetState._Mutex);
+       // pthread_mutex_lock(&_AppData._TargetState._Mutex);
         _AppData._TargetState._Selection = _AppData._State._Selection;
-        pthread_mutex_unlock(&_AppData._TargetState._Mutex);
-        pthread_mutex_unlock(&_AppData._State._Mutex);
+        //pthread_mutex_unlock(&_AppData._TargetState._Mutex);
+        //pthread_mutex_unlock(&_AppData._State._Mutex);
         return 0;
     }
     case WM_CREATE:
@@ -1092,14 +1095,14 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
     {
         if (!_Mouse)
             return 0;
-        pthread_mutex_lock(&_AppData._TargetState._Mutex);
+       // pthread_mutex_lock(&_AppData._TargetState._Mutex);
         _AppData._TargetState._Selection = 0;
-        pthread_mutex_unlock(&_AppData._TargetState._Mutex);
-        pthread_mutex_lock(&_AppData._State._Mutex);
+        //pthread_mutex_unlock(&_AppData._TargetState._Mutex);
+        //pthread_mutex_lock(&_AppData._State._Mutex);
         ApplySwitchApp();
         DeinitializeSwitchApp();
         DestroyWin();
-        pthread_mutex_unlock(&_AppData._State._Mutex);
+        //pthread_mutex_unlock(&_AppData._State._Mutex);
         return 0;
     }
     case WM_DESTROY:
@@ -1107,8 +1110,8 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
         return 0;
     case WM_PAINT:
     {
-        if (pthread_mutex_trylock(&_AppData._State._Mutex))
-            return 0;
+ //       if (pthread_mutex_trylock(&_AppData._State._Mutex))
+ //           return 0;
         PAINTSTRUCT ps;
         BeginPaint(hwnd, &ps);
         RECT clientRect;
@@ -1192,13 +1195,24 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
         BitBlt(ps.hdc, clientRect.left, clientRect.top, clientRect.right - clientRect.left, clientRect.bottom - clientRect.top, pGraphRes->_DCBuffer, 0, 0, SRCCOPY);
         GdipDeleteGraphics(pGraphics);
         EndPaint(hwnd, &ps);
-        pthread_mutex_unlock(&_AppData._State._Mutex);
+        //pthread_mutex_unlock(&_AppData._State._Mutex);
         return 0;
     }
     case WM_ERASEBKGND:
         return (LRESULT)0;
     }
     return DefWindowProc(hwnd, uMsg, wParam, lParam);
+}
+
+
+static void* HookCb(void* param)
+{
+    (void)param;
+    VERIFY(SetWindowsHookEx(WH_KEYBOARD_LL, KbProc, 0, 0));
+    MSG msg = { };
+    while (GetMessage(&msg, NULL, 0, 0) > 0)
+    {}
+    return (void*)0;
 }
 
 int StartMacAppSwitcher(HINSTANCE hInstance)
@@ -1235,18 +1249,20 @@ int StartMacAppSwitcher(HINSTANCE hInstance)
         _AppData._KeyState._HoldWinDown = false;
         _AppData._KeyState._HoldAppDown = false;
         _AppData._KeyState._InvertKeyDown = false;
-        _AppData._State._Mutex = PTHREAD_MUTEX_INITIALIZER;
-        _AppData._TargetState._Mutex = PTHREAD_MUTEX_INITIALIZER;
+     //   _AppData._State._Mutex = PTHREAD_MUTEX_INITIALIZER;
+     //   _AppData._TargetState._Mutex = PTHREAD_MUTEX_INITIALIZER;
         _AppData._ThreadPool = CreateThreadpool(NULL);
         _AppData._ThreadPoolWork = CreateThreadpoolWork(&WorkCB, NULL, NULL);
         _AppData._MainThread = GetCurrentThreadId();
-        SetThreadpoolThreadMaximum(_AppData._ThreadPool, 1);
+        SetThreadpoolThreadMaximum(_AppData._ThreadPool, 2);
         SetThreadpoolThreadMinimum(_AppData._ThreadPool, 1);
         SetKeyConfig();
         InitGraphicsResources(&_AppData._GraphicsResources);
-        VERIFY(SetWindowsHookEx(WH_KEYBOARD_LL, KbProc, 0, 0));
     }
 
+    pthread_t threadHook;
+    pthread_create(&threadHook, NULL, *HookCb, (void*)0);
+    
     (AllowSetForegroundWindow(GetCurrentProcessId()));
 
     HANDLE token;
@@ -1264,6 +1280,12 @@ int StartMacAppSwitcher(HINSTANCE hInstance)
     MSG msg = { };
     while (GetMessage(&msg, NULL, 0, 0) > 0)
     {
+        if (msg.message == 1991)
+        {
+            AppState targetState;
+            memcpy(&targetState, &msg.lParam, sizeof(AppState));
+            ApplyStateTransition(targetState);
+        }
         if (msg.message == 1994)
             CreateWin();
         if (msg.message == 1993)
