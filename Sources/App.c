@@ -1,5 +1,7 @@
 #include <minwindef.h>
+#include <stdio.h>
 #include <time.h>
+#include <windef.h>
 #include <windows.h>
 #include <tlhelp32.h>
 #include <stdbool.h>
@@ -30,6 +32,12 @@ typedef struct SWinGroup
     HICON _Icon;
     wchar_t _UWPIconPath[512];
 } SWinGroup;
+
+typedef struct SWinArr
+{
+    uint32_t _Size;
+    HWND* _Data;
+} SWinArr;
 
 typedef struct SWinGroupArr
 {
@@ -105,6 +113,7 @@ static bool _Mouse = true;
 #define MSG_SET_APP_STATE (WM_USER + 1)
 #define MSG_SWITCH_APP (WM_USER + 1)
 #define MSG_SWITCH_WIN (WM_USER + 2)
+#define MSG_SWITCH_WIN_INIT (WM_USER + 3)
 static void InitGraphicsResources(SGraphicsResources* pRes)
 {
     pRes->_DCDirty = true;
@@ -175,6 +184,11 @@ typedef struct SFindPIDEnumFnParams
     HWND InHostWindow;
     DWORD OutPID;
 } SFindPIDEnumFnParams;
+
+static int Modulo(int a, int b)
+{
+    return (a % b + b) % b;
+}
 
 static BOOL FindPIDEnumFn(HWND hwnd, LPARAM lParam)
 {
@@ -643,7 +657,9 @@ static void InitializeSwitchWin()
 {
     HWND win = GetForegroundWindow();
     if (!win)
+    {
         return;
+    }
     while (true)
     {
         if (IsAltTabWindow(win))
@@ -651,27 +667,39 @@ static void InitializeSwitchWin()
         win = GetParent(win);
     }
     if (!win)
+    {
         return;
+    }
     DWORD PID;
     BOOL isUWP = false;
-    //GetWindowThreadProcessId(win, &PID);
     FindActualPID(win, &PID, &isUWP);
     SWinGroup* pWinGroup = &(_AppData._CurrentWinGroup);
     GetProcessFileName(PID, pWinGroup->_ModuleFileName);
     pWinGroup->_WindowCount = 0;
     EnumDesktopWindows(NULL, FillCurrentWinGroup, (LPARAM)pWinGroup);
-    _AppData._State._Selection = 0;
+    _AppData._State._Selection = (int)Modulo(1, (int)pWinGroup->_WindowCount);
     _AppData._State._Mode = ModeWin;
 }
 
-static void ApplySwitchApp()
+static SWinArr* CreateWinArr(const SWinGroup* winGroup)
 {
-    const SWinGroup* group = &_AppData._WinGroups._Data[_AppData._State._Selection];
-    // It would be nice to hava "deferred show window"
+    SWinArr* winArr = malloc(sizeof(SWinArr));
+    winArr->_Size = winGroup->_WindowCount;
+    winArr->_Data = malloc(sizeof(HWND) * winGroup->_WindowCount);
+    for (uint32_t i = 0; i < winGroup->_WindowCount; i++)
     {
-        for (int i = group->_WindowCount - 1; i >= 0 ; i--)
+        winArr->_Data[i] = _AppData._WinGroups._Data[_AppData._State._Selection]._Windows[i];
+    }
+    return winArr;
+}
+
+static void ApplySwitchApp(const SWinArr* winArr)
+{
+    
+    {
+        for (int i = ((int)winArr->_Size) - 1; i >= 0 ; i--)
         {
-            const HWND win = group->_Windows[i];
+            const HWND win = winArr->_Data[i];
             if (!IsWindow(win))
                 continue;
             WINDOWPLACEMENT placement;
@@ -681,43 +709,57 @@ static void ApplySwitchApp()
                 ShowWindowAsync(win, SW_RESTORE);
         }
     }
+
     // Bringing window to top by setting HWND_TOPMOST, then HWND_NOTOPMOST
     // It feels hacky but this is most consistent solution I have found.
     const UINT winFlags = SWP_SHOWWINDOW | SWP_NOSIZE | SWP_NOMOVE | SWP_NOREPOSITION | SWP_NOACTIVATE;
     {
-        HDWP winPosHandle = BeginDeferWindowPos(group->_WindowCount);
-        for (int i = group->_WindowCount - 1; i >= 0 ; i--)
+        HDWP winPosHandle = BeginDeferWindowPos(winArr->_Size);
+        for (int i = ((int)winArr->_Size) - 1; i >= 0 ; i--)
         {
-            const HWND win = group->_Windows[i];
+            const HWND win = winArr->_Data[i];
+            if (!IsWindow(win))
+                continue;
+            DeferWindowPos(winPosHandle, win, _AppData._MainWin, 0, 0, 0, 0, winFlags);
+        }
+        EndDeferWindowPos(winPosHandle);
+    }
+    {
+        HDWP winPosHandle = BeginDeferWindowPos(winArr->_Size);
+        for (int i = ((int)winArr->_Size) - 1; i >= 0 ; i--)
+        {
+            const HWND win = winArr->_Data[i];
             if (!IsWindow(win))
                 continue;
             DeferWindowPos(winPosHandle, win, HWND_TOPMOST, 0, 0, 0, 0, winFlags);
         }
         EndDeferWindowPos(winPosHandle);
     }
+
     {
-        HDWP winPosHandle = BeginDeferWindowPos(group->_WindowCount);
-        for (int i = group->_WindowCount - 1; i >= 0 ; i--)
+        for (int i = ((int)winArr->_Size) - 1; i >= 0 ; i--)
         {
-            const HWND win = group->_Windows[i];
+            const HWND win = winArr->_Data[i];
             if (!IsWindow(win))
                 continue;
-            DeferWindowPos(winPosHandle, win, HWND_NOTOPMOST, 0, 0, 0, 0, winFlags);
+            BringWindowToTop(win);
         }
-        EndDeferWindowPos(winPosHandle);
     }
-    _AppData._State._Mode = ModeNone;
     // Setting focus to the first window of the group
-    if (!IsWindow(group->_Windows[0]))
+    if (!IsWindow(winArr->_Data[0]))
+    {
         return;
-    VERIFY(ForceSetForeground(group->_Windows[0]));
+    }
+    SetForegroundWindow(winArr->_Data[0]);
+   // VERIFY(ForceSetForeground(winArr->_Data[0]));
+    free((void*)winArr->_Data);
+    free((void*)winArr);
 }
 
-static void ApplySwitchWin()
+static void ApplySwitchWin(HWND win)
 {
-    const HWND win = _AppData._CurrentWinGroup._Windows[_AppData._State._Selection];
-
-    const UINT winFlags = SWP_SHOWWINDOW | SWP_NOSIZE | SWP_NOMOVE | SWP_NOREPOSITION | SWP_NOACTIVATE;
+  //  const UINT winFlags = SWP_SHOWWINDOW | SWP_NOSIZE | SWP_NOMOVE | SWP_NOREPOSITION | SWP_NOACTIVATE;
+    /*
     {
         HDWP winPosHandle = BeginDeferWindowPos(1);
         winPosHandle = DeferWindowPos(winPosHandle, win, HWND_TOPMOST, 0, 0, 0, 0, winFlags);
@@ -727,13 +769,10 @@ static void ApplySwitchWin()
         HDWP winPosHandle = BeginDeferWindowPos(1);
         winPosHandle = DeferWindowPos(winPosHandle, win, HWND_NOTOPMOST, 0, 0, 0, 0, winFlags);
         EndDeferWindowPos(winPosHandle);
-    }
-    ForceSetForeground(win);
-}
-
-static int Modulo(int a, int b)
-{
-    return (a % b + b) % b;
+    }*/
+    BringWindowToTop(win);
+    SetForegroundWindow(win);
+    //ForceSetForeground(win);
 }
 
 static void AttachToForeground()
@@ -744,29 +783,24 @@ static void AttachToForeground()
 
 static void* ApplyStateTransition(const AppState targetState)
 {
-  //  (void)arg;
-
-//    pthread_mutex_lock(&_AppData._State._Mutex);
-
-  //  pthread_mutex_lock(&_AppData._TargetState._Mutex);
-    // const AppState targetState = _AppData._TargetState;
-//    pthread_mutex_unlock(&_AppData._TargetState._Mutex);
-
     bool invalidateRect = false;
 
-    // Denit.
+    // Denit. : use prev state
     if (_AppData._State._Mode == ModeApp && targetState._Mode != ModeApp)
     {
-        AttachToForeground();
-        PostThreadMessage(_AppData._WorkerThread, MSG_SWITCH_APP, 0, 0);
+        SWinArr* winArr = CreateWinArr(&_AppData._WinGroups._Data[_AppData._State._Selection]);
+        PostThreadMessage(_AppData._WorkerThread, MSG_SWITCH_APP, 0, (LPARAM)winArr);
+        _AppData._State._Mode = ModeNone;
+        _AppData._State._Selection = 0;
         DestroyWin();
     }
     else if (_AppData._State._Mode == ModeWin && targetState._Mode != ModeWin)
     {
-        AttachToForeground();
-        PostThreadMessage(_AppData._WorkerThread, MSG_SWITCH_WIN, 0, 0);
+        _AppData._State._Mode = ModeNone;
+        _AppData._State._Selection = 0;
     }
 
+    // Init / apply: reset state and use target state
     if (targetState._Mode == ModeApp)
     {
         if (_AppData._State._Mode != ModeApp)
@@ -781,17 +815,23 @@ static void* ApplyStateTransition(const AppState targetState)
     }
     else if (targetState._Mode == ModeWin)
     {
+        bool init = false;
         if (_AppData._State._Mode != ModeWin)
         {
-            InitializeSwitchWin();
+            init = true;
             _AppData._State._Mode = ModeWin;
         }
-        _AppData._State._Selection = targetState._Selection;
-        _AppData._State._Selection = Modulo(_AppData._State._Selection, _AppData._CurrentWinGroup._WindowCount);
-        ApplySwitchWin();
+        if (!init)
+        {
+            _AppData._State._Selection = Modulo(targetState._Selection, _AppData._CurrentWinGroup._WindowCount);
+            HWND win = _AppData._CurrentWinGroup._Windows[_AppData._State._Selection];
+            PostThreadMessage(_AppData._WorkerThread, MSG_SWITCH_WIN, 0, (LPARAM)win);
+        }
+        else
+        {
+            PostThreadMessage(_AppData._WorkerThread, MSG_SWITCH_WIN_INIT, 0, (LPARAM)0);
+        }
     }
-
-  //  pthread_mutex_unlock(&_AppData._State._Mutex);
 
     if (invalidateRect)
     {
@@ -881,11 +921,15 @@ static LRESULT KbProc(int nCode, WPARAM wParam, LPARAM lParam)
 
         if (switchApp)
         {
+            if (prevTargetState._Mode != ModeApp)
+                targetState._Selection = 0;
             targetState._Mode = ModeApp;
             targetState._Selection += keyState._InvertKeyDown ? -1 : 1;
         }
         else if (switchWin)
         {
+            if (prevTargetState._Mode != ModeWin)
+                targetState._Selection = 0;
             targetState._Mode = ModeWin;
             targetState._Selection += keyState._InvertKeyDown ? -1 : 1;
         }
@@ -940,7 +984,7 @@ static void DrawRoundedRect(GpGraphics* pGraphics, GpPen* pPen, GpBrush* pBrush,
     GdipClosePathFigure(pPath);
     if (pBrush)
         GdipFillPath(pGraphics, pBrush, pPath);
-    if (pPen)   
+    if (pPen)
         GdipDrawPath(pGraphics, pPen, pPath);
     GdipDeletePath(pPath);
 }
@@ -1057,20 +1101,11 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
             mouseInside = true;
             return 0;
         }
-       // if (pthread_mutex_trylock(&_AppData._State._Mutex))
-       //     return 0;
         const int iconContainerSize = (int)GetSystemMetrics(SM_CXICONSPACING);
         const int posX = GET_X_LPARAM(lParam);
         _AppData._State._Selection = min(max(0, posX / iconContainerSize), (int)_AppData._WinGroups._Size);
         InvalidateRect(_AppData._MainWin, 0, FALSE);
         UpdateWindow(_AppData._MainWin);
-        /*
-        LPARAM param;
-        memcpy(&param, &_AppData._State, sizeof(AppState));
-        PostThreadMessage(_AppData._MainThread, 1990, 0, param);
-        */
-        //pthread_mutex_unlock(&_AppData._TargetState._Mutex);
-        //pthread_mutex_unlock(&_AppData._State._Mutex);
         return 0;
     }
     case WM_CREATE:
@@ -1089,10 +1124,11 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
         }
         if (!_Mouse)
             return 0;
-        AttachToForeground();
-        PostThreadMessage(_AppData._WorkerThread, MSG_SWITCH_APP, 0, 0);
+        SWinArr* winArr = CreateWinArr(&_AppData._WinGroups._Data[_AppData._State._Selection]);
+        PostThreadMessage(_AppData._WorkerThread, MSG_SWITCH_APP, 0, (LPARAM)winArr);
+        _AppData._State._Mode = ModeNone;
+        _AppData._State._Selection = 0;
         DestroyWin();
-        //pthread_mutex_unlock(&_AppData._State._Mutex);
         return 0;
     }
     case WM_DESTROY:
@@ -1100,8 +1136,6 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
         return 0;
     case WM_PAINT:
     {
- //       if (pthread_mutex_trylock(&_AppData._State._Mutex))
- //           return 0;
         PAINTSTRUCT ps;
         BeginPaint(hwnd, &ps);
         RECT clientRect;
@@ -1185,7 +1219,6 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
         BitBlt(ps.hdc, clientRect.left, clientRect.top, clientRect.right - clientRect.left, clientRect.bottom - clientRect.top, pGraphRes->_DCBuffer, 0, 0, SRCCOPY);
         GdipDeleteGraphics(pGraphics);
         EndPaint(hwnd, &ps);
-        //pthread_mutex_unlock(&_AppData._State._Mutex);
         return 0;
     }
     case WM_ERASEBKGND:
@@ -1202,12 +1235,7 @@ static void* HookCb(void* param)
     MSG msg = { };
 
     while (GetMessage(&msg, NULL, 0, 0) > 0)
-    {
-        // if (msg.message == MSG_SET_APP_STATE)
-        // {
-        //     memcpy(&targetState, &msg.lParam, sizeof(AppState));
-        // }
-    }
+    {}
 
     return (void*)0;
 }
@@ -1215,18 +1243,25 @@ static void* HookCb(void* param)
 static void* WorkCB(void* param)
 {
     ((SAppData*)param)->_WorkerThread = GetCurrentThreadId();
-    VERIFY(SetWindowsHookEx(WH_KEYBOARD_LL, KbProc, 0, 0));
+    (AllowSetForegroundWindow(GetCurrentProcessId()));
     MSG msg = { };
     while (GetMessage(&msg, NULL, 0, 0) > 0)
     {
+        AttachToForeground();
         if (msg.message == MSG_SWITCH_APP)
         {
-            ApplySwitchApp();
+            ApplySwitchApp((SWinArr*)msg.lParam);
         }
         else if (msg.message == MSG_SWITCH_WIN)
         {
-            ApplySwitchWin();
+            ApplySwitchWin((HWND)msg.lParam);
         }
+        else if (msg.message == MSG_SWITCH_WIN_INIT)
+        {
+            InitializeSwitchWin();
+            ApplySwitchWin(_AppData._CurrentWinGroup._Windows[_AppData._State._Selection]);
+        }
+        AttachThreadInput(GetCurrentThreadId(), _AppData._MainThread, FALSE);
     }
     return (void*)0;
 }
@@ -1303,8 +1338,6 @@ int StartMacAppSwitcher(HINSTANCE hInstance)
         if (_AppData._GraphicsResources._Bitmap)
             DeleteObject(_AppData._GraphicsResources._Bitmap);
     }
-
-
 
     GdiplusShutdown(gdiplusToken);
     UnregisterClass(CLASS_NAME, hInstance);
