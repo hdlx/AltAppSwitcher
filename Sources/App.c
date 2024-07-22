@@ -1,5 +1,4 @@
 #include <minwindef.h>
-#include <threadpoolapiset.h>
 #include <time.h>
 #include <windows.h>
 #include <tlhelp32.h>
@@ -78,7 +77,6 @@ typedef struct AppState
 {
     Mode _Mode;
     int _Selection;
-//    pthread_mutex_t _Mutex;
 } AppState;
 
 typedef struct SAppData
@@ -89,8 +87,6 @@ typedef struct SAppData
     SGraphicsResources _GraphicsResources;
     SWinGroupArr _WinGroups;
     SWinGroup _CurrentWinGroup;
-    PTP_POOL _ThreadPool;
-    PTP_WORK _ThreadPoolWork;
     DWORD _MainThread;
     DWORD _KbHookThread;
 } SAppData;
@@ -105,7 +101,7 @@ static SAppData _AppData;
 static KeyConfig _KeyConfig;
 static bool _Mouse = true;
 
-#define MSG_SET_APP_STATE 1991
+#define MSG_SET_APP_STATE (WM_USER + 1)
 static void InitGraphicsResources(SGraphicsResources* pRes)
 {
     pRes->_DCDirty = true;
@@ -325,7 +321,7 @@ static bool ForceSetForeground(HWND win)
     placement.length = sizeof(WINDOWPLACEMENT);
     GetWindowPlacement(win, &placement);
     if (placement.showCmd == SW_SHOWMINIMIZED)
-        ShowWindow(win, SW_RESTORE);
+        ShowWindowAsync(win, SW_RESTORE);
     VERIFY(BringWindowToTop(win) || SetForegroundWindow(win));
     SetFocus(win);
     SetActiveWindow(win);
@@ -681,33 +677,33 @@ static void ApplySwitchApp()
             GetWindowPlacement(win, &placement);
             placement.length = sizeof(WINDOWPLACEMENT);
             if (placement.showCmd == SW_SHOWMINIMIZED)
-                ShowWindow(win, SW_RESTORE);
+                ShowWindowAsync(win, SW_RESTORE);
         }
     }
     // Bringing window to top by setting HWND_TOPMOST, then HWND_NOTOPMOST
     // It feels hacky but this is most consistent solution I have found.
     const UINT winFlags = SWP_SHOWWINDOW | SWP_NOSIZE | SWP_NOMOVE | SWP_NOREPOSITION | SWP_NOACTIVATE;
     {
-        HDWP winPosHandle = BeginDeferWindowPos(group->_WindowCount);
+    //    HDWP winPosHandle = BeginDeferWindowPos(group->_WindowCount);
         for (int i = group->_WindowCount - 1; i >= 0 ; i--)
         {
             const HWND win = group->_Windows[i];
             if (!IsWindow(win))
                 continue;
-            winPosHandle = DeferWindowPos(winPosHandle, win, HWND_TOPMOST, 0, 0, 0, 0, winFlags);
+            SetWindowPos(win, HWND_TOPMOST, 0, 0, 0, 0, winFlags);
         }
-        EndDeferWindowPos(winPosHandle);
+//        EndDeferWindowPos(winPosHandle);
     }
     {
-        HDWP winPosHandle = BeginDeferWindowPos(group->_WindowCount);
+     //   HDWP winPosHandle = BeginDeferWindowPos(group->_WindowCount);
         for (int i = group->_WindowCount - 1; i >= 0 ; i--)
         {
             const HWND win = group->_Windows[i];
             if (!IsWindow(win))
                 continue;
-            winPosHandle = DeferWindowPos(winPosHandle, win, HWND_NOTOPMOST, 0, 0, 0, 0, winFlags);
+            SetWindowPos(win, HWND_NOTOPMOST, 0, 0, 0, 0, winFlags);
         }
-        EndDeferWindowPos(winPosHandle);
+       // EndDeferWindowPos(winPosHandle);
     }
     // Setting focus to the first window of the group
     if (!IsWindow(group->_Windows[0]))
@@ -807,9 +803,6 @@ static void* ApplyStateTransition(const AppState targetState)
     return (void*)0;
 }
 
-static KeyState keyState =  { false, false, false, false, false };
-static AppState targetState = { ModeNone, 0 };
-
 static LRESULT KbProc(int nCode, WPARAM wParam, LPARAM lParam)
 {
     const KBDLLHOOKSTRUCT kbStrut = *(KBDLLHOOKSTRUCT*)lParam;
@@ -832,12 +825,12 @@ static LRESULT KbProc(int nCode, WPARAM wParam, LPARAM lParam)
     if (!isWatchedKey)
         return CallNextHookEx(NULL, nCode, wParam, lParam);
 
-   // pthread_mutex_lock(&_AppData._TargetState._Mutex);
-
-    const bool releasing = kbStrut.flags & LLKHF_UP;
-
+    static KeyState keyState =  { false, false, false, false, false };
+    static AppState targetState = { ModeNone, 0 };
 
     const KeyState prevKeyState = keyState;
+
+    const bool releasing = kbStrut.flags & LLKHF_UP;
 
     // Update keyState
     {
@@ -906,18 +899,12 @@ static LRESULT KbProc(int nCode, WPARAM wParam, LPARAM lParam)
         targetState._Mode == prevTargetState._Mode &&
         targetState._Selection == prevTargetState._Selection;
 
-    if (noChange)
+    if (!noChange)
     {
-        if (bypassMsg)
-            return 1;
-        return CallNextHookEx(NULL, nCode, wParam, lParam);
+        LPARAM param;
+        memcpy(&param, &targetState, sizeof(AppState));
+        PostThreadMessage(_AppData._MainThread, MSG_SET_APP_STATE, 0, param);
     }
-
-    LPARAM param;
-    memcpy(&param, &targetState, sizeof(AppState));
-    PostThreadMessage(_AppData._MainThread, MSG_SET_APP_STATE, 0, param);
-
-    //SubmitThreadpoolWork(_AppData._ThreadPoolWork);
 
     if (bypassMsg)
     {
@@ -1096,14 +1083,7 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
     case WM_LBUTTONUP:
     {
         if (!mouseInside)
-        {
-            LPARAM param;
-            AppState appstate = { ModeNone, 0 };
-            appstate._Selection = 0;
-            memcpy(&param, &appstate, sizeof(AppState));
-            PostThreadMessage(_AppData._KbHookThread, MSG_SET_APP_STATE, 0, param);
             DeinitializeSwitchApp();
-        }
         if (!_Mouse)
             return 0;
         // TODO: race condition, use thread msg for this:
@@ -1257,13 +1237,7 @@ int StartMacAppSwitcher(HINSTANCE hInstance)
         _AppData._MainWin = NULL;
         _AppData._Instance = hInstance;
         _AppData._WinGroups._Size = 0;
-     //   _AppData._State._Mutex = PTHREAD_MUTEX_INITIALIZER;
-     //   _AppData._TargetState._Mutex = PTHREAD_MUTEX_INITIALIZER;
-       // _AppData._ThreadPool = CreateThreadpool(NULL);
-       // _AppData._ThreadPoolWork = CreateThreadpoolWork(&WorkCB, NULL, NULL);
         _AppData._MainThread = GetCurrentThreadId();
-        //SetThreadpoolThreadMaximum(_AppData._ThreadPool, 2);
-        //etThreadpoolThreadMinimum(_AppData._ThreadPool, 1);
         SetKeyConfig();
         InitGraphicsResources(&_AppData._GraphicsResources);
     }
@@ -1304,8 +1278,6 @@ int StartMacAppSwitcher(HINSTANCE hInstance)
             DeleteDC(_AppData._GraphicsResources._DCBuffer);
         if (_AppData._GraphicsResources._Bitmap)
             DeleteObject(_AppData._GraphicsResources._Bitmap);
-        CloseThreadpool(_AppData._ThreadPool);
-        CloseThreadpoolWork(_AppData._ThreadPoolWork);
     }
 
     GdiplusShutdown(gdiplusToken);
