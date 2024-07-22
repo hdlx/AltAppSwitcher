@@ -15,6 +15,7 @@
 #include <winreg.h>
 #include <stdlib.h>
 #include <pthread.h>
+#include <pthread.h>
 #include <windowsx.h>
 #include "MacAppSwitcherHelpers.h"
 #include "KeyCodeFromConfigName.h"
@@ -88,7 +89,7 @@ typedef struct SAppData
     SWinGroupArr _WinGroups;
     SWinGroup _CurrentWinGroup;
     DWORD _MainThread;
-    DWORD _KbHookThread;
+    DWORD _WorkerThread;
 } SAppData;
 
 typedef struct SFoundWin
@@ -102,6 +103,8 @@ static KeyConfig _KeyConfig;
 static bool _Mouse = true;
 
 #define MSG_SET_APP_STATE (WM_USER + 1)
+#define MSG_SWITCH_APP (WM_USER + 1)
+#define MSG_SWITCH_WIN (WM_USER + 2)
 static void InitGraphicsResources(SGraphicsResources* pRes)
 {
     pRes->_DCDirty = true;
@@ -663,8 +666,6 @@ static void InitializeSwitchWin()
 
 static void ApplySwitchApp()
 {
-    if (_AppData._State._Mode != ModeApp)
-        return;
     const SWinGroup* group = &_AppData._WinGroups._Data[_AppData._State._Selection];
     // It would be nice to hava "deferred show window"
     {
@@ -684,27 +685,28 @@ static void ApplySwitchApp()
     // It feels hacky but this is most consistent solution I have found.
     const UINT winFlags = SWP_SHOWWINDOW | SWP_NOSIZE | SWP_NOMOVE | SWP_NOREPOSITION | SWP_NOACTIVATE;
     {
-    //    HDWP winPosHandle = BeginDeferWindowPos(group->_WindowCount);
+        HDWP winPosHandle = BeginDeferWindowPos(group->_WindowCount);
         for (int i = group->_WindowCount - 1; i >= 0 ; i--)
         {
             const HWND win = group->_Windows[i];
             if (!IsWindow(win))
                 continue;
-            SetWindowPos(win, HWND_TOPMOST, 0, 0, 0, 0, winFlags);
+            DeferWindowPos(winPosHandle, win, HWND_TOPMOST, 0, 0, 0, 0, winFlags);
         }
-//        EndDeferWindowPos(winPosHandle);
+        EndDeferWindowPos(winPosHandle);
     }
     {
-     //   HDWP winPosHandle = BeginDeferWindowPos(group->_WindowCount);
+        HDWP winPosHandle = BeginDeferWindowPos(group->_WindowCount);
         for (int i = group->_WindowCount - 1; i >= 0 ; i--)
         {
             const HWND win = group->_Windows[i];
             if (!IsWindow(win))
                 continue;
-            SetWindowPos(win, HWND_NOTOPMOST, 0, 0, 0, 0, winFlags);
+            DeferWindowPos(winPosHandle, win, HWND_NOTOPMOST, 0, 0, 0, 0, winFlags);
         }
-       // EndDeferWindowPos(winPosHandle);
+        EndDeferWindowPos(winPosHandle);
     }
+    _AppData._State._Mode = ModeNone;
     // Setting focus to the first window of the group
     if (!IsWindow(group->_Windows[0]))
         return;
@@ -729,19 +731,15 @@ static void ApplySwitchWin()
     ForceSetForeground(win);
 }
 
-static void DeinitializeSwitchApp()
-{
-    _AppData._State._Mode = ModeNone;
-}
-
-static void DeinitializeSwitchWin()
-{
-    _AppData._State._Mode = ModeNone;
-}
-
 static int Modulo(int a, int b)
 {
     return (a % b + b) % b;
+}
+
+static void AttachToForeground()
+{
+    const DWORD FGWThread = GetWindowThreadProcessId(GetForegroundWindow(), NULL);
+    AttachThreadInput(_AppData._WorkerThread, FGWThread, TRUE);
 }
 
 static void* ApplyStateTransition(const AppState targetState)
@@ -759,13 +757,14 @@ static void* ApplyStateTransition(const AppState targetState)
     // Denit.
     if (_AppData._State._Mode == ModeApp && targetState._Mode != ModeApp)
     {
-        ApplySwitchApp();
-        DeinitializeSwitchApp();
+        AttachToForeground();
+        PostThreadMessage(_AppData._WorkerThread, MSG_SWITCH_APP, 0, 0);
         DestroyWin();
     }
     else if (_AppData._State._Mode == ModeWin && targetState._Mode != ModeWin)
     {
-        DeinitializeSwitchWin();
+        AttachToForeground();
+        PostThreadMessage(_AppData._WorkerThread, MSG_SWITCH_WIN, 0, 0);
     }
 
     if (targetState._Mode == ModeApp)
@@ -1083,12 +1082,15 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
     case WM_LBUTTONUP:
     {
         if (!mouseInside)
-            DeinitializeSwitchApp();
+        {
+            _AppData._State._Mode = ModeNone;
+            DestroyWin();
+            return 0;
+        }
         if (!_Mouse)
             return 0;
-        // TODO: race condition, use thread msg for this:
-        ApplySwitchApp();
-        DeinitializeSwitchApp();
+        AttachToForeground();
+        PostThreadMessage(_AppData._WorkerThread, MSG_SWITCH_APP, 0, 0);
         DestroyWin();
         //pthread_mutex_unlock(&_AppData._State._Mutex);
         return 0;
@@ -1210,6 +1212,25 @@ static void* HookCb(void* param)
     return (void*)0;
 }
 
+static void* WorkCB(void* param)
+{
+    ((SAppData*)param)->_WorkerThread = GetCurrentThreadId();
+    VERIFY(SetWindowsHookEx(WH_KEYBOARD_LL, KbProc, 0, 0));
+    MSG msg = { };
+    while (GetMessage(&msg, NULL, 0, 0) > 0)
+    {
+        if (msg.message == MSG_SWITCH_APP)
+        {
+            ApplySwitchApp();
+        }
+        else if (msg.message == MSG_SWITCH_WIN)
+        {
+            ApplySwitchWin();
+        }
+    }
+    return (void*)0;
+}
+
 int StartMacAppSwitcher(HINSTANCE hInstance)
 {
     ULONG_PTR gdiplusToken = 0;
@@ -1244,7 +1265,10 @@ int StartMacAppSwitcher(HINSTANCE hInstance)
 
     pthread_t threadHook;
     pthread_create(&threadHook, NULL, *HookCb, (void*)0);
-    _AppData._KbHookThread = GetThreadId((uint32_t*)threadHook);
+
+    pthread_t threadWorker;
+    pthread_create(&threadWorker, NULL, *WorkCB, (void*)&_AppData);
+
     (AllowSetForegroundWindow(GetCurrentProcessId()));
 
     HANDLE token;
@@ -1279,6 +1303,8 @@ int StartMacAppSwitcher(HINSTANCE hInstance)
         if (_AppData._GraphicsResources._Bitmap)
             DeleteObject(_AppData._GraphicsResources._Bitmap);
     }
+
+
 
     GdiplusShutdown(gdiplusToken);
     UnregisterClass(CLASS_NAME, hInstance);
