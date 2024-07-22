@@ -85,8 +85,6 @@ typedef struct SAppData
 {
     HWND _MainWin;
     HINSTANCE _Instance;
-    KeyState _KeyState;
-    AppState _TargetState;
     AppState _State;
     SGraphicsResources _GraphicsResources;
     SWinGroupArr _WinGroups;
@@ -94,6 +92,7 @@ typedef struct SAppData
     PTP_POOL _ThreadPool;
     PTP_WORK _ThreadPoolWork;
     DWORD _MainThread;
+    DWORD _KbHookThread;
 } SAppData;
 
 typedef struct SFoundWin
@@ -106,6 +105,7 @@ static SAppData _AppData;
 static KeyConfig _KeyConfig;
 static bool _Mouse = true;
 
+#define MSG_SET_APP_STATE 1991
 static void InitGraphicsResources(SGraphicsResources* pRes)
 {
     pRes->_DCDirty = true;
@@ -765,7 +765,7 @@ static void* ApplyStateTransition(const AppState targetState)
     {
         ApplySwitchApp();
         DeinitializeSwitchApp();
-        PostThreadMessage(_AppData._MainThread, 1993, 0,0);
+        DestroyWin();
     }
     else if (_AppData._State._Mode == ModeWin && targetState._Mode != ModeWin)
     {
@@ -778,7 +778,7 @@ static void* ApplyStateTransition(const AppState targetState)
         {
             InitializeSwitchApp();
             _AppData._State._Mode = ModeApp;
-            PostThreadMessage(_AppData._MainThread, 1994, 0,0);
+            CreateWin();
         }
         _AppData._State._Selection = targetState._Selection;
         _AppData._State._Selection = Modulo(_AppData._State._Selection, _AppData._WinGroups._Size);
@@ -807,16 +807,8 @@ static void* ApplyStateTransition(const AppState targetState)
     return (void*)0;
 }
 
-void WorkCB(PTP_CALLBACK_INSTANCE instance,
-    PVOID parameter,
-    PTP_WORK work)
-{
-    (void)instance;
-    (void)parameter;
-    (void)work;
-   // ApplyStateTransition((void*)0);
-    return;
-}
+static KeyState keyState =  { false, false, false, false, false };
+static AppState targetState = { ModeNone, 0 };
 
 static LRESULT KbProc(int nCode, WPARAM wParam, LPARAM lParam)
 {
@@ -843,37 +835,39 @@ static LRESULT KbProc(int nCode, WPARAM wParam, LPARAM lParam)
    // pthread_mutex_lock(&_AppData._TargetState._Mutex);
 
     const bool releasing = kbStrut.flags & LLKHF_UP;
-    const KeyState prevKeyState = _AppData._KeyState;
+
+
+    const KeyState prevKeyState = keyState;
 
     // Update keyState
     {
         if (isAppHold)
-            _AppData._KeyState._HoldAppDown = !releasing;
+            keyState._HoldAppDown = !releasing;
         if (isAppSwitch)
-            _AppData._KeyState._SwitchAppDown = !releasing;
+            keyState._SwitchAppDown = !releasing;
         if (isWinHold)
-            _AppData._KeyState._HoldWinDown = !releasing;
+            keyState._HoldWinDown = !releasing;
         if (isWinSwitch)
-            _AppData._KeyState._SwitchWinDown = !releasing;
+            keyState._SwitchWinDown = !releasing;
         if (isInvert)
-            _AppData._KeyState._InvertKeyDown = !releasing;
+            keyState._InvertKeyDown = !releasing;
     }
 
     // Update target app state
     bool bypassMsg = false;
-    const AppState prevTargetState = _AppData._TargetState;
+    const AppState prevTargetState = targetState;
     {
-        const bool switchWinInput = !prevKeyState._SwitchWinDown && _AppData._KeyState._SwitchWinDown;
-        const bool switchAppInput = !prevKeyState._SwitchAppDown && _AppData._KeyState._SwitchAppDown;
-        const bool winHoldReleasing = prevKeyState._HoldWinDown && !_AppData._KeyState._HoldWinDown;
-        const bool appHoldReleasing = prevKeyState._HoldAppDown && !_AppData._KeyState._HoldAppDown;
+        const bool switchWinInput = !prevKeyState._SwitchWinDown && keyState._SwitchWinDown;
+        const bool switchAppInput = !prevKeyState._SwitchAppDown && keyState._SwitchAppDown;
+        const bool winHoldReleasing = prevKeyState._HoldWinDown && !keyState._HoldWinDown;
+        const bool appHoldReleasing = prevKeyState._HoldAppDown && !keyState._HoldAppDown;
 
         const bool switchApp =
             switchAppInput &&
-            _AppData._KeyState._HoldAppDown;
+            keyState._HoldAppDown;
         const bool switchWin =
             switchWinInput &&
-            _AppData._KeyState._HoldWinDown;
+            keyState._HoldWinDown;
 
         bool isApplying = false;
 
@@ -881,36 +875,36 @@ static LRESULT KbProc(int nCode, WPARAM wParam, LPARAM lParam)
         if (prevTargetState._Mode == ModeApp &&
             (switchWinInput || appHoldReleasing))
         {
-            _AppData._TargetState._Mode = ModeNone;
-            _AppData._TargetState._Selection = 0;
+            targetState._Mode = ModeNone;
+            targetState._Selection = 0;
             isApplying = true;
         }
         else if (prevTargetState._Mode == ModeWin &&
             (switchAppInput || winHoldReleasing))
         {
-            _AppData._TargetState._Mode = ModeNone;
-            _AppData._TargetState._Selection = 0;
+            targetState._Mode = ModeNone;
+            targetState._Selection = 0;
             isApplying = true;
         }
 
         if (switchApp)
         {
-            _AppData._TargetState._Mode = ModeApp;
-            _AppData._TargetState._Selection += _AppData._KeyState._InvertKeyDown ? -1 : 1;
+            targetState._Mode = ModeApp;
+            targetState._Selection += keyState._InvertKeyDown ? -1 : 1;
         }
         else if (switchWin)
         {
-            _AppData._TargetState._Mode = ModeWin;
-            _AppData._TargetState._Selection += _AppData._KeyState._InvertKeyDown ? -1 : 1;
+            targetState._Mode = ModeWin;
+            targetState._Selection += keyState._InvertKeyDown ? -1 : 1;
         }
 
         bypassMsg = 
-            ((_AppData._TargetState._Mode != ModeNone) || isApplying) &&
+            ((targetState._Mode != ModeNone) || isApplying) &&
             (isWinSwitch || isAppSwitch || isWinHold || isAppHold || isInvert);
     }
     const bool noChange = 
-        _AppData._TargetState._Mode == prevTargetState._Mode &&
-        _AppData._TargetState._Selection == prevTargetState._Selection;
+        targetState._Mode == prevTargetState._Mode &&
+        targetState._Selection == prevTargetState._Selection;
 
     if (noChange)
     {
@@ -920,8 +914,8 @@ static LRESULT KbProc(int nCode, WPARAM wParam, LPARAM lParam)
     }
 
     LPARAM param;
-    memcpy(&param, &_AppData._TargetState, sizeof(AppState));
-    PostThreadMessage(_AppData._MainThread, 1991, 0, param);
+    memcpy(&param, &targetState, sizeof(AppState));
+    PostThreadMessage(_AppData._MainThread, MSG_SET_APP_STATE, 0, param);
 
     //SubmitThreadpoolWork(_AppData._ThreadPoolWork);
 
@@ -1061,6 +1055,11 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
     static bool mouseInside = false;
     switch (uMsg)
     {
+    case WM_MOUSELEAVE:
+    {
+        mouseInside = false;
+        return 0;
+    }
     case WM_MOUSEMOVE:
     {
         if (!_Mouse)
@@ -1079,8 +1078,11 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
         _AppData._State._Selection = min(max(0, posX / iconContainerSize), (int)_AppData._WinGroups._Size);
         InvalidateRect(_AppData._MainWin, 0, FALSE);
         UpdateWindow(_AppData._MainWin);
-       // pthread_mutex_lock(&_AppData._TargetState._Mutex);
-        _AppData._TargetState._Selection = _AppData._State._Selection;
+        /*
+        LPARAM param;
+        memcpy(&param, &_AppData._State, sizeof(AppState));
+        PostThreadMessage(_AppData._MainThread, 1990, 0, param);
+        */
         //pthread_mutex_unlock(&_AppData._TargetState._Mutex);
         //pthread_mutex_unlock(&_AppData._State._Mutex);
         return 0;
@@ -1093,12 +1095,18 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
     }
     case WM_LBUTTONUP:
     {
+        if (!mouseInside)
+        {
+            LPARAM param;
+            AppState appstate = { ModeNone, 0 };
+            appstate._Selection = 0;
+            memcpy(&param, &appstate, sizeof(AppState));
+            PostThreadMessage(_AppData._KbHookThread, MSG_SET_APP_STATE, 0, param);
+            DeinitializeSwitchApp();
+        }
         if (!_Mouse)
             return 0;
-       // pthread_mutex_lock(&_AppData._TargetState._Mutex);
-        _AppData._TargetState._Selection = 0;
-        //pthread_mutex_unlock(&_AppData._TargetState._Mutex);
-        //pthread_mutex_lock(&_AppData._State._Mutex);
+        // TODO: race condition, use thread msg for this:
         ApplySwitchApp();
         DeinitializeSwitchApp();
         DestroyWin();
@@ -1210,8 +1218,15 @@ static void* HookCb(void* param)
     (void)param;
     VERIFY(SetWindowsHookEx(WH_KEYBOARD_LL, KbProc, 0, 0));
     MSG msg = { };
+
     while (GetMessage(&msg, NULL, 0, 0) > 0)
-    {}
+    {
+        // if (msg.message == MSG_SET_APP_STATE)
+        // {
+        //     memcpy(&targetState, &msg.lParam, sizeof(AppState));
+        // }
+    }
+
     return (void*)0;
 }
 
@@ -1239,30 +1254,23 @@ int StartMacAppSwitcher(HINSTANCE hInstance)
     {
         _AppData._State._Mode = ModeNone;
         _AppData._State._Selection = 0;
-        _AppData._TargetState._Mode = ModeNone;
-        _AppData._TargetState._Selection = 0;
         _AppData._MainWin = NULL;
         _AppData._Instance = hInstance;
         _AppData._WinGroups._Size = 0;
-        _AppData._KeyState._SwitchWinDown = false;
-        _AppData._KeyState._SwitchAppDown = false;
-        _AppData._KeyState._HoldWinDown = false;
-        _AppData._KeyState._HoldAppDown = false;
-        _AppData._KeyState._InvertKeyDown = false;
      //   _AppData._State._Mutex = PTHREAD_MUTEX_INITIALIZER;
      //   _AppData._TargetState._Mutex = PTHREAD_MUTEX_INITIALIZER;
-        _AppData._ThreadPool = CreateThreadpool(NULL);
-        _AppData._ThreadPoolWork = CreateThreadpoolWork(&WorkCB, NULL, NULL);
+       // _AppData._ThreadPool = CreateThreadpool(NULL);
+       // _AppData._ThreadPoolWork = CreateThreadpoolWork(&WorkCB, NULL, NULL);
         _AppData._MainThread = GetCurrentThreadId();
-        SetThreadpoolThreadMaximum(_AppData._ThreadPool, 2);
-        SetThreadpoolThreadMinimum(_AppData._ThreadPool, 1);
+        //SetThreadpoolThreadMaximum(_AppData._ThreadPool, 2);
+        //etThreadpoolThreadMinimum(_AppData._ThreadPool, 1);
         SetKeyConfig();
         InitGraphicsResources(&_AppData._GraphicsResources);
     }
 
     pthread_t threadHook;
     pthread_create(&threadHook, NULL, *HookCb, (void*)0);
-    
+    _AppData._KbHookThread = GetThreadId((uint32_t*)threadHook);
     (AllowSetForegroundWindow(GetCurrentProcessId()));
 
     HANDLE token;
@@ -1280,16 +1288,12 @@ int StartMacAppSwitcher(HINSTANCE hInstance)
     MSG msg = { };
     while (GetMessage(&msg, NULL, 0, 0) > 0)
     {
-        if (msg.message == 1991)
+        if (msg.message == MSG_SET_APP_STATE)
         {
             AppState targetState;
             memcpy(&targetState, &msg.lParam, sizeof(AppState));
             ApplyStateTransition(targetState);
         }
-        if (msg.message == 1994)
-            CreateWin();
-        if (msg.message == 1993)
-            DestroyWin();
         TranslateMessage(&msg);
         DispatchMessage(&msg);
     }
