@@ -729,7 +729,9 @@ static void ApplySwitchApp(const SWinArr* winArr)
         }
         EndDeferWindowPos(winPosHandle);
     }
-    
+
+    Sleep(50);
+
     {
         HDWP winPosHandle = BeginDeferWindowPos(winArr->_Size);
         for (int i = ((int)winArr->_Size) - 1; i >= 0 ; i--)
@@ -853,14 +855,14 @@ static LRESULT KbProc(int nCode, WPARAM wParam, LPARAM lParam)
 
         // Denit.
         if (prevTargetMode == ModeApp &&
-            (switchWinInput || appHoldReleasing))
+            (switchWin || appHoldReleasing))
         {
             targetMode = switchWinInput ? ModeWin : ModeNone;
             isApplying = true;
             PostThreadMessage(_AppData._MainThread, MSG_DEINIT_APP, 0, 0);
         }
         else if (prevTargetMode == ModeWin &&
-            (switchAppInput || winHoldReleasing))
+            (switchApp || winHoldReleasing))
         {
             targetMode = switchAppInput ? ModeApp : ModeNone;
             isApplying = true;
@@ -1079,10 +1081,11 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
         if (!_Mouse)
             return 0;
         SWinArr* winArr = CreateWinArr(&_AppData._WinGroups._Data[_AppData._Selection]);
-        PostThreadMessage(_AppData._WorkerThread, MSG_SET_APP, 0, (LPARAM)winArr);
+        //PostThreadMessage(_AppData._WorkerThread, MSG_SET_APP, 0, (LPARAM)winArr);
         _AppData._Mode = ModeNone;
         _AppData._Selection = 0;
         DestroyWin();
+        ApplySwitchApp(winArr);
         return 0;
     }
     case WM_DESTROY:
@@ -1229,6 +1232,7 @@ static DWORD KbHookCb(LPVOID param)
     return (DWORD)0;
 }
 
+/*
 static DWORD WorkCb(LPVOID param)
 {
     ((SAppData*)param)->_WorkerThread = GetCurrentThreadId();
@@ -1249,6 +1253,7 @@ static DWORD WorkCb(LPVOID param)
     }
     return (DWORD)0;
 }
+*/
 
 int StartMacAppSwitcher(HINSTANCE hInstance)
 {
@@ -1284,9 +1289,10 @@ int StartMacAppSwitcher(HINSTANCE hInstance)
 
     HANDLE threadKbHook = CreateRemoteThread(GetCurrentProcess(), NULL, 0, *KbHookCb, (void*)&_AppData, 0, NULL);
     (void)threadKbHook;
-
+/*
     HANDLE threadWorker = CreateRemoteThread(GetCurrentProcess(), NULL, 0, *WorkCb, (void*)&_AppData, 0, NULL);
     (void)threadWorker;
+*/
     (AllowSetForegroundWindow(GetCurrentProcessId()));
 
     HANDLE token;
@@ -1344,7 +1350,8 @@ int StartMacAppSwitcher(HINSTANCE hInstance)
             _AppData._Selection = Modulo(_AppData._Selection, _AppData._CurrentWinGroup._WindowCount);
 
             HWND win = _AppData._CurrentWinGroup._Windows[_AppData._Selection];
-            PostThreadMessage(_AppData._WorkerThread, MSG_SET_WIN, 0, (LPARAM)win);
+            //PostThreadMessage(_AppData._WorkerThread, MSG_SET_WIN, 0, (LPARAM)win);
+            ApplySwitchWin(win);
 
             break;
         }
@@ -1356,7 +1363,8 @@ int StartMacAppSwitcher(HINSTANCE hInstance)
             _AppData._Selection = Modulo(_AppData._Selection, _AppData._CurrentWinGroup._WindowCount);
 
             HWND win = _AppData._CurrentWinGroup._Windows[_AppData._Selection];
-            PostThreadMessage(_AppData._WorkerThread, MSG_SET_WIN, 0, (LPARAM)win);
+            //PostThreadMessage(_AppData._WorkerThread, MSG_SET_WIN, 0, (LPARAM)win);
+            ApplySwitchWin(win);
 
             break;
         }
@@ -1366,11 +1374,13 @@ int StartMacAppSwitcher(HINSTANCE hInstance)
                 break;
 
             SWinArr* winArr = CreateWinArr(&_AppData._WinGroups._Data[_AppData._Selection]);
-            PostThreadMessage(_AppData._WorkerThread, MSG_SET_APP, 0, (LPARAM)winArr);
+            //PostThreadMessage(_AppData._WorkerThread, MSG_SET_APP, 0, (LPARAM)winArr);
 
             _AppData._Mode = ModeNone;
             _AppData._Selection = 0;
             DestroyWin();
+
+            ApplySwitchApp(winArr);
 
             break;
         }
