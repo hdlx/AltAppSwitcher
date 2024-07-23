@@ -16,7 +16,6 @@
 #include <shlwapi.h>
 #include <winreg.h>
 #include <stdlib.h>
-#include <pthread.h>
 #include <windowsx.h>
 #include "MacAppSwitcherHelpers.h"
 #include "KeyCodeFromConfigName.h"
