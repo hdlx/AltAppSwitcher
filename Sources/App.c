@@ -685,7 +685,7 @@ static void InitializeSwitchWin()
     _AppData._Selection = 0;
     _AppData._Mode = ModeWin;
 }
-
+/*
 static SWinArr* CreateWinArr(const SWinGroup* winGroup)
 {
     SWinArr* winArr = malloc(sizeof(SWinArr));
@@ -697,13 +697,13 @@ static SWinArr* CreateWinArr(const SWinGroup* winGroup)
     }
     return winArr;
 }
-
-static void ApplySwitchApp(const SWinArr* winArr)
+*/
+static void ApplySwitchApp(const SWinGroup* winGroup)
 {
     {
-        for (int i = ((int)winArr->_Size) - 1; i >= 0 ; i--)
+        for (int i = ((int)winGroup->_WindowCount) - 1; i >= 0 ; i--)
         {
-            const HWND win = winArr->_Data[i];
+            const HWND win = winGroup->_Windows[i];
             if (!IsWindow(win))
                 continue;
             WINDOWPLACEMENT placement;
@@ -719,10 +719,10 @@ static void ApplySwitchApp(const SWinArr* winArr)
 
     const UINT winFlags = SWP_SHOWWINDOW | SWP_NOSIZE | SWP_NOMOVE | SWP_NOREPOSITION | SWP_NOACTIVATE;
     {
-        HDWP winPosHandle = BeginDeferWindowPos(winArr->_Size);
-        for (int i = ((int)winArr->_Size) - 1; i >= 0 ; i--)
+        HDWP winPosHandle = BeginDeferWindowPos(winGroup->_WindowCount);
+        for (int i = ((int)winGroup->_WindowCount) - 1; i >= 0 ; i--)
         {
-            const HWND win = winArr->_Data[i];
+            const HWND win = winGroup->_Windows[i];
             if (!IsWindow(win))
                 continue;
             DeferWindowPos(winPosHandle, win, HWND_TOPMOST, 0, 0, 0, 0, winFlags);
@@ -733,10 +733,10 @@ static void ApplySwitchApp(const SWinArr* winArr)
     Sleep(50);
 
     {
-        HDWP winPosHandle = BeginDeferWindowPos(winArr->_Size);
-        for (int i = ((int)winArr->_Size) - 1; i >= 0 ; i--)
+        HDWP winPosHandle = BeginDeferWindowPos(winGroup->_WindowCount);
+        for (int i = ((int)winGroup->_WindowCount) - 1; i >= 0 ; i--)
         {
-            const HWND win = winArr->_Data[i];
+            const HWND win = winGroup->_Windows[i];
             if (!IsWindow(win))
                 continue;
             DeferWindowPos(winPosHandle, win, HWND_NOTOPMOST, 0, 0, 0, 0, winFlags);
@@ -757,14 +757,12 @@ static void ApplySwitchApp(const SWinArr* winArr)
     }
 */
     // Setting focus to the first window of the group
-    if (!IsWindow(winArr->_Data[0]))
+    if (!IsWindow(winGroup->_Windows[0]))
     {
         return;
     }
-    SetForegroundWindow(winArr->_Data[0]);
+    SetForegroundWindow(winGroup->_Windows[0]);
    // VERIFY(ForceSetForeground(winArr->_Data[0]));
-    free((void*)winArr->_Data);
-    free((void*)winArr);
 }
 
 static void ApplySwitchWin(HWND win)
@@ -1080,12 +1078,13 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
         }
         if (!_Mouse)
             return 0;
-        SWinArr* winArr = CreateWinArr(&_AppData._WinGroups._Data[_AppData._Selection]);
+        //SWinArr* winArr = CreateWinArr(&_AppData._WinGroups._Data[_AppData._Selection]);
         //PostThreadMessage(_AppData._WorkerThread, MSG_SET_APP, 0, (LPARAM)winArr);
+        const int selection = _AppData._Selection;
         _AppData._Mode = ModeNone;
         _AppData._Selection = 0;
         DestroyWin();
-        ApplySwitchApp(winArr);
+        ApplySwitchApp(&_AppData._WinGroups._Data[selection]);
         return 0;
     }
     case WM_DESTROY:
@@ -1373,14 +1372,15 @@ int StartMacAppSwitcher(HINSTANCE hInstance)
             if (_AppData._Mode == ModeNone)
                 break;
 
-            SWinArr* winArr = CreateWinArr(&_AppData._WinGroups._Data[_AppData._Selection]);
+            // SWinArr* winArr = CreateWinArr(&_AppData._WinGroups._Data[_AppData._Selection]);
             //PostThreadMessage(_AppData._WorkerThread, MSG_SET_APP, 0, (LPARAM)winArr);
 
+            const int selection = _AppData._Selection;
             _AppData._Mode = ModeNone;
             _AppData._Selection = 0;
             DestroyWin();
 
-            ApplySwitchApp(winArr);
+            ApplySwitchApp(&_AppData._WinGroups._Data[selection]);
 
             break;
         }
