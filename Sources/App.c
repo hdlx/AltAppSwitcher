@@ -140,8 +140,10 @@ static ThemeMode _ThemeMode = ThemeModeAuto;
 #define MSG_DEINIT_WIN (WM_USER + 7)
 #define MSG_DEINIT_APP (WM_USER + 8)
 // Worker thread
+/*
 #define MSG_SET_APP (WM_USER + 9)
 #define MSG_SET_WIN (WM_USER + 10)
+*/
 
 static void InitGraphicsResources(SGraphicsResources* pRes)
 {
