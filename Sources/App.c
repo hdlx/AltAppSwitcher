@@ -17,7 +17,6 @@
 #include <winreg.h>
 #include <stdlib.h>
 #include <pthread.h>
-#include <pthread.h>
 #include <windowsx.h>
 #include "MacAppSwitcherHelpers.h"
 #include "KeyCodeFromConfigName.h"
@@ -82,17 +81,12 @@ typedef enum Mode
     ModeWin
 } Mode;
 
-typedef struct AppState
-{
-    Mode _Mode;
-    int _Selection;
-} AppState;
-
 typedef struct SAppData
 {
     HWND _MainWin;
     HINSTANCE _Instance;
-    AppState _State;
+    Mode _Mode;
+    int _Selection;
     SGraphicsResources _GraphicsResources;
     SWinGroupArr _WinGroups;
     SWinGroup _CurrentWinGroup;
@@ -110,10 +104,19 @@ static SAppData _AppData;
 static KeyConfig _KeyConfig;
 static bool _Mouse = true;
 
-#define MSG_SET_APP_STATE (WM_USER + 1)
-#define MSG_SWITCH_APP (WM_USER + 1)
-#define MSG_SWITCH_WIN (WM_USER + 2)
-#define MSG_SWITCH_WIN_INIT (WM_USER + 3)
+// Main thread
+#define MSG_INIT_WIN (WM_USER + 1)
+#define MSG_INIT_APP (WM_USER + 2)
+#define MSG_NEXT_WIN (WM_USER + 3)
+#define MSG_NEXT_APP (WM_USER + 4)
+#define MSG_PREV_WIN (WM_USER + 5)
+#define MSG_PREV_APP (WM_USER + 6)
+#define MSG_DEINIT_WIN (WM_USER + 7)
+#define MSG_DEINIT_APP (WM_USER + 8)
+// Worker thread
+#define MSG_SET_APP (WM_USER + 9)
+#define MSG_SET_WIN (WM_USER + 10)
+
 static void InitGraphicsResources(SGraphicsResources* pRes)
 {
     pRes->_DCDirty = true;
@@ -651,6 +654,9 @@ static void InitializeSwitchApp()
     }
     pWinGroups->_Size = 0;
     EnumDesktopWindows(NULL, FillWinGroups, (LPARAM)pWinGroups);
+    _AppData._Mode = ModeApp;
+    _AppData._Selection = 0;
+    CreateWin();
 }
 
 static void InitializeSwitchWin()
@@ -677,8 +683,8 @@ static void InitializeSwitchWin()
     GetProcessFileName(PID, pWinGroup->_ModuleFileName);
     pWinGroup->_WindowCount = 0;
     EnumDesktopWindows(NULL, FillCurrentWinGroup, (LPARAM)pWinGroup);
-    _AppData._State._Selection = (int)Modulo(1, (int)pWinGroup->_WindowCount);
-    _AppData._State._Mode = ModeWin;
+    _AppData._Selection = 0;
+    _AppData._Mode = ModeWin;
 }
 
 static SWinArr* CreateWinArr(const SWinGroup* winGroup)
@@ -688,14 +694,13 @@ static SWinArr* CreateWinArr(const SWinGroup* winGroup)
     winArr->_Data = malloc(sizeof(HWND) * winGroup->_WindowCount);
     for (uint32_t i = 0; i < winGroup->_WindowCount; i++)
     {
-        winArr->_Data[i] = _AppData._WinGroups._Data[_AppData._State._Selection]._Windows[i];
+        winArr->_Data[i] = _AppData._WinGroups._Data[_AppData._Selection]._Windows[i];
     }
     return winArr;
 }
 
 static void ApplySwitchApp(const SWinArr* winArr)
 {
-    
     {
         for (int i = ((int)winArr->_Size) - 1; i >= 0 ; i--)
         {
@@ -712,18 +717,8 @@ static void ApplySwitchApp(const SWinArr* winArr)
 
     // Bringing window to top by setting HWND_TOPMOST, then HWND_NOTOPMOST
     // It feels hacky but this is most consistent solution I have found.
+
     const UINT winFlags = SWP_SHOWWINDOW | SWP_NOSIZE | SWP_NOMOVE | SWP_NOREPOSITION | SWP_NOACTIVATE;
-    {
-        HDWP winPosHandle = BeginDeferWindowPos(winArr->_Size);
-        for (int i = ((int)winArr->_Size) - 1; i >= 0 ; i--)
-        {
-            const HWND win = winArr->_Data[i];
-            if (!IsWindow(win))
-                continue;
-            DeferWindowPos(winPosHandle, win, _AppData._MainWin, 0, 0, 0, 0, winFlags);
-        }
-        EndDeferWindowPos(winPosHandle);
-    }
     {
         HDWP winPosHandle = BeginDeferWindowPos(winArr->_Size);
         for (int i = ((int)winArr->_Size) - 1; i >= 0 ; i--)
@@ -735,16 +730,31 @@ static void ApplySwitchApp(const SWinArr* winArr)
         }
         EndDeferWindowPos(winPosHandle);
     }
-
+    
+    {
+        HDWP winPosHandle = BeginDeferWindowPos(winArr->_Size);
+        for (int i = ((int)winArr->_Size) - 1; i >= 0 ; i--)
+        {
+            const HWND win = winArr->_Data[i];
+            if (!IsWindow(win))
+                continue;
+            DeferWindowPos(winPosHandle, win, HWND_NOTOPMOST, 0, 0, 0, 0, winFlags);
+        }
+        EndDeferWindowPos(winPosHandle);
+    }
+/*
+    const UINT winFlags = SWP_SHOWWINDOW | SWP_NOSIZE | SWP_NOMOVE;
     {
         for (int i = ((int)winArr->_Size) - 1; i >= 0 ; i--)
         {
             const HWND win = winArr->_Data[i];
             if (!IsWindow(win))
                 continue;
-            BringWindowToTop(win);
+            SetWindowPos(win, _AppData._MainWin, 0, 0, 0, 0, winFlags);
+            //BringWindowToTop(win);
         }
     }
+*/
     // Setting focus to the first window of the group
     if (!IsWindow(winArr->_Data[0]))
     {
@@ -781,67 +791,6 @@ static void AttachToForeground()
     AttachThreadInput(_AppData._WorkerThread, FGWThread, TRUE);
 }
 
-static void* ApplyStateTransition(const AppState targetState)
-{
-    bool invalidateRect = false;
-
-    // Denit. : use prev state
-    if (_AppData._State._Mode == ModeApp && targetState._Mode != ModeApp)
-    {
-        SWinArr* winArr = CreateWinArr(&_AppData._WinGroups._Data[_AppData._State._Selection]);
-        PostThreadMessage(_AppData._WorkerThread, MSG_SWITCH_APP, 0, (LPARAM)winArr);
-        _AppData._State._Mode = ModeNone;
-        _AppData._State._Selection = 0;
-        DestroyWin();
-    }
-    else if (_AppData._State._Mode == ModeWin && targetState._Mode != ModeWin)
-    {
-        _AppData._State._Mode = ModeNone;
-        _AppData._State._Selection = 0;
-    }
-
-    // Init / apply: reset state and use target state
-    if (targetState._Mode == ModeApp)
-    {
-        if (_AppData._State._Mode != ModeApp)
-        {
-            InitializeSwitchApp();
-            _AppData._State._Mode = ModeApp;
-            CreateWin();
-        }
-        _AppData._State._Selection = targetState._Selection;
-        _AppData._State._Selection = Modulo(_AppData._State._Selection, _AppData._WinGroups._Size);
-        invalidateRect = true;
-    }
-    else if (targetState._Mode == ModeWin)
-    {
-        bool init = false;
-        if (_AppData._State._Mode != ModeWin)
-        {
-            init = true;
-            _AppData._State._Mode = ModeWin;
-        }
-        if (!init)
-        {
-            _AppData._State._Selection = Modulo(targetState._Selection, _AppData._CurrentWinGroup._WindowCount);
-            HWND win = _AppData._CurrentWinGroup._Windows[_AppData._State._Selection];
-            PostThreadMessage(_AppData._WorkerThread, MSG_SWITCH_WIN, 0, (LPARAM)win);
-        }
-        else
-        {
-            PostThreadMessage(_AppData._WorkerThread, MSG_SWITCH_WIN_INIT, 0, (LPARAM)0);
-        }
-    }
-
-    if (invalidateRect)
-    {
-        InvalidateRect(_AppData._MainWin, 0, FALSE);
-        UpdateWindow(_AppData._MainWin);
-    }
-
-    return (void*)0;
-}
-
 static LRESULT KbProc(int nCode, WPARAM wParam, LPARAM lParam)
 {
     const KBDLLHOOKSTRUCT kbStrut = *(KBDLLHOOKSTRUCT*)lParam;
@@ -865,7 +814,7 @@ static LRESULT KbProc(int nCode, WPARAM wParam, LPARAM lParam)
         return CallNextHookEx(NULL, nCode, wParam, lParam);
 
     static KeyState keyState =  { false, false, false, false, false };
-    static AppState targetState = { ModeNone, 0 };
+    static Mode targetMode = ModeNone;
 
     const KeyState prevKeyState = keyState;
 
@@ -887,7 +836,7 @@ static LRESULT KbProc(int nCode, WPARAM wParam, LPARAM lParam)
 
     // Update target app state
     bool bypassMsg = false;
-    const AppState prevTargetState = targetState;
+    const Mode prevTargetMode = targetMode;
     {
         const bool switchWinInput = !prevKeyState._SwitchWinDown && keyState._SwitchWinDown;
         const bool switchAppInput = !prevKeyState._SwitchAppDown && keyState._SwitchAppDown;
@@ -904,49 +853,55 @@ static LRESULT KbProc(int nCode, WPARAM wParam, LPARAM lParam)
         bool isApplying = false;
 
         // Denit.
-        if (prevTargetState._Mode == ModeApp &&
+        if (prevTargetMode == ModeApp &&
             (switchWinInput || appHoldReleasing))
         {
-            targetState._Mode = ModeNone;
-            targetState._Selection = 0;
+            targetMode = switchWinInput ? ModeWin : ModeNone;
             isApplying = true;
+            PostThreadMessage(_AppData._MainThread, MSG_DEINIT_APP, 0, 0);
         }
-        else if (prevTargetState._Mode == ModeWin &&
+        else if (prevTargetMode == ModeWin &&
             (switchAppInput || winHoldReleasing))
         {
-            targetState._Mode = ModeNone;
-            targetState._Selection = 0;
+            targetMode = switchAppInput ? ModeApp : ModeNone;
             isApplying = true;
+            PostThreadMessage(_AppData._MainThread, MSG_DEINIT_WIN, 0, 0);
+        }
+
+        if (switchApp)
+            targetMode = ModeApp;
+        else if (switchWin)
+            targetMode = ModeWin;
+
+        if (targetMode == ModeApp && prevTargetMode != ModeApp)
+        {
+            PostThreadMessage(_AppData._MainThread, MSG_INIT_APP, 0, 0);
+        }
+        else if (targetMode == ModeWin && prevTargetMode != ModeWin)
+        {
+            PostThreadMessage(_AppData._MainThread, MSG_INIT_WIN, 0, 0);
         }
 
         if (switchApp)
         {
-            if (prevTargetState._Mode != ModeApp)
-                targetState._Selection = 0;
-            targetState._Mode = ModeApp;
-            targetState._Selection += keyState._InvertKeyDown ? -1 : 1;
+            targetMode = ModeApp;
+            if (keyState._InvertKeyDown)
+                PostThreadMessage(_AppData._MainThread, MSG_PREV_APP, 0, 0);
+            else
+                PostThreadMessage(_AppData._MainThread, MSG_NEXT_APP, 0, 0);
         }
         else if (switchWin)
         {
-            if (prevTargetState._Mode != ModeWin)
-                targetState._Selection = 0;
-            targetState._Mode = ModeWin;
-            targetState._Selection += keyState._InvertKeyDown ? -1 : 1;
+            targetMode = ModeWin;
+            if (keyState._InvertKeyDown)
+                PostThreadMessage(_AppData._MainThread, MSG_PREV_WIN, 0, 0);
+            else
+                PostThreadMessage(_AppData._MainThread, MSG_NEXT_WIN, 0, 0);
         }
 
         bypassMsg = 
-            ((targetState._Mode != ModeNone) || isApplying) &&
+            ((targetMode != ModeNone) || isApplying) &&
             (isWinSwitch || isAppSwitch || isWinHold || isAppHold || isInvert);
-    }
-    const bool noChange = 
-        targetState._Mode == prevTargetState._Mode &&
-        targetState._Selection == prevTargetState._Selection;
-
-    if (!noChange)
-    {
-        LPARAM param;
-        memcpy(&param, &targetState, sizeof(AppState));
-        PostThreadMessage(_AppData._MainThread, MSG_SET_APP_STATE, 0, param);
     }
 
     if (bypassMsg)
@@ -1103,7 +1058,7 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
         }
         const int iconContainerSize = (int)GetSystemMetrics(SM_CXICONSPACING);
         const int posX = GET_X_LPARAM(lParam);
-        _AppData._State._Selection = min(max(0, posX / iconContainerSize), (int)_AppData._WinGroups._Size);
+        _AppData._Selection = min(max(0, posX / iconContainerSize), (int)_AppData._WinGroups._Size);
         InvalidateRect(_AppData._MainWin, 0, FALSE);
         UpdateWindow(_AppData._MainWin);
         return 0;
@@ -1118,16 +1073,16 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
     {
         if (!mouseInside)
         {
-            _AppData._State._Mode = ModeNone;
+            _AppData._Mode = ModeNone;
             DestroyWin();
             return 0;
         }
         if (!_Mouse)
             return 0;
-        SWinArr* winArr = CreateWinArr(&_AppData._WinGroups._Data[_AppData._State._Selection]);
-        PostThreadMessage(_AppData._WorkerThread, MSG_SWITCH_APP, 0, (LPARAM)winArr);
-        _AppData._State._Mode = ModeNone;
-        _AppData._State._Selection = 0;
+        SWinArr* winArr = CreateWinArr(&_AppData._WinGroups._Data[_AppData._Selection]);
+        PostThreadMessage(_AppData._WorkerThread, MSG_SET_APP, 0, (LPARAM)winArr);
+        _AppData._Mode = ModeNone;
+        _AppData._Selection = 0;
         DestroyWin();
         return 0;
     }
@@ -1175,7 +1130,7 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
         {
             const SWinGroup* pWinGroup = &_AppData._WinGroups._Data[i];
 
-            if (i == (uint32_t)_AppData._State._Selection)
+            if (i == (uint32_t)_AppData._Selection)
             {
                 COLORREF cr = GetSysColor(COLOR_WINDOWFRAME);
                 ARGB gdipColor = cr | 0xFF000000;
@@ -1227,7 +1182,7 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
     return DefWindowProc(hwnd, uMsg, wParam, lParam);
 }
 
-
+/*
 static void* HookCb(void* param)
 {
     (void)param;
@@ -1238,8 +1193,9 @@ static void* HookCb(void* param)
     {}
 
     return (void*)0;
-}
+}*/
 
+/*
 static void* WorkCB(void* param)
 {
     ((SAppData*)param)->_WorkerThread = GetCurrentThreadId();
@@ -1248,22 +1204,51 @@ static void* WorkCB(void* param)
     while (GetMessage(&msg, NULL, 0, 0) > 0)
     {
         AttachToForeground();
-        if (msg.message == MSG_SWITCH_APP)
+        if (msg.message == MSG_SET_APP)
         {
             ApplySwitchApp((SWinArr*)msg.lParam);
         }
-        else if (msg.message == MSG_SWITCH_WIN)
+        else if (msg.message == MSG_SET_WIN)
         {
             ApplySwitchWin((HWND)msg.lParam);
-        }
-        else if (msg.message == MSG_SWITCH_WIN_INIT)
-        {
-            InitializeSwitchWin();
-            ApplySwitchWin(_AppData._CurrentWinGroup._Windows[_AppData._State._Selection]);
         }
         AttachThreadInput(GetCurrentThreadId(), _AppData._MainThread, FALSE);
     }
     return (void*)0;
+}
+*/
+
+static DWORD KbHookCb(LPVOID param)
+{
+    (void)param;
+    VERIFY(SetWindowsHookEx(WH_KEYBOARD_LL, KbProc, 0, 0));
+    MSG msg = { };
+
+    while (GetMessage(&msg, NULL, 0, 0) > 0)
+    {}
+
+    return (DWORD)0;
+}
+
+static DWORD WorkCb(LPVOID param)
+{
+    ((SAppData*)param)->_WorkerThread = GetCurrentThreadId();
+    (AllowSetForegroundWindow(GetCurrentProcessId()));
+    MSG msg = { };
+    while (GetMessage(&msg, NULL, 0, 0) > 0)
+    {
+        AttachToForeground();
+        if (msg.message == MSG_SET_APP)
+        {
+            ApplySwitchApp((SWinArr*)msg.lParam);
+        }
+        else if (msg.message == MSG_SET_WIN)
+        {
+            ApplySwitchWin((HWND)msg.lParam);
+        }
+        AttachThreadInput(GetCurrentThreadId(), _AppData._MainThread, FALSE);
+    }
+    return (DWORD)0;
 }
 
 int StartMacAppSwitcher(HINSTANCE hInstance)
@@ -1288,8 +1273,8 @@ int StartMacAppSwitcher(HINSTANCE hInstance)
     }
 
     {
-        _AppData._State._Mode = ModeNone;
-        _AppData._State._Selection = 0;
+        _AppData._Mode = ModeNone;
+        _AppData._Selection = 0;
         _AppData._MainWin = NULL;
         _AppData._Instance = hInstance;
         _AppData._WinGroups._Size = 0;
@@ -1298,12 +1283,11 @@ int StartMacAppSwitcher(HINSTANCE hInstance)
         InitGraphicsResources(&_AppData._GraphicsResources);
     }
 
-    pthread_t threadHook;
-    pthread_create(&threadHook, NULL, *HookCb, (void*)0);
+    HANDLE threadKbHook = CreateRemoteThread(GetCurrentProcess(), NULL, 0, *KbHookCb, (void*)&_AppData, 0, NULL);
+    (void)threadKbHook;
 
-    pthread_t threadWorker;
-    pthread_create(&threadWorker, NULL, *WorkCB, (void*)&_AppData);
-
+    HANDLE threadWorker = CreateRemoteThread(GetCurrentProcess(), NULL, 0, *WorkCb, (void*)&_AppData, 0, NULL);
+    (void)threadWorker;
     (AllowSetForegroundWindow(GetCurrentProcessId()));
 
     HANDLE token;
@@ -1321,11 +1305,85 @@ int StartMacAppSwitcher(HINSTANCE hInstance)
     MSG msg = { };
     while (GetMessage(&msg, NULL, 0, 0) > 0)
     {
-        if (msg.message == MSG_SET_APP_STATE)
+        switch (msg.message)
         {
-            AppState targetState;
-            memcpy(&targetState, &msg.lParam, sizeof(AppState));
-            ApplyStateTransition(targetState);
+        case MSG_INIT_APP:
+        {
+            InitializeSwitchApp();
+            break;
+        }
+        case MSG_INIT_WIN:
+        {
+            InitializeSwitchWin();
+            break;
+        }
+        case MSG_NEXT_APP:
+        {
+            if (_AppData._Mode == ModeNone)
+                InitializeSwitchApp();
+            _AppData._Selection++;
+            _AppData._Selection = Modulo(_AppData._Selection, _AppData._WinGroups._Size);
+            InvalidateRect(_AppData._MainWin, 0, FALSE);
+            UpdateWindow(_AppData._MainWin);
+            break;
+        }
+        case MSG_PREV_APP:
+        {
+            if (_AppData._Mode == ModeNone)
+                InitializeSwitchApp();
+            _AppData._Selection--;
+            _AppData._Selection = Modulo(_AppData._Selection, _AppData._WinGroups._Size);
+            InvalidateRect(_AppData._MainWin, 0, FALSE);
+            UpdateWindow(_AppData._MainWin);
+            break;
+        }
+        case MSG_NEXT_WIN:
+        {
+            if (_AppData._Mode == ModeNone)
+                InitializeSwitchWin();
+            _AppData._Selection++;
+            _AppData._Selection = Modulo(_AppData._Selection, _AppData._CurrentWinGroup._WindowCount);
+
+            HWND win = _AppData._CurrentWinGroup._Windows[_AppData._Selection];
+            PostThreadMessage(_AppData._WorkerThread, MSG_SET_WIN, 0, (LPARAM)win);
+
+            break;
+        }
+        case MSG_PREV_WIN:
+        {
+            if (_AppData._Mode == ModeNone)
+                InitializeSwitchWin();
+            _AppData._Selection--;
+            _AppData._Selection = Modulo(_AppData._Selection, _AppData._CurrentWinGroup._WindowCount);
+
+            HWND win = _AppData._CurrentWinGroup._Windows[_AppData._Selection];
+            PostThreadMessage(_AppData._WorkerThread, MSG_SET_WIN, 0, (LPARAM)win);
+
+            break;
+        }
+        case MSG_DEINIT_APP:
+        {
+            if (_AppData._Mode == ModeNone)
+                break;
+
+            SWinArr* winArr = CreateWinArr(&_AppData._WinGroups._Data[_AppData._Selection]);
+            PostThreadMessage(_AppData._WorkerThread, MSG_SET_APP, 0, (LPARAM)winArr);
+
+            _AppData._Mode = ModeNone;
+            _AppData._Selection = 0;
+            DestroyWin();
+
+            break;
+        }
+        case MSG_DEINIT_WIN:
+        {
+            if (_AppData._Mode == ModeNone)
+                break;
+
+            _AppData._Mode = ModeNone;
+            _AppData._Selection = 0;
+            break;
+        }
         }
         TranslateMessage(&msg);
         DispatchMessage(&msg);
