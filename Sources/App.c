@@ -1,5 +1,6 @@
 #include <minwindef.h>
 #include <stdio.h>
+#include <string.h>
 #include <time.h>
 #include <windef.h>
 #include <windows.h>
@@ -80,6 +81,18 @@ typedef enum Mode
     ModeWin
 } Mode;
 
+typedef struct SUWPIconMapElement
+{
+    wchar_t _App[256];
+    wchar_t _Icon[256];
+} SUWPIconMapElement;
+
+typedef struct SUWPIconMap
+{
+    SUWPIconMapElement _Data[256];
+    uint32_t _Count;
+} SUWPIconMap;
+
 typedef struct SAppData
 {
     HWND _MainWin;
@@ -91,6 +104,7 @@ typedef struct SAppData
     SWinGroup _CurrentWinGroup;
     DWORD _MainThread;
     DWORD _WorkerThread;
+    SUWPIconMap _UWPIconMap;
 } SAppData;
 
 typedef struct SFoundWin
@@ -399,6 +413,138 @@ static void BuildLogoIndirectString(const wchar_t* logoPath, uint32_t logoPathLe
     i += (sizeof(L"}") / sizeof(wchar_t)) - 1;
 }
 
+static void InitUWPIconMap(SUWPIconMap* map)
+{
+    map->_Count = 0;
+    // enum those and create a array with 
+    HKEY progIDsKey;
+    RegOpenKeyEx(HKEY_LOCAL_MACHINE,
+        "SOFTWARE\\Classes\\Local Settings\\Software\\Microsoft\\Windows\\CurrentVersion\\AppModel\\PackageRepository\\Extensions\\ProgIDs",
+        0,
+        KEY_READ,
+        &progIDsKey);
+
+    TCHAR    achClass[MAX_PATH] = "";  // buffer for class name 
+    DWORD    cchClassName = MAX_PATH;  // size of class string 
+    DWORD    cSubKeys = 0;               // number of subkeys 
+    DWORD    cValues = 0;              // number of values for key 
+
+    // Get the class name and the value count.
+    RegQueryInfoKey(
+        progIDsKey,               // key handle 
+        achClass,                // buffer for class name 
+        &cchClassName,           // size of class string 
+        NULL,                    // reserved 
+        &cSubKeys,               // number of subkeys 
+        NULL,            // longest subkey size 
+        NULL,            // longest class string 
+        NULL,                // number of values for this key 
+        NULL,            // longest value name 
+        NULL,         // longest value data 
+        NULL,   // security descriptor 
+        NULL);       // last write time 
+
+    for (uint32_t i = 0; i < cSubKeys; i++)
+    {
+        char progID[256] = "";
+        uint32_t progIDSize = 256;
+        RegEnumKeyEx(progIDsKey,
+                i,
+                progID,
+                (LPDWORD)&progIDSize,
+                NULL,
+                NULL,
+                NULL,
+                NULL);
+        printf("Prog ID: %s \n", progID);
+
+        {
+            HKEY key;
+            RegOpenKeyEx(progIDsKey,
+            progID,
+            0,
+            KEY_READ,
+            &key);
+            RegQueryInfoKey(
+                key,
+                achClass,
+                &cchClassName,
+                NULL, NULL, NULL, NULL,
+                &cValues,
+                NULL, NULL, NULL, NULL);
+
+            char appName[256] = "";
+            uint32_t appNameSize = 256;
+            for (uint32_t j = 0; j < cValues; j++)
+            {
+                RegEnumValue(
+                    key,
+                    j,
+                    appName,
+                    (LPDWORD)&appNameSize,
+                    NULL, NULL, NULL, NULL);
+                if (appNameSize != 0)
+                {
+                    printf("app name: %s \n", appName);
+                    break;
+                }
+            }
+            RegCloseKey(key);
+            {
+                strcat(progID, "\\Application");
+                HKEY appKey;
+                RegOpenKeyEx(HKEY_CLASSES_ROOT,
+                    progID,
+                    0,
+                    KEY_READ,
+                    &appKey);
+
+                uint32_t valCount = 0;
+                RegQueryInfoKey(
+                    appKey,
+                    NULL,
+                    NULL,
+                    NULL, NULL, NULL, NULL,
+                    (DWORD*)&valCount,
+                    NULL, NULL, NULL, NULL);
+
+                for (uint32_t k = 0; k < valCount; k++)
+                {
+                    char name[512] = "";
+                    uint32_t nameSize = 512;
+                    char value[512] = "";
+                    uint32_t valueSize = 512;
+                    RegEnumValue(
+                        appKey,
+                        k,
+                        name,
+                        (DWORD*)&nameSize,
+                        NULL, NULL,
+                        (BYTE*)value,
+                        (DWORD*)&valueSize);
+                    if (!strcmp(name, "ApplicationIcon") && valueSize > 0)
+                    {
+                        printf("indirect string: %s \n", value);
+                        wchar_t indirectStr[512];
+                        mbstowcs(indirectStr, value, valueSize);
+                        SHLoadIndirectString(indirectStr, map->_Data[i]._Icon, 512 * sizeof(wchar_t), NULL);
+                        mbstowcs(map->_Data[i]._App, appName, appNameSize);
+                        map->_Count++;
+                    }
+                }
+                RegCloseKey(appKey);
+            }
+        }
+    }
+
+    RegCloseKey(progIDsKey);
+    // for each ProgIDs entry, add a pair {packagename, icon path} to an array
+    // https://learn.microsoft.com/en-us/windows/win32/sysinfo/enumerating-registry-subkeys
+    // package name is the first non default name of the key
+    // icon can be found at Computer\HKEY_CLASSES_ROOT\ProgID\DefaultIcon (first value)
+    // and actual icon path loaded from SHLoadIndirectString(indirStr, iconPath, 512 * sizeof(wchar_t), NULL);
+}
+
 static void GetUWPIcon(HANDLE process, wchar_t* iconPath)
 {
     static wchar_t packageFullName[512];
@@ -407,6 +553,44 @@ static void GetUWPIcon(HANDLE process, wchar_t* iconPath)
         GetPackageFullName(process, &packageFullNameLength, packageFullName);
     }
 
+    for (uint32_t i = 0; i < _AppData._UWPIconMap._Count; i++)
+    {
+        if (!wcscmp(_AppData._UWPIconMap._Data[i]._App, packageFullName))
+        {
+            wcscpy(iconPath, _AppData._UWPIconMap._Data[i]._Icon);
+            return;
+        }
+    }
+/*
+
+    PACKAGE_INFO_REFERENCE inforef;
+    OpenPackageInfoByFullName(packageFullName, 0, &inforef);
+    PACKAGE_INFO infos[32];
+    uint32_t length = sizeof(infos);
+    uint32_t count = 1;
+    GetPackageInfo(inforef, PACKAGE_FILTER_HEAD, &length, (BYTE*)&infos, &count);
+
+    BYTE data[1024];
+    uint32_t size = sizeof(data);
+    uint32_t datacount = 1024;
+    GetPackageApplicationIds(inforef, &size, data, &datacount);
+    PACKAGE_ID packageID[512];
+    uint32_t packageIDLength = sizeof(packageID);
+    {
+        LONG err = GetPackageId(process, &packageIDLength,(BYTE*)&packageID);
+        printf("%i", (int)err);
+    }
+    {
+        static wchar_t toto[512];
+        uint32_t totolength = 512;
+        GetApplicationUserModelId(process, &totolength, toto);
+        printf("%ls", toto);
+    }
+
+
+    HKEY currentUserKey;
+    LSTATUS toto = RegOpenCurrentUser(KEY_READ, &currentUserKey);
+    (void)toto;
     static wchar_t packageFamilyName[512];
     uint32_t packageFamilyNameLength = 512;
     uint32_t packageNameLength = 512;
@@ -467,6 +651,7 @@ static void GetUWPIcon(HANDLE process, wchar_t* iconPath)
         L"Application", sizeof(L"Application") / sizeof(wchar_t),
         indirStr);
     SHLoadIndirectString(indirStr, iconPath, 512 * sizeof(wchar_t), NULL);
+*/
 }
 
 static BOOL FillWinGroups(HWND hwnd, LPARAM lParam)
@@ -1284,6 +1469,7 @@ int StartMacAppSwitcher(HINSTANCE hInstance)
         _AppData._MainThread = GetCurrentThreadId();
         SetKeyConfig();
         InitGraphicsResources(&_AppData._GraphicsResources);
+        InitUWPIconMap(&_AppData._UWPIconMap);
     }
 
     HANDLE threadKbHook = CreateRemoteThread(GetCurrentProcess(), NULL, 0, *KbHookCb, (void*)&_AppData, 0, NULL);

@@ -8,6 +8,7 @@
 			"args": [],
 			"cwd": "${workspaceFolder}/Output/Debug",
 			"preLaunchTask": "Build debug",
+			"console": "integratedTerminal"
 		}
 	]
 }
