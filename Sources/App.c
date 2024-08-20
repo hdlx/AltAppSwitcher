@@ -83,13 +83,13 @@ typedef enum Mode
 
 typedef struct SUWPIconMapElement
 {
-    wchar_t _App[256];
+    wchar_t _UserModelID[256];
     wchar_t _Icon[256];
 } SUWPIconMapElement;
 
 typedef struct SUWPIconMap
 {
-    SUWPIconMapElement _Data[256];
+    SUWPIconMapElement _Data[512];
     uint32_t _Count;
 } SUWPIconMap;
 
@@ -416,24 +416,24 @@ static void BuildLogoIndirectString(const wchar_t* logoPath, uint32_t logoPathLe
 static void InitUWPIconMap(SUWPIconMap* map)
 {
     map->_Count = 0;
-    // enum those and create a array with 
-    HKEY progIDsKey;
-    RegOpenKeyEx(HKEY_LOCAL_MACHINE,
-        "SOFTWARE\\Classes\\Local Settings\\Software\\Microsoft\\Windows\\CurrentVersion\\AppModel\\PackageRepository\\Extensions\\ProgIDs",
+
+    HKEY classesKey;
+    RegOpenKeyEx(HKEY_CLASSES_ROOT,
+        NULL,
         0,
         KEY_READ,
-        &progIDsKey);
+        &classesKey);
 
-    TCHAR    achClass[MAX_PATH] = "";  // buffer for class name 
-    DWORD    cchClassName = MAX_PATH;  // size of class string 
+    //TCHAR    achClass[MAX_PATH] = "";  // buffer for class name 
+    //DWORD    cchClassName = MAX_PATH;  // size of class string 
     DWORD    cSubKeys = 0;               // number of subkeys 
-    DWORD    cValues = 0;              // number of values for key 
+    //DWORD    cValues = 0;              // number of values for key 
 
     // Get the class name and the value count.
     RegQueryInfoKey(
-        progIDsKey,               // key handle 
-        achClass,                // buffer for class name 
-        &cchClassName,           // size of class string 
+        classesKey,               // key handle 
+        NULL,                // buffer for class name 
+        NULL,           // size of class string 
         NULL,                    // reserved 
         &cSubKeys,               // number of subkeys 
         NULL,            // longest subkey size 
@@ -446,106 +446,76 @@ static void InitUWPIconMap(SUWPIconMap* map)
 
     for (uint32_t i = 0; i < cSubKeys; i++)
     {
-        char progID[256] = "";
-        uint32_t progIDSize = 256;
-        RegEnumKeyEx(progIDsKey,
+        char className[512] = "";
+        uint32_t classNameSize = 512;
+        RegEnumKeyEx(classesKey,
                 i,
-                progID,
-                (LPDWORD)&progIDSize,
+                className,
+                (LPDWORD)&classNameSize,
                 NULL,
                 NULL,
                 NULL,
                 NULL);
-        //printf("Prog ID: %s \n", progID);
+
+        strcat(className, "\\Application");
 
         {
-            HKEY key;
-            RegOpenKeyEx(progIDsKey,
-            progID,
-            0,
-            KEY_READ,
-            &key);
+            HKEY appKey = NULL;
+            RegOpenKeyEx(classesKey,
+                className,
+                0,
+                KEY_READ,
+                &appKey);
+            if (appKey == NULL) //check returned value instead ?
+            {
+                continue;
+            }
+
+            uint32_t valCount = 0;
             RegQueryInfoKey(
-                key,
-                achClass,
-                &cchClassName,
+                appKey,
+                NULL,
+                NULL,
                 NULL, NULL, NULL, NULL,
-                &cValues,
+                (DWORD*)&valCount,
                 NULL, NULL, NULL, NULL);
 
-            char appName[256] = "";
-            uint32_t appNameSize = 256;
-            for (uint32_t j = 0; j < cValues; j++)
+            bool hasIcon = false;
+            bool hasUserModelID = false;
+            for (uint32_t k = 0; k < valCount; k++)
             {
+                char name[512] = "";
+                uint32_t nameSize = 512;
+                char value[512] = "";
+                uint32_t valueSize = 512;
                 RegEnumValue(
-                    key,
-                    j,
-                    appName,
-                    (LPDWORD)&appNameSize,
-                    NULL, NULL, NULL, NULL);
-                if (appNameSize != 0)
-                {
-                    // printf("app name: %s \n", appName);
-                    break;
-                }
-            }
-            RegCloseKey(key);
-            {
-                strcat(progID, "\\Application");
-                HKEY appKey;
-                RegOpenKeyEx(HKEY_CLASSES_ROOT,
-                    progID,
-                    0,
-                    KEY_READ,
-                    &appKey);
-
-                uint32_t valCount = 0;
-                RegQueryInfoKey(
                     appKey,
-                    NULL,
-                    NULL,
-                    NULL, NULL, NULL, NULL,
-                    (DWORD*)&valCount,
-                    NULL, NULL, NULL, NULL);
-
-                bool hasIcon = false;
-                bool hasUserModelID = false;
-                for (uint32_t k = 0; k < valCount; k++)
+                    k,
+                    name,
+                    (DWORD*)&nameSize,
+                    NULL, NULL,
+                    (BYTE*)value,
+                    (DWORD*)&valueSize);
+                if (!lstrcmpiA(name, "ApplicationIcon") && valueSize > 0)
                 {
-                    char name[512] = "";
-                    uint32_t nameSize = 512;
-                    char value[512] = "";
-                    uint32_t valueSize = 512;
-                    RegEnumValue(
-                        appKey,
-                        k,
-                        name,
-                        (DWORD*)&nameSize,
-                        NULL, NULL,
-                        (BYTE*)value,
-                        (DWORD*)&valueSize);
-                    if (!strcmp(name, "ApplicationIcon") && valueSize > 0)
-                    {
-                        // printf("indirect string: %s \n", value);
-                        wchar_t indirectStr[512];
-                        mbstowcs(indirectStr, value, valueSize);
-                        SHLoadIndirectString(indirectStr, map->_Data[i]._Icon, 512 * sizeof(wchar_t), NULL);
-                        hasIcon = true;
-                    }
-                    if (!strcmp(name, "AppUserModelID") && valueSize > 0)
-                    {
-                        mbstowcs(map->_Data[i]._App, value, valueSize);
-                        hasUserModelID = true;
-                    }
+                    // printf("indirect string: %s \n", value);
+                    wchar_t indirectStr[512];
+                    mbstowcs(indirectStr, value, valueSize);
+                    SHLoadIndirectString(indirectStr, map->_Data[map->_Count]._Icon, 512 * sizeof(wchar_t), NULL);
+                    hasIcon = true;
                 }
-                if (hasIcon && hasUserModelID)
-                    map->_Count++;
-                RegCloseKey(appKey);
+                if (!lstrcmpiA(name, "AppUserModelID") && valueSize > 0)
+                {
+                    mbstowcs(map->_Data[map->_Count]._UserModelID, value, valueSize);
+                    hasUserModelID = true;
+                }
             }
+            if (hasIcon && hasUserModelID)
+                map->_Count++;
+            RegCloseKey(appKey);
         }
     }
 
-    RegCloseKey(progIDsKey);
     // for each ProgIDs entry, add a pair {packagename, icon path} to an array
     // https://learn.microsoft.com/en-us/windows/win32/sysinfo/enumerating-registry-subkeys
     // package name is the first non default name of the key
@@ -555,16 +525,16 @@ static void InitUWPIconMap(SUWPIconMap* map)
 
 static void GetUWPIcon(HANDLE process, wchar_t* iconPath)
 {
-    static wchar_t packageFullName[512];
-    uint32_t packageFullNameLength = 512;
+    static wchar_t userModelID[256];
+    uint32_t userModelIDLength = 256;
     {
         //GetPackageFullName(process, &packageFullNameLength, packageFullName);
-        GetApplicationUserModelId(process, &packageFullNameLength, packageFullName);
+        GetApplicationUserModelId(process, &userModelIDLength, userModelID);
     }
 
     for (uint32_t i = 0; i < _AppData._UWPIconMap._Count; i++)
     {
-        if (!wcscmp(_AppData._UWPIconMap._Data[i]._App, packageFullName))
+        if (!lstrcmpiW(_AppData._UWPIconMap._Data[i]._UserModelID, userModelID))
         {
             wcscpy(iconPath, _AppData._UWPIconMap._Data[i]._Icon);
             return;
