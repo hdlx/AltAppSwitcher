@@ -456,7 +456,7 @@ static void InitUWPIconMap(SUWPIconMap* map)
                 NULL,
                 NULL,
                 NULL);
-        printf("Prog ID: %s \n", progID);
+        //printf("Prog ID: %s \n", progID);
 
         {
             HKEY key;
@@ -485,7 +485,7 @@ static void InitUWPIconMap(SUWPIconMap* map)
                     NULL, NULL, NULL, NULL);
                 if (appNameSize != 0)
                 {
-                    printf("app name: %s \n", appName);
+                    // printf("app name: %s \n", appName);
                     break;
                 }
             }
@@ -508,6 +508,8 @@ static void InitUWPIconMap(SUWPIconMap* map)
                     (DWORD*)&valCount,
                     NULL, NULL, NULL, NULL);
 
+                bool hasIcon = false;
+                bool hasUserModelID = false;
                 for (uint32_t k = 0; k < valCount; k++)
                 {
                     char name[512] = "";
@@ -524,14 +526,20 @@ static void InitUWPIconMap(SUWPIconMap* map)
                         (DWORD*)&valueSize);
                     if (!strcmp(name, "ApplicationIcon") && valueSize > 0)
                     {
-                        printf("indirect string: %s \n", value);
+                        // printf("indirect string: %s \n", value);
                         wchar_t indirectStr[512];
                         mbstowcs(indirectStr, value, valueSize);
                         SHLoadIndirectString(indirectStr, map->_Data[i]._Icon, 512 * sizeof(wchar_t), NULL);
-                        mbstowcs(map->_Data[i]._App, appName, appNameSize);
-                        map->_Count++;
+                        hasIcon = true;
+                    }
+                    if (!strcmp(name, "AppUserModelID") && valueSize > 0)
+                    {
+                        mbstowcs(map->_Data[i]._App, value, valueSize);
+                        hasUserModelID = true;
                     }
                 }
+                if (hasIcon && hasUserModelID)
+                    map->_Count++;
                 RegCloseKey(appKey);
             }
         }
@@ -550,7 +558,8 @@ static void GetUWPIcon(HANDLE process, wchar_t* iconPath)
     static wchar_t packageFullName[512];
     uint32_t packageFullNameLength = 512;
     {
-        GetPackageFullName(process, &packageFullNameLength, packageFullName);
+        //GetPackageFullName(process, &packageFullNameLength, packageFullName);
+        GetApplicationUserModelId(process, &packageFullNameLength, packageFullName);
     }
 
     for (uint32_t i = 0; i < _AppData._UWPIconMap._Count; i++)
