@@ -12,8 +12,7 @@ static void PrintLastError(void)
     LPSTR msg = NULL;
     FormatMessage(FORMAT_MESSAGE_ALLOCATE_BUFFER | FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS,
         NULL, err, MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT),  (LPSTR)&msg, 0, NULL);
-    int toto = printf("%s", msg);
-    (void)toto;
+    printf("%s", msg);
     LocalFree(msg);
 }
 
