@@ -4,8 +4,6 @@ import shutil
 
 def deploy(arch, writeManifest = False):
     file = compileCommon.CompileRel(arch)
-    if writeManifest:
-        os.system(f"mt.exe -manifest \"./Manifest.txt\" -outputresource:\"{file}\"")
     dir = "./Output/Deploy"
     if not os.path.exists(dir):
         os.makedirs(dir)

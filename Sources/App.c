@@ -2,6 +2,8 @@
 #include <stdio.h>
 #include <string.h>
 #include <time.h>
+#include <vsstyle.h>
+#include <wchar.h>
 #include <windef.h>
 #include <windows.h>
 #include <tlhelp32.h>
@@ -10,6 +12,7 @@
 #include <psapi.h>
 #include <dwmapi.h>
 #include <winnt.h>
+#include <winscard.h>
 #include <winuser.h>
 #include <processthreadsapi.h>
 #include <gdiplus.h>
@@ -63,6 +66,8 @@ typedef struct SGraphicsResources
     GpSolidFill* _pBrushBg;
     GpFont* _pFont;
     GpStringFormat* _pFormat;
+    COLORREF _BackgroundColor;
+    COLORREF _TextColor;
 } SGraphicsResources;
 
 typedef struct KeyConfig
@@ -113,9 +118,17 @@ typedef struct SFoundWin
     uint32_t _Size;
 } SFoundWin;
 
+typedef enum ThemeMode
+{
+    ThemeModeAuto,
+    ThemeModeLight,
+    ThemeModeDark
+} ThemeMode;
+
 static SAppData _AppData;
 static KeyConfig _KeyConfig;
 static bool _Mouse = true;
+static ThemeMode _ThemeMode = ThemeModeAuto;
 
 // Main thread
 #define MSG_INIT_WIN (WM_USER + 1)
@@ -147,10 +160,74 @@ static void InitGraphicsResources(SGraphicsResources* pRes)
         pRes->_FontSize = 10;
         VERIFY(Ok == GdipCreateFont(pFontFamily, pRes->_FontSize, FontStyleBold, (int)MetafileFrameUnitPixel, &pRes->_pFont));
     }
+    // Colors
+    {
+        bool lightTheme = true;
+        if (_ThemeMode == ThemeModeAuto)
+        {
+            HKEY key;
+            RegOpenKeyEx(HKEY_CURRENT_USER,
+                "Software\\Microsoft\\Windows\\CurrentVersion\\Themes\\Personalize",
+                0,
+                KEY_READ,
+                &key);
+
+            DWORD valueCount = 0;
+            RegQueryInfoKey(
+                key,
+                NULL, NULL, NULL,
+                NULL,
+                NULL, NULL, &valueCount, NULL, NULL, NULL, NULL);
+
+            for (uint32_t i = 0; i < valueCount; i++)
+            {
+                char name[512] = "";
+                DWORD nameSize = 512;
+                DWORD value = 0;
+                DWORD valueSize = sizeof(DWORD);
+
+                RegEnumValue(
+                        key,
+                        i,
+                        name,
+                        &nameSize,
+                        NULL, NULL,
+                        (BYTE*)&value,
+                        &valueSize);
+
+                if (!lstrcmpiA(name, "AppsUseLightTheme") && nameSize > 0)
+                {
+                    lightTheme = value;
+                    break;
+                }
+            }
+
+            RegCloseKey(key);
+        }
+        else
+        {
+            lightTheme = _ThemeMode == ThemeModeLight;
+        }
+
+        // Colorref do not support alpha and high order bits MUST be 00
+        // This is different from gdip "ARGB" type
+        COLORREF darkColor = 0x002C2C2C;
+        COLORREF lightColor = 0x00FFFFFF;
+        if (lightTheme)
+        {
+            pRes->_BackgroundColor = lightColor;
+            pRes->_TextColor = darkColor;
+        }
+        else
+        {
+            pRes->_BackgroundColor = darkColor;
+            pRes->_TextColor = lightColor;
+        }
+    }
     // Brushes
     {
-        VERIFY(Ok == GdipCreateSolidFill(GetSysColor(COLOR_WINDOWFRAME) | 0xFF000000, &pRes->_pBrushBg));
-        VERIFY(Ok == GdipCreateSolidFill(GetSysColor(COLOR_WINDOW) | 0xFF000000, &pRes->_pBrushText));
+        VERIFY(Ok == GdipCreateSolidFill(pRes->_BackgroundColor | 0xFF000000, &pRes->_pBrushBg));
+        VERIFY(Ok == GdipCreateSolidFill(pRes->_TextColor | 0xFF000000, &pRes->_pBrushText));
     }
 }
 
@@ -424,25 +501,12 @@ static void InitUWPIconMap(SUWPIconMap* map)
         KEY_READ,
         &classesKey);
 
-    //TCHAR    achClass[MAX_PATH] = "";  // buffer for class name 
-    //DWORD    cchClassName = MAX_PATH;  // size of class string 
-    DWORD    cSubKeys = 0;               // number of subkeys 
-    //DWORD    cValues = 0;              // number of values for key 
-
-    // Get the class name and the value count.
+    DWORD cSubKeys = 0;
     RegQueryInfoKey(
-        classesKey,               // key handle 
-        NULL,                // buffer for class name 
-        NULL,           // size of class string 
-        NULL,                    // reserved 
-        &cSubKeys,               // number of subkeys 
-        NULL,            // longest subkey size 
-        NULL,            // longest class string 
-        NULL,                // number of values for this key 
-        NULL,            // longest value name 
-        NULL,         // longest value data 
-        NULL,   // security descriptor 
-        NULL);       // last write time 
+        classesKey,
+        NULL, NULL, NULL,
+        &cSubKeys,
+        NULL, NULL, NULL, NULL, NULL, NULL, NULL);
 
     for (uint32_t i = 0; i < cSubKeys; i++)
     {
@@ -496,7 +560,7 @@ static void InitUWPIconMap(SUWPIconMap* map)
                     NULL, NULL,
                     (BYTE*)value,
                     (DWORD*)&valueSize);
-                if (!lstrcmpiA(name, "ApplicationIcon") && valueSize > 0)
+                if (!lstrcmpiA(name, "ApplicationIcon") && nameSize > 0)
                 {
                     // printf("indirect string: %s \n", value);
                     wchar_t indirectStr[512];
@@ -528,7 +592,6 @@ static void GetUWPIcon(HANDLE process, wchar_t* iconPath)
     static wchar_t userModelID[256];
     uint32_t userModelIDLength = 256;
     {
-        //GetPackageFullName(process, &packageFullNameLength, packageFullName);
         GetApplicationUserModelId(process, &userModelIDLength, userModelID);
     }
 
@@ -795,6 +858,11 @@ static void CreateWin()
         _AppData._Instance, // Instance handle
         NULL // Additional application data
     );
+
+    SetWindowTheme(hwnd, L"DarkMode_Explorer", NULL);
+
+    BOOL value = TRUE;
+    DwmSetWindowAttribute(hwnd, 20, &value, sizeof(value));
 
     VERIFY(hwnd);
     // Rounded corners for Win 11
@@ -1137,6 +1205,30 @@ static bool TryGetBool(const char* lineBuf, const char* token, bool* boolToSet)
     return false;
 }
 
+static bool TryGetTheme(const char* lineBuf, const char* token, ThemeMode* theme)
+{
+    const char* pValue = strstr(lineBuf, token);
+    if (pValue != NULL)
+    {
+        if (strstr(pValue + strlen(token) - 1, "auto") != NULL)
+        {
+            *theme = ThemeModeAuto;
+            return true;
+        }
+        else if (strstr(pValue + strlen(token) - 1, "light") != NULL)
+        {
+            *theme = ThemeModeLight;
+            return true;
+        }
+        else if (strstr(pValue + strlen(token) - 1, "dark") != NULL)
+        {
+            *theme = ThemeModeDark;
+            return true;
+        }
+    }
+    return false;
+}
+
 static void SetKeyConfig()
 {
     _KeyConfig._AppHold = VK_LMENU;
@@ -1170,6 +1262,9 @@ static void SetKeyConfig()
             "window switch key: tilde\n"
             "invert order key: left shift\n"
             "\n"
+            "// Theme can be \"auto\" (matches windows theme),\n"
+            "// \"light\" or \"dark\"\n"
+            "theme: auto\n"
             "// Other options \n"
             "allow mouse: true \n");
         fclose(file);
@@ -1192,6 +1287,8 @@ static void SetKeyConfig()
         if (TryGetKey(lineBuf, "invert order key: ", &_KeyConfig._Invert))
             continue;
         if (TryGetBool(lineBuf, "allow mouse: ", &_Mouse))
+            continue;
+        if (TryGetTheme(lineBuf, "theme: ", &_ThemeMode))
             continue;
     }
     fclose(file);
@@ -1275,13 +1372,15 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
                 clientRect.bottom - clientRect.top);
             pGraphRes->_DCDirty = false;
         }
+
         HBITMAP oldBitmap = SelectObject(pGraphRes->_DCBuffer,  pGraphRes->_Bitmap);
         (void)oldBitmap;
-        HBRUSH bgBrush = CreateSolidBrush(GetSysColor(COLOR_WINDOW));
+
+        HBRUSH bgBrush = CreateSolidBrush(pGraphRes->_BackgroundColor);
         FillRect(pGraphRes->_DCBuffer, &clientRect, bgBrush);
         DeleteObject(bgBrush);
 
-        SetBkMode(pGraphRes->_DCBuffer, TRANSPARENT);
+        SetBkMode(pGraphRes->_DCBuffer, TRANSPARENT); // ?
 
         GpGraphics* pGraphics;
         GdipCreateFromHDC(pGraphRes->_DCBuffer, &pGraphics);
@@ -1297,7 +1396,7 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 
             if (i == (uint32_t)_AppData._Selection)
             {
-                COLORREF cr = GetSysColor(COLOR_WINDOWFRAME);
+                COLORREF cr = pGraphRes->_TextColor;
                 ARGB gdipColor = cr | 0xFF000000;
                 GpPen* pPen;
                 GdipCreatePen1(gdipColor, 3, 2, &pPen);
@@ -1331,8 +1430,9 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
                     height };
                 RectF rectf = { (float)rect[0], (float)rect[1], (float)rect[2], (float)rect[3] };
                 swprintf(count, 4, L"%i", winCount);
-                DrawRoundedRect(pGraphics, NULL, pGraphRes->_pBrushBg, rectf.X, rectf.Y, rectf.X + rectf.Width, rectf.Y + rectf.Height, 5);
-                VERIFY(!GdipDrawString(pGraphics, count, digitsCount, pGraphRes->_pFont, &rectf, pGraphRes->_pFormat, pGraphRes->_pBrushText));
+                // Invert text / bg brushes
+                DrawRoundedRect(pGraphics, NULL, pGraphRes->_pBrushText, rectf.X, rectf.Y, rectf.X + rectf.Width, rectf.Y + rectf.Height, 5);
+                VERIFY(!GdipDrawString(pGraphics, count, digitsCount, pGraphRes->_pFont, &rectf, pGraphRes->_pFormat, pGraphRes->_pBrushBg));
             }
             x += iconContainerSize;
         }
@@ -1347,42 +1447,6 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
     return DefWindowProc(hwnd, uMsg, wParam, lParam);
 }
 
-/*
-static void* HookCb(void* param)
-{
-    (void)param;
-    VERIFY(SetWindowsHookEx(WH_KEYBOARD_LL, KbProc, 0, 0));
-    MSG msg = { };
-
-    while (GetMessage(&msg, NULL, 0, 0) > 0)
-    {}
-
-    return (void*)0;
-}*/
-
-/*
-static void* WorkCB(void* param)
-{
-    ((SAppData*)param)->_WorkerThread = GetCurrentThreadId();
-    (AllowSetForegroundWindow(GetCurrentProcessId()));
-    MSG msg = { };
-    while (GetMessage(&msg, NULL, 0, 0) > 0)
-    {
-        AttachToForeground();
-        if (msg.message == MSG_SET_APP)
-        {
-            ApplySwitchApp((SWinArr*)msg.lParam);
-        }
-        else if (msg.message == MSG_SET_WIN)
-        {
-            ApplySwitchWin((HWND)msg.lParam);
-        }
-        AttachThreadInput(GetCurrentThreadId(), _AppData._MainThread, FALSE);
-    }
-    return (void*)0;
-}
-*/
-
 static DWORD KbHookCb(LPVOID param)
 {
     (void)param;
@@ -1394,29 +1458,6 @@ static DWORD KbHookCb(LPVOID param)
 
     return (DWORD)0;
 }
-
-/*
-static DWORD WorkCb(LPVOID param)
-{
-    ((SAppData*)param)->_WorkerThread = GetCurrentThreadId();
-    (AllowSetForegroundWindow(GetCurrentProcessId()));
-    MSG msg = { };
-    while (GetMessage(&msg, NULL, 0, 0) > 0)
-    {
-        AttachToForeground();
-        if (msg.message == MSG_SET_APP)
-        {
-            ApplySwitchApp((SWinArr*)msg.lParam);
-        }
-        else if (msg.message == MSG_SET_WIN)
-        {
-            ApplySwitchWin((HWND)msg.lParam);
-        }
-        AttachThreadInput(GetCurrentThreadId(), _AppData._MainThread, FALSE);
-    }
-    return (DWORD)0;
-}
-*/
 
 int StartMacAppSwitcher(HINSTANCE hInstance)
 {
@@ -1453,10 +1494,7 @@ int StartMacAppSwitcher(HINSTANCE hInstance)
 
     HANDLE threadKbHook = CreateRemoteThread(GetCurrentProcess(), NULL, 0, *KbHookCb, (void*)&_AppData, 0, NULL);
     (void)threadKbHook;
-/*
-    HANDLE threadWorker = CreateRemoteThread(GetCurrentProcess(), NULL, 0, *WorkCb, (void*)&_AppData, 0, NULL);
-    (void)threadWorker;
-*/
+
     (AllowSetForegroundWindow(GetCurrentProcessId()));
 
     HANDLE token;

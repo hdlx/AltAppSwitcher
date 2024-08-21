@@ -10,7 +10,7 @@ def CFiles():
     return cFiles
 
 def LinkArgs():
-    return "-l dwmapi -l User32 -l Gdi32 -l Gdiplus -l shlwapi -l pthread"
+    return "-l dwmapi -l User32 -l Gdi32 -l Gdiplus -l shlwapi -l pthread -l uxtheme"
 
 def Common():
     return "-static -static-libgcc"
@@ -25,6 +25,7 @@ def CompileDbg():
     file = f"{dir}/MacAppSwitcher.exe"
     cmd = f"clang {CFiles()} -I ./Sources {LinkArgs()} -o {file} {WarningOptions()} {Common()} -g -glldb -target x86_64-mingw64"
     os.system(cmd)
+    #os.system(f"mt.exe -manifest \"./Manifest.xml\" -outputresource:\"{file}\"")
     return file
 
 def CompileRel(arch = "x86_64"):
