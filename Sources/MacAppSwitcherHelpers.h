@@ -48,6 +48,8 @@ static void MSSError(const char* msg)
 {
     printf("Call failed: %s\n", msg);
     FilePrintLastError();
+    PrintLastError();
+    SetLastError(0);
     DebugBreak();
 }
 

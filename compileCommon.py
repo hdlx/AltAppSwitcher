@@ -10,7 +10,7 @@ def CFiles():
     return cFiles
 
 def LinkArgs():
-    return "-l dwmapi -l User32 -l Gdi32 -l Gdiplus -l shlwapi -l pthread -l uxtheme"
+    return "-l dwmapi -l User32 -l Gdi32 -l Gdiplus -l shlwapi -l pthread -l Ole32"
 
 def Common():
     return "-static -static-libgcc"

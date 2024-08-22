@@ -21,6 +21,7 @@
 #include <winreg.h>
 #include <stdlib.h>
 #include <windowsx.h>
+#include <combaseapi.h>
 #include "MacAppSwitcherHelpers.h"
 #include "KeyCodeFromConfigName.h"
 
@@ -88,8 +89,8 @@ typedef enum Mode
 
 typedef struct SUWPIconMapElement
 {
-    wchar_t _UserModelID[256];
-    wchar_t _Icon[256];
+    wchar_t _UserModelID[512];
+    wchar_t _Icon[512];
 } SUWPIconMapElement;
 
 typedef struct SUWPIconMap
@@ -492,8 +493,28 @@ static void BuildLogoIndirectString(const wchar_t* logoPath, uint32_t logoPathLe
     i += (sizeof(L"}") / sizeof(wchar_t)) - 1;
 }
 
+void ErrorDescription(HRESULT hr) 
+{
+     if(FACILITY_WINDOWS == HRESULT_FACILITY(hr)) 
+         hr = HRESULT_CODE(hr); 
+     TCHAR* szErrMsg; 
+
+     if(FormatMessage( 
+       FORMAT_MESSAGE_ALLOCATE_BUFFER|FORMAT_MESSAGE_FROM_SYSTEM, 
+       NULL, hr, MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT), 
+       (LPTSTR)&szErrMsg, 0, NULL) != 0) 
+     { 
+         printf(TEXT("%s"), szErrMsg); 
+         LocalFree(szErrMsg); 
+     } else 
+         printf( TEXT("[Could not find a description for error # %#x.]\n"), (int)hr); 
+}
+
 static void InitUWPIconMap(SUWPIconMap* map)
 {
+    // Needed otherwise some shloadindirectstring() calls fail
+    CoInitializeEx(NULL, COINIT_APARTMENTTHREADED);
+
     map->_Count = 0;
 
     HKEY classesKey;
@@ -567,8 +588,15 @@ static void InitUWPIconMap(SUWPIconMap* map)
                     // printf("indirect string: %s \n", value);
                     wchar_t indirectStr[512];
                     mbstowcs(indirectStr, value, valueSize);
-                    SHLoadIndirectString(indirectStr, map->_Data[map->_Count]._Icon, 512 * sizeof(wchar_t), NULL);
-                    hasIcon = true;
+                    map->_Data[map->_Count]._Icon[0] = '\0';
+                    HRESULT res = SHLoadIndirectString(indirectStr, map->_Data[map->_Count]._Icon, 512 * sizeof(wchar_t), NULL);
+                    /*if (res != S_OK)
+                    {
+                        ErrorDescription(res);
+                        VERIFY(false);
+                    }*/
+                    if (res == S_OK && map->_Data[map->_Count]._Icon[0] != '\0')
+                        hasIcon = true;
                 }
                 if (!lstrcmpiA(name, "AppUserModelID") && valueSize > 0)
                 {
@@ -582,11 +610,7 @@ static void InitUWPIconMap(SUWPIconMap* map)
         }
     }
 
-    // for each ProgIDs entry, add a pair {packagename, icon path} to an array
-    // https://learn.microsoft.com/en-us/windows/win32/sysinfo/enumerating-registry-subkeys
-    // package name is the first non default name of the key
-    // icon can be found at Computer\HKEY_CLASSES_ROOT\ProgID\DefaultIcon (first value)
-    // and actual icon path loaded from SHLoadIndirectString(indirStr, iconPath, 512 * sizeof(wchar_t), NULL);
+    CoUninitialize();
 }
 
 static void GetUWPIcon(HANDLE process, wchar_t* iconPath)
@@ -860,11 +884,6 @@ static void CreateWin()
         _AppData._Instance, // Instance handle
         NULL // Additional application data
     );
-
-    SetWindowTheme(hwnd, L"DarkMode_Explorer", NULL);
-
-    BOOL value = TRUE;
-    DwmSetWindowAttribute(hwnd, 20, &value, sizeof(value));
 
     VERIFY(hwnd);
     // Rounded corners for Win 11
@@ -1407,6 +1426,9 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
                 GdipDeletePen(pPen);
             }
 
+            // TODO: Check histogram and invert (or another filter) if background
+            // is similar
+            // https://learn.microsoft.com/en-us/windows/win32/api/gdiplusheaders/nf-gdiplusheaders-bitmap-gethistogram
             if (pWinGroup->_UWPIconPath[0] != L'\0')
             {
                 GpImage* img = NULL;
