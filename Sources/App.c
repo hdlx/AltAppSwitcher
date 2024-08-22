@@ -1433,15 +1433,13 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
             // https://learn.microsoft.com/en-us/windows/win32/api/gdiplusheaders/nf-gdiplusheaders-bitmap-gethistogram
             // https://learn.microsoft.com/en-us/windows/win32/gdiplus/-gdiplus-using-a-color-remap-table-use
             // https://learn.microsoft.com/en-us/windows/win32/gdiplus/-gdiplus-using-a-color-matrix-to-transform-a-single-color-use
+            // Also check palette to see if monochrome
             if (pWinGroup->_UWPIconPath[0] != L'\0')
             {
                 GpImage* img = NULL;
                 GdipLoadImageFromFile(pWinGroup->_UWPIconPath, &img);
                 GdipDrawImageRectI(pGraphics, img, x, padding, iconSize, iconSize);
                 GdipDisposeImage(img);
-
-                ColorPalette pal;
-                GdipInitializePalette(&pal, 9, 0, TRUE, GpBitmap *)
             }
             else if (pWinGroup->_Icon)
             {
