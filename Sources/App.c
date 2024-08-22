@@ -22,6 +22,8 @@
 #include <stdlib.h>
 #include <windowsx.h>
 #include <combaseapi.h>
+#include <wingdi.h>
+#include <gdiplus/gdipluscolormatrix.h>
 #include "MacAppSwitcherHelpers.h"
 #include "KeyCodeFromConfigName.h"
 
@@ -69,6 +71,8 @@ typedef struct SGraphicsResources
     GpStringFormat* _pFormat;
     COLORREF _BackgroundColor;
     COLORREF _TextColor;
+    GpImageAttributes* _pImgAttrIdentity;
+    GpImageAttributes* _pImgAttrForMonochrome;
 } SGraphicsResources;
 
 typedef struct KeyConfig
@@ -227,6 +231,26 @@ static void InitGraphicsResources(SGraphicsResources* pRes)
             pRes->_TextColor = lightColor;
         }
     }
+    // ImgAttr
+    {
+        GdipCreateImageAttributes(&pRes->_pImgAttrForMonochrome);
+        GdipCreateImageAttributes(&pRes->_pImgAttrIdentity);
+        GdipSetImageAttributesToIdentity(pRes->_pImgAttrIdentity, ColorAdjustTypeDefault);
+        static ColorMatrix mat = {{
+            { 0.0f, 0.0f, 0.0f, 0.0f, 0.0f} ,
+            { 0.0f, 0.0f, 0.0f, 0.0f, 0.0f} ,
+            { 0.0f, 0.0f, 0.0f, 0.0f, 0.0f} ,
+            { 0.0f, 0.0f, 0.0f, 1.0f, 0.0f} ,
+            { 1.0f, 0.0f, 0.0f, 0.0f, 1.0f}
+        }};
+        const float r =  (float)GetRValue(pRes->_BackgroundColor) / (float)0xFF;
+        const float g =  (float)GetGValue(pRes->_BackgroundColor) / (float)0xFF;
+        const float b =  (float)GetGValue(pRes->_BackgroundColor) / (float)0xFF;
+        mat.m[4][0] = 1.0f - r;
+        mat.m[4][1] = 1.0f - g;
+        mat.m[4][2] = 1.0f - b;
+        GdipSetImageAttributesColorMatrix(pRes->_pImgAttrForMonochrome, ColorAdjustTypeDefault, true, &mat, NULL, ColorMatrixFlagsDefault);
+    }
     // Brushes
     {
         VERIFY(Ok == GdipCreateSolidFill(pRes->_BackgroundColor | 0xFF000000, &pRes->_pBrushBg));
@@ -242,6 +266,8 @@ static void DeInitGraphicsResources(SGraphicsResources* pRes)
     VERIFY(Ok == GdipDeleteBrush(pRes->_pBrushBg));
     VERIFY(Ok == GdipDeleteStringFormat(pRes->_pFormat));
     VERIFY(Ok == GdipDeleteFont(pRes->_pFont));
+    VERIFY(Ok == GdipDisposeImageAttributes(pRes->_pImgAttrIdentity));
+    VERIFY(Ok == GdipDisposeImageAttributes(pRes->_pImgAttrForMonochrome));
     pRes->_DCDirty = true;
     pRes->_DCBuffer = NULL;
     pRes->_Bitmap = NULL;
@@ -891,7 +917,6 @@ static void CreateWin()
     const uint32_t rounded = 2;
     DwmSetWindowAttribute(hwnd, 33, &rounded, sizeof(rounded));
     InvalidateRect(hwnd, NULL, FALSE);
-    UpdateWindow(hwnd);
     SetForegroundWindow(hwnd);
     _AppData._MainWin = hwnd;
     _AppData._GraphicsResources._DCDirty = true;
@@ -1315,6 +1340,11 @@ static void SetKeyConfig()
     fclose(file);
 }
 
+typedef struct PAL
+{
+    ColorPalette _P;
+    ARGB _Data[8];
+}PAL;
 
 LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 {
@@ -1436,13 +1466,57 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
             {
                 GpImage* img = NULL;
                 GdipLoadImageFromFile(pWinGroup->_UWPIconPath, &img);
+
+                GpBitmap* bitmap;
+                GdipCreateBitmapFromFile(pWinGroup->_UWPIconPath, &bitmap);
+                UINT size = 0;
+                GdipBitmapGetHistogramSize(HistogramFormatRGB, &size);
+                static UINT histoR[256];
+                static UINT histoG[256];
+                static UINT histoB[256];
+                memset(histoR, 0, 256);
+                memset(histoG, 0, 256);
+                memset(histoB, 0, 256);
+                GdipBitmapGetHistogram(bitmap, HistogramFormatRGB, 256, histoR, histoG, histoB, NULL);
+
+                bool isMonochrome = true;
+                uint32_t colCountR = 0;
+                uint32_t colCountG = 0;
+                uint32_t colCountB = 0;
+                // starts at 1 because there are data at "0" on my monochrome tests
+                for (uint32_t i = 1; i < size; i++)
+                {
+                    colCountR += histoR[i] > 0 ? 1 : 0;
+                    colCountG += histoG[i] > 0 ? 1 : 0;
+                    colCountB += histoB[i] > 0 ? 1 : 0;
+                    if (colCountR > 1 | colCountG > 1 | colCountB > 1)
+                    {
+                        isMonochrome = false;
+                        break;
+                    }
+                }
+
+                //printf("%ls\n", pWinGroup->_UWPIconPath);
+
+                GpImageAttributes* imgAttr = isMonochrome ? pGraphRes->_pImgAttrForMonochrome : pGraphRes->_pImgAttrIdentity;
+
+                uint32_t imgW, imgH;
+                GdipGetImageWidth(img, &imgW);
+                GdipGetImageHeight(img, &imgH);
                 GdipDrawImageRectI(pGraphics, img, x, padding, iconSize, iconSize);
+                GdipDrawImageRectRectI(pGraphics, img,
+                    x, padding, iconSize, iconSize, 
+                    0, 0, imgW, imgH,
+                    UnitPixel, imgAttr, NULL, NULL);
+
                 GdipDisposeImage(img);
             }
             else if (pWinGroup->_Icon)
             {
                 DrawIcon(pGraphRes->_DCBuffer, x, padding, pWinGroup->_Icon);
             }
+
+
 
             {
                 WCHAR count[4];
