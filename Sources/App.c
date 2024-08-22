@@ -1,3 +1,5 @@
+#include <gdiplus/gdiplusflat.h>
+#include <gdiplus/gdipluspixelformats.h>
 #include <minwindef.h>
 #include <stdio.h>
 #include <string.h>
@@ -1429,12 +1431,17 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
             // TODO: Check histogram and invert (or another filter) if background
             // is similar
             // https://learn.microsoft.com/en-us/windows/win32/api/gdiplusheaders/nf-gdiplusheaders-bitmap-gethistogram
+            // https://learn.microsoft.com/en-us/windows/win32/gdiplus/-gdiplus-using-a-color-remap-table-use
+            // https://learn.microsoft.com/en-us/windows/win32/gdiplus/-gdiplus-using-a-color-matrix-to-transform-a-single-color-use
             if (pWinGroup->_UWPIconPath[0] != L'\0')
             {
                 GpImage* img = NULL;
                 GdipLoadImageFromFile(pWinGroup->_UWPIconPath, &img);
                 GdipDrawImageRectI(pGraphics, img, x, padding, iconSize, iconSize);
                 GdipDisposeImage(img);
+
+                ColorPalette pal;
+                GdipInitializePalette(&pal, 9, 0, TRUE, GpBitmap *)
             }
             else if (pWinGroup->_Icon)
             {
