@@ -1,5 +1,3 @@
-#include <gdiplus/gdiplusflat.h>
-#include <gdiplus/gdipluspixelformats.h>
 #include <minwindef.h>
 #include <stdio.h>
 #include <string.h>
