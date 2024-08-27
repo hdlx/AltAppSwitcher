@@ -1,19 +1,32 @@
 #include <stdio.h>
+#include <string.h>
 #include <windows.h>
 #include <psapi.h>
 #include <stdint.h>
-#define VERIFY(arg) if (!(arg)) { MSSError(#arg); }
+#include <minwindef.h>
+#include <time.h>
 
-static void PrintLastError(void)
+#define ASSERT(arg) if (!(arg)) { MSSError(__FILE__, __LINE__, #arg); }
+
+static void GetLastWinErrStr(char* str, uint32_t strSize)
 {
     DWORD err = GetLastError();
     if (err == 0)
         return;
     LPSTR msg = NULL;
     FormatMessage(FORMAT_MESSAGE_ALLOCATE_BUFFER | FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS,
-        NULL, err, MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT),  (LPSTR)&msg, 0, NULL);
-    printf("%s", msg);
+        NULL, err, MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT), (LPSTR)&msg, 0, NULL);
+    const uint32_t sizeToCopy = min(strlen(msg) + 1, strSize);
+    memcpy(str, msg, sizeof(char) * sizeToCopy);
+    str[strSize - 1] = '\0';
     LocalFree(msg);
+}
+
+static void PrintLastError()
+{
+    static char msg[512];
+    GetLastWinErrStr(msg, 512);
+    printf("%s", msg);
 }
 
 static void GetCurrentProcessName(char* processName, uint32_t strMaxSize)
@@ -30,25 +43,22 @@ static void Lowercase(char* str)
         str[i] = tolower(str[i]);
 }
 
-static void FilePrintLastError()
+static void MSSError(const char* file, uint32_t line, const char* assertStr)
 {
-    DWORD err = GetLastError();
-    FILE* file = fopen("./MacAppSwitcherLog.txt", "wb");
-    if (err == 0 || file == NULL)
-        return;
-    LPSTR msg = NULL;
-    FormatMessage(FORMAT_MESSAGE_ALLOCATE_BUFFER | FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS,
-        NULL, err, MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT), (LPSTR)&msg, 0, NULL);
-    fprintf(file, "%s", msg);
-    LocalFree(msg);
-    fclose(file);
-}
+    time_t mytime = time(NULL);
+    char* timeStr = ctime(&mytime);
+    timeStr[strlen(timeStr) - 1] = '\0';
+    static char winMsg[512];
+    GetLastWinErrStr(winMsg, 512);
 
-static void MSSError(const char* msg)
-{
-    printf("Call failed: %s\n", msg);
-    FilePrintLastError();
-    PrintLastError();
+    FILE* f = fopen("./MacAppSwitcherLog.txt", "ab");
+    if (f == NULL)
+        return;
+    fprintf(f, "%s:\nFile: %s, line: %u:\n", timeStr, file, line);
+    fprintf(f, "Assert: %s\n", assertStr);
+    fprintf(f, "Last winapi error: %s\n\n", winMsg[0] == '\0' ? "None" : winMsg);
+    fclose(f);
+
     SetLastError(0);
     DebugBreak();
 }
@@ -62,10 +72,10 @@ static void MyPrintWindow(HWND win)
     GetWindowText(win, buf, 100);
     printf("   TEXT: %s \n", buf);
     DWORD dwPID = 0x0000000000000000;
-    VERIFY(GetWindowThreadProcessId(win, &dwPID));
+    ASSERT(GetWindowThreadProcessId(win, &dwPID));
     printf("    PID: %i \n", (int)dwPID);
     HANDLE process = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION | PROCESS_VM_READ, FALSE, dwPID);
-    VERIFY(process);
+    ASSERT(process);
     static char pathStr[512];
     GetModuleFileNameEx(process, NULL, pathStr, 512);
     CloseHandle(process);

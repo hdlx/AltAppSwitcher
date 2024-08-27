@@ -22,8 +22,6 @@
 #include <stdlib.h>
 #include <windowsx.h>
 #include <combaseapi.h>
-#include <wingdi.h>
-#include <gdiplus/gdipluscolormatrix.h>
 #include "MacAppSwitcherHelpers.h"
 #include "KeyCodeFromConfigName.h"
 
@@ -71,8 +69,6 @@ typedef struct SGraphicsResources
     GpStringFormat* _pFormat;
     COLORREF _BackgroundColor;
     COLORREF _TextColor;
-    GpImageAttributes* _pImgAttrIdentity;
-    GpImageAttributes* _pImgAttrForMonochrome;
 } SGraphicsResources;
 
 typedef struct KeyConfig
@@ -159,13 +155,13 @@ static void InitGraphicsResources(SGraphicsResources* pRes)
     {
         GpStringFormat* pGenericFormat;
         GpFontFamily* pFontFamily;
-        VERIFY(Ok == GdipStringFormatGetGenericDefault(&pGenericFormat));
-        VERIFY(Ok == GdipCloneStringFormat(pGenericFormat, &pRes->_pFormat));
-        VERIFY(Ok == GdipSetStringFormatAlign(pRes->_pFormat, StringAlignmentCenter));
-        VERIFY(Ok == GdipSetStringFormatLineAlign(pRes->_pFormat, StringAlignmentCenter));
-        VERIFY(Ok == GdipGetGenericFontFamilySansSerif(&pFontFamily));
+        ASSERT(Ok == GdipStringFormatGetGenericDefault(&pGenericFormat));
+        ASSERT(Ok == GdipCloneStringFormat(pGenericFormat, &pRes->_pFormat));
+        ASSERT(Ok == GdipSetStringFormatAlign(pRes->_pFormat, StringAlignmentCenter));
+        ASSERT(Ok == GdipSetStringFormatLineAlign(pRes->_pFormat, StringAlignmentCenter));
+        ASSERT(Ok == GdipGetGenericFontFamilySansSerif(&pFontFamily));
         pRes->_FontSize = 10;
-        VERIFY(Ok == GdipCreateFont(pFontFamily, pRes->_FontSize, FontStyleBold, (int)MetafileFrameUnitPixel, &pRes->_pFont));
+        ASSERT(Ok == GdipCreateFont(pFontFamily, pRes->_FontSize, FontStyleBold, (int)MetafileFrameUnitPixel, &pRes->_pFont));
     }
     // Colors
     {
@@ -231,43 +227,21 @@ static void InitGraphicsResources(SGraphicsResources* pRes)
             pRes->_TextColor = lightColor;
         }
     }
-    // ImgAttr
-    {
-        GdipCreateImageAttributes(&pRes->_pImgAttrForMonochrome);
-        GdipCreateImageAttributes(&pRes->_pImgAttrIdentity);
-        GdipSetImageAttributesToIdentity(pRes->_pImgAttrIdentity, ColorAdjustTypeDefault);
-        static ColorMatrix mat = {{
-            { 0.0f, 0.0f, 0.0f, 0.0f, 0.0f} ,
-            { 0.0f, 0.0f, 0.0f, 0.0f, 0.0f} ,
-            { 0.0f, 0.0f, 0.0f, 0.0f, 0.0f} ,
-            { 0.0f, 0.0f, 0.0f, 1.0f, 0.0f} ,
-            { 1.0f, 0.0f, 0.0f, 0.0f, 1.0f}
-        }};
-        const float r =  (float)GetRValue(pRes->_BackgroundColor) / (float)0xFF;
-        const float g =  (float)GetGValue(pRes->_BackgroundColor) / (float)0xFF;
-        const float b =  (float)GetGValue(pRes->_BackgroundColor) / (float)0xFF;
-        mat.m[4][0] = 1.0f - r;
-        mat.m[4][1] = 1.0f - g;
-        mat.m[4][2] = 1.0f - b;
-        GdipSetImageAttributesColorMatrix(pRes->_pImgAttrForMonochrome, ColorAdjustTypeDefault, true, &mat, NULL, ColorMatrixFlagsDefault);
-    }
     // Brushes
     {
-        VERIFY(Ok == GdipCreateSolidFill(pRes->_BackgroundColor | 0xFF000000, &pRes->_pBrushBg));
-        VERIFY(Ok == GdipCreateSolidFill(pRes->_TextColor | 0xFF000000, &pRes->_pBrushText));
+        ASSERT(Ok == GdipCreateSolidFill(pRes->_BackgroundColor | 0xFF000000, &pRes->_pBrushBg));
+        ASSERT(Ok == GdipCreateSolidFill(pRes->_TextColor | 0xFF000000, &pRes->_pBrushText));
     }
 }
 
 static void DeInitGraphicsResources(SGraphicsResources* pRes)
 {
-    VERIFY(Ok == DeleteDC(pRes->_DCBuffer));
-    VERIFY(Ok == DeleteObject(pRes->_Bitmap));
-    VERIFY(Ok == GdipDeleteBrush(pRes->_pBrushText));
-    VERIFY(Ok == GdipDeleteBrush(pRes->_pBrushBg));
-    VERIFY(Ok == GdipDeleteStringFormat(pRes->_pFormat));
-    VERIFY(Ok == GdipDeleteFont(pRes->_pFont));
-    VERIFY(Ok == GdipDisposeImageAttributes(pRes->_pImgAttrIdentity));
-    VERIFY(Ok == GdipDisposeImageAttributes(pRes->_pImgAttrForMonochrome));
+    ASSERT(Ok == DeleteDC(pRes->_DCBuffer));
+    ASSERT(Ok == DeleteObject(pRes->_Bitmap));
+    ASSERT(Ok == GdipDeleteBrush(pRes->_pBrushText));
+    ASSERT(Ok == GdipDeleteBrush(pRes->_pBrushBg));
+    ASSERT(Ok == GdipDeleteStringFormat(pRes->_pFormat));
+    ASSERT(Ok == GdipDeleteFont(pRes->_pFont));
     pRes->_DCDirty = true;
     pRes->_DCBuffer = NULL;
     pRes->_Bitmap = NULL;
@@ -461,7 +435,7 @@ static bool ForceSetForeground(HWND win)
     GetWindowPlacement(win, &placement);
     if (placement.showCmd == SW_SHOWMINIMIZED)
         ShowWindowAsync(win, SW_RESTORE);
-    VERIFY(BringWindowToTop(win) || SetForegroundWindow(win));
+    ASSERT(BringWindowToTop(win) || SetForegroundWindow(win));
     SetFocus(win);
     SetActiveWindow(win);
     EnableWindow(win, TRUE);
@@ -619,7 +593,7 @@ static void InitUWPIconMap(SUWPIconMap* map)
                     /*if (res != S_OK)
                     {
                         ErrorDescription(res);
-                        VERIFY(false);
+                        ASSERT(false);
                     }*/
                     if (res == S_OK && map->_Data[map->_Count]._Icon[0] != '\0')
                         hasIcon = true;
@@ -655,97 +629,6 @@ static void GetUWPIcon(HANDLE process, wchar_t* iconPath)
             return;
         }
     }
-/*
-
-    PACKAGE_INFO_REFERENCE inforef;
-    OpenPackageInfoByFullName(packageFullName, 0, &inforef);
-    PACKAGE_INFO infos[32];
-    uint32_t length = sizeof(infos);
-    uint32_t count = 1;
-    GetPackageInfo(inforef, PACKAGE_FILTER_HEAD, &length, (BYTE*)&infos, &count);
-
-    BYTE data[1024];
-    uint32_t size = sizeof(data);
-    uint32_t datacount = 1024;
-    GetPackageApplicationIds(inforef, &size, data, &datacount);
-    PACKAGE_ID packageID[512];
-    uint32_t packageIDLength = sizeof(packageID);
-    {
-        LONG err = GetPackageId(process, &packageIDLength,(BYTE*)&packageID);
-        printf("%i", (int)err);
-    }
-    {
-        static wchar_t toto[512];
-        uint32_t totolength = 512;
-        GetApplicationUserModelId(process, &totolength, toto);
-        printf("%ls", toto);
-    }
-
-
-    HKEY currentUserKey;
-    LSTATUS toto = RegOpenCurrentUser(KEY_READ, &currentUserKey);
-    (void)toto;
-    static wchar_t packageFamilyName[512];
-    uint32_t packageFamilyNameLength = 512;
-    uint32_t packageNameLength = 512;
-    {
-        GetPackageFamilyName(process, &packageFamilyNameLength, packageFamilyName);
-        packageNameLength = packageFamilyNameLength - 14; // Publicsher id is always 13 chars. Also count underscore.
-    }
-
-    static wchar_t manifestPath[512];
-    {
-        uint32_t uiBufSize = 512;
-        GetPackagePathByFullName(packageFullName, &uiBufSize, manifestPath);
-        memcpy((void*)&manifestPath[uiBufSize - 1], (void*)L"\\AppxManifest.xml", sizeof(L"\\AppxManifest.xml"));
-    }
-
-    static wchar_t logoPath[512];
-    uint32_t logoPathLength = 0;
-    {
-        static char _logoPath[512];
-        FILE* file = _wfopen(manifestPath, L"r");
-        static char lineBuf[1024];
-        while (fgets(lineBuf, 1024, file))
-        {
-            const char* pLogo = strstr(lineBuf, "<Logo>");
-            if (pLogo == NULL)
-                continue;
-            const char* pEnd = strstr(lineBuf, "</Logo>");
-            const char* pToCopy = pLogo + sizeof("<Logo>") - 1;
-            while (pToCopy != pEnd)
-            {
-                _logoPath[logoPathLength] = *pToCopy;
-                pToCopy++;
-                logoPathLength++;
-            }
-            break;
-        }
-        fclose(file);
-        mbstowcs(logoPath, _logoPath, logoPathLength);
-    }
-
-    static wchar_t indirStr[512];
-
-    BuildLogoIndirectString(logoPath, logoPathLength,
-        packageFullName, packageFullNameLength,
-        packageFamilyName, packageNameLength,
-        indirStr);
-
-    if (SHLoadIndirectString(indirStr, iconPath, 512 * sizeof(wchar_t), NULL) == S_OK)
-        return;
-
-    // Indirect string construction is empirically designed from
-    // inspecting "resources.pri".
-    // Some UWP app (arc) use "Application" instead of PackageName for
-    // the resource uri. We look again using this alternate path.
-    // This does not seem very robust.
-    BuildLogoIndirectString(logoPath, logoPathLength,
-        packageFullName, packageFullNameLength,
-        L"Application", sizeof(L"Application") / sizeof(wchar_t),
-        indirStr);
-    SHLoadIndirectString(indirStr, iconPath, 512 * sizeof(wchar_t), NULL);
-*/
 }
 
 static BOOL FillWinGroups(HWND hwnd, LPARAM lParam)
@@ -788,7 +671,7 @@ static BOOL FillWinGroups(HWND hwnd, LPARAM lParam)
             {
                 if (isUWP)
                     GetUWPIcon(process, group->_UWPIconPath);
-                else
+                if (group->_UWPIconPath[0] == L'\0')
                     group->_Icon = ExtractIcon(process, pathStr, 0);
             }
             // also try :
@@ -911,12 +794,13 @@ static void CreateWin()
         NULL // Additional application data
     );
 
-    VERIFY(hwnd);
+    ASSERT(hwnd);
     // Rounded corners for Win 11
     // Values are from cpp enums DWMWINDOWATTRIBUTE and DWM_WINDOW_CORNER_PREFERENCE
     const uint32_t rounded = 2;
     DwmSetWindowAttribute(hwnd, 33, &rounded, sizeof(rounded));
     InvalidateRect(hwnd, NULL, FALSE);
+    UpdateWindow(hwnd);
     SetForegroundWindow(hwnd);
     _AppData._MainWin = hwnd;
     _AppData._GraphicsResources._DCDirty = true;
@@ -1040,7 +924,7 @@ static void ApplySwitchApp(const SWinGroup* winGroup)
         return;
     }
     SetForegroundWindow(winGroup->_Windows[0]);
-   // VERIFY(ForceSetForeground(winArr->_Data[0]));
+   // ASSERT(ForceSetForeground(winArr->_Data[0]));
 }
 
 static void ApplySwitchWin(HWND win)
@@ -1197,7 +1081,7 @@ static LRESULT KbProc(int nCode, WPARAM wParam, LPARAM lParam)
             inputs[2].ki.wVk = VK_RCONTROL;
             inputs[2].ki.dwFlags = KEYEVENTF_KEYUP;
             const UINT uSent = SendInput(ARRAYSIZE(inputs), inputs, sizeof(INPUT));
-            VERIFY(uSent == 3);
+            ASSERT(uSent == 3);
         }
         return 1;
     }
@@ -1340,11 +1224,6 @@ static void SetKeyConfig()
     fclose(file);
 }
 
-typedef struct PAL
-{
-    ColorPalette _P;
-    ARGB _Data[8];
-}PAL;
 
 LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 {
@@ -1466,57 +1345,13 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
             {
                 GpImage* img = NULL;
                 GdipLoadImageFromFile(pWinGroup->_UWPIconPath, &img);
-
-                GpBitmap* bitmap;
-                GdipCreateBitmapFromFile(pWinGroup->_UWPIconPath, &bitmap);
-                UINT size = 0;
-                GdipBitmapGetHistogramSize(HistogramFormatRGB, &size);
-                static UINT histoR[256];
-                static UINT histoG[256];
-                static UINT histoB[256];
-                memset(histoR, 0, 256);
-                memset(histoG, 0, 256);
-                memset(histoB, 0, 256);
-                GdipBitmapGetHistogram(bitmap, HistogramFormatRGB, 256, histoR, histoG, histoB, NULL);
-
-                bool isMonochrome = true;
-                uint32_t colCountR = 0;
-                uint32_t colCountG = 0;
-                uint32_t colCountB = 0;
-                // starts at 1 because there are data at "0" on my monochrome tests
-                for (uint32_t i = 1; i < size; i++)
-                {
-                    colCountR += histoR[i] > 0 ? 1 : 0;
-                    colCountG += histoG[i] > 0 ? 1 : 0;
-                    colCountB += histoB[i] > 0 ? 1 : 0;
-                    if (colCountR > 1 | colCountG > 1 | colCountB > 1)
-                    {
-                        isMonochrome = false;
-                        break;
-                    }
-                }
-
-                //printf("%ls\n", pWinGroup->_UWPIconPath);
-
-                GpImageAttributes* imgAttr = isMonochrome ? pGraphRes->_pImgAttrForMonochrome : pGraphRes->_pImgAttrIdentity;
-
-                uint32_t imgW, imgH;
-                GdipGetImageWidth(img, &imgW);
-                GdipGetImageHeight(img, &imgH);
                 GdipDrawImageRectI(pGraphics, img, x, padding, iconSize, iconSize);
-                GdipDrawImageRectRectI(pGraphics, img,
-                    x, padding, iconSize, iconSize, 
-                    0, 0, imgW, imgH,
-                    UnitPixel, imgAttr, NULL, NULL);
-
                 GdipDisposeImage(img);
             }
             else if (pWinGroup->_Icon)
             {
                 DrawIcon(pGraphRes->_DCBuffer, x, padding, pWinGroup->_Icon);
             }
-
-
 
             {
                 WCHAR count[4];
@@ -1533,7 +1368,7 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
                 swprintf(count, 4, L"%i", winCount);
                 // Invert text / bg brushes
                 DrawRoundedRect(pGraphics, NULL, pGraphRes->_pBrushText, rectf.X, rectf.Y, rectf.X + rectf.Width, rectf.Y + rectf.Height, 5);
-                VERIFY(!GdipDrawString(pGraphics, count, digitsCount, pGraphRes->_pFont, &rectf, pGraphRes->_pFormat, pGraphRes->_pBrushBg));
+                ASSERT(!GdipDrawString(pGraphics, count, digitsCount, pGraphRes->_pFont, &rectf, pGraphRes->_pFormat, pGraphRes->_pBrushBg));
             }
             x += iconContainerSize;
         }
@@ -1551,7 +1386,7 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 static DWORD KbHookCb(LPVOID param)
 {
     (void)param;
-    VERIFY(SetWindowsHookEx(WH_KEYBOARD_LL, KbProc, 0, 0));
+    ASSERT(SetWindowsHookEx(WH_KEYBOARD_LL, KbProc, 0, 0));
     MSG msg = { };
 
     while (GetMessage(&msg, NULL, 0, 0) > 0)
@@ -1562,12 +1397,14 @@ static DWORD KbHookCb(LPVOID param)
 
 int StartMacAppSwitcher(HINSTANCE hInstance)
 {
+    SetLastError(0);
+
     ULONG_PTR gdiplusToken = 0;
     {
         GdiplusStartupInput gdiplusStartupInput = {};
         gdiplusStartupInput.GdiplusVersion = 1;
         uint32_t status = GdiplusStartup(&gdiplusToken, &gdiplusStartupInput, NULL);
-        VERIFY(!status);
+        ASSERT(!status);
     }
 
     {
@@ -1603,11 +1440,12 @@ int StartMacAppSwitcher(HINSTANCE hInstance)
         GetCurrentProcess(),
         TOKEN_ADJUST_PRIVILEGES | TOKEN_QUERY,
         &token);
+
     TOKEN_PRIVILEGES priv;
     priv.PrivilegeCount = 1;
     LookupPrivilegeValue(NULL, "SeDebugPrivilege", &(priv.Privileges[0].Luid));
     priv.Privileges[0].Attributes = SE_PRIVILEGE_ENABLED;
-    VERIFY(AdjustTokenPrivileges(token, false, &priv, sizeof(priv), 0, 0));
+    ASSERT(AdjustTokenPrivileges(token, false, &priv, sizeof(priv), 0, 0));
     CloseHandle(token);
 
     MSG msg = { };
