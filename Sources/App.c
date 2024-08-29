@@ -665,25 +665,19 @@ static BOOL FillWinGroups(HWND hwnd, LPARAM lParam)
             const HANDLE process = OpenProcess(PROCESS_QUERY_INFORMATION, FALSE, PID);
             static char pathStr[512];
             GetModuleFileNameEx(process, NULL, pathStr, 512);
-            if (!process)
-                group->_Icon = LoadIcon(NULL, IDI_APPLICATION);
-            else
+            if (process)
             {
-                if (isUWP)
+                group->_Icon = ExtractIcon(process, pathStr, 0);
+                if (group->_Icon == NULL && isUWP)
                     GetUWPIcon(process, group->_UWPIconPath);
-                if (group->_UWPIconPath[0] == L'\0')
-                    group->_Icon = ExtractIcon(process, pathStr, 0);
+                CloseHandle(process);
             }
-            // also try :
-            // https://stackoverflow.com/questions/55767277/how-do-i-set-a-taskbar-icon-for-win32-application
-
             if (!group->_Icon &&  group->_UWPIconPath[0] == L'\0')
             {
                 // Probalby but not necessarily an error
                 // PrintLastError();
                 group->_Icon = LoadIcon(NULL, IDI_APPLICATION);
             }
-            CloseHandle(process);
         }
     }
     group->_Windows[group->_WindowCount++] = hwnd;

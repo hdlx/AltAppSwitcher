@@ -23,7 +23,7 @@ def CompileDbg():
     if not os.path.exists(dir):
         os.makedirs(dir)
     file = f"{dir}/MacAppSwitcher.exe"
-    cmd = f"clang {CFiles()} -I ./Sources {LinkArgs()} -o {file} {WarningOptions()} {Common()} -g -glldb -target x86_64-mingw64"
+    cmd = f"clang {CFiles()} -I ./Sources {LinkArgs()} -o {file} {WarningOptions()} {Common()} -g -glldb -target x86_64-mingw64 -D DEBUG=1"
     os.system(cmd)
     #os.system(f"mt.exe -manifest \"./Manifest.xml\" -outputresource:\"{file}\"")
     return file
