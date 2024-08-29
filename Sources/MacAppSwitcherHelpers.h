@@ -61,9 +61,7 @@ static void MSSError(const char* file, uint32_t line, const char* assertStr)
 
     SetLastError(0);
 
-#if defined(DEBUG)
     DebugBreak();
-#endif
 }
 
 static void MyPrintWindow(HWND win)

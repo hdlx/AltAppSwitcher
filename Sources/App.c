@@ -1263,8 +1263,6 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
         }
         if (!_Mouse)
             return 0;
-        //SWinArr* winArr = CreateWinArr(&_AppData._WinGroups._Data[_AppData._Selection]);
-        //PostThreadMessage(_AppData._WorkerThread, MSG_SET_APP, 0, (LPARAM)winArr);
         const int selection = _AppData._Selection;
         _AppData._Mode = ModeNone;
         _AppData._Selection = 0;
@@ -1273,32 +1271,36 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
         return 0;
     }
     case WM_DESTROY:
-        //PostQuitMessage(0);
         return 0;
     case WM_PAINT:
     {
         PAINTSTRUCT ps;
         BeginPaint(hwnd, &ps);
         RECT clientRect;
-        GetClientRect(hwnd, &clientRect);
+        ASSERT(GetClientRect(hwnd, &clientRect));
         SGraphicsResources* pGraphRes = &_AppData._GraphicsResources;
         if (pGraphRes->_DCDirty)
         {
             if (pGraphRes->_DCBuffer)
             {
-                DeleteDC(pGraphRes->_DCBuffer);
-                DeleteObject(pGraphRes->_Bitmap);
+                ASSERT(DeleteDC(pGraphRes->_DCBuffer));
+                ASSERT(DeleteObject(pGraphRes->_Bitmap));
+                pGraphRes->_DCBuffer = NULL;
+                pGraphRes->_Bitmap = NULL;
             }
             pGraphRes->_DCBuffer = CreateCompatibleDC(ps.hdc);
+            ASSERT(pGraphRes->_DCBuffer != NULL);
             pGraphRes->_Bitmap = CreateCompatibleBitmap(
                 ps.hdc,
                 clientRect.right - clientRect.left,
                 clientRect.bottom - clientRect.top);
+            ASSERT(pGraphRes->_Bitmap != NULL);
             pGraphRes->_DCDirty = false;
         }
 
-        HBITMAP oldBitmap = SelectObject(pGraphRes->_DCBuffer,  pGraphRes->_Bitmap);
-        (void)oldBitmap;
+        HANDLE oldBitmap = SelectObject(pGraphRes->_DCBuffer,  pGraphRes->_Bitmap);
+        ASSERT(oldBitmap != NULL);
+        ASSERT(oldBitmap != HGDI_ERROR);
 
         HBRUSH bgBrush = CreateSolidBrush(pGraphRes->_BackgroundColor);
         FillRect(pGraphRes->_DCBuffer, &clientRect, bgBrush);
@@ -1306,8 +1308,8 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 
         SetBkMode(pGraphRes->_DCBuffer, TRANSPARENT); // ?
 
-        GpGraphics* pGraphics;
-        GdipCreateFromHDC(pGraphRes->_DCBuffer, &pGraphics);
+        GpGraphics* pGraphics = NULL;
+        ASSERT(Ok == GdipCreateFromHDC(pGraphRes->_DCBuffer, &pGraphics));
         GdipSetSmoothingMode(pGraphics, 5);
 
         const uint32_t iconContainerSize = GetSystemMetrics(SM_CXICONSPACING);
