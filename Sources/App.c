@@ -59,8 +59,8 @@ typedef struct KeyState
 
 typedef struct SGraphicsResources
 {
-    HDC _DCBuffer;
-    bool _DCDirty;
+    HDC _DC;
+    bool _RecreateBitmap;
     HBITMAP _Bitmap;
     uint32_t _FontSize;
     GpSolidFill* _pBrushText;
@@ -148,8 +148,8 @@ static ThemeMode _ThemeMode = ThemeModeAuto;
 
 static void InitGraphicsResources(SGraphicsResources* pRes)
 {
-    pRes->_DCDirty = true;
-    pRes->_DCBuffer = NULL;
+    pRes->_RecreateBitmap = true;
+    pRes->_DC = NULL;
     pRes->_Bitmap = NULL;
     // Text
     {
@@ -232,18 +232,22 @@ static void InitGraphicsResources(SGraphicsResources* pRes)
         ASSERT(Ok == GdipCreateSolidFill(pRes->_BackgroundColor | 0xFF000000, &pRes->_pBrushBg));
         ASSERT(Ok == GdipCreateSolidFill(pRes->_TextColor | 0xFF000000, &pRes->_pBrushText));
     }
+    {
+        pRes->_DC = CreateCompatibleDC(NULL);
+        ASSERT(pRes->_DC != NULL);
+    }
 }
 
 static void DeInitGraphicsResources(SGraphicsResources* pRes)
 {
-    ASSERT(Ok == DeleteDC(pRes->_DCBuffer));
+    ASSERT(Ok == DeleteDC(pRes->_DC));
     ASSERT(Ok == DeleteObject(pRes->_Bitmap));
     ASSERT(Ok == GdipDeleteBrush(pRes->_pBrushText));
     ASSERT(Ok == GdipDeleteBrush(pRes->_pBrushBg));
     ASSERT(Ok == GdipDeleteStringFormat(pRes->_pFormat));
     ASSERT(Ok == GdipDeleteFont(pRes->_pFont));
-    pRes->_DCDirty = true;
-    pRes->_DCBuffer = NULL;
+    pRes->_RecreateBitmap = true;
+    pRes->_DC = NULL;
     pRes->_Bitmap = NULL;
 }
 
@@ -757,11 +761,9 @@ static const char CLASS_NAME[]  = "MacStyleSwitch";
 static void DestroyWin()
 {
     DestroyWindow(_AppData._MainWin);
-    if (_AppData._GraphicsResources._DCBuffer)
+    if (_AppData._GraphicsResources._Bitmap)
     {
-        DeleteDC(_AppData._GraphicsResources._DCBuffer);
         DeleteObject(_AppData._GraphicsResources._Bitmap);
-        _AppData._GraphicsResources._DCBuffer = NULL;
         _AppData._GraphicsResources._Bitmap = NULL;
     }
     _AppData._MainWin = NULL;
@@ -771,7 +773,7 @@ static void CreateWin()
 {
     if (_AppData._MainWin)
         DestroyWin();
-    _AppData._GraphicsResources._DCDirty = true;
+    _AppData._GraphicsResources._RecreateBitmap = true;
     uint32_t px, py, sx, sy;
     ComputeWinPosAndSize(_AppData._WinGroups._Size, &px, &py, &sx, &sy);
 
@@ -797,7 +799,7 @@ static void CreateWin()
     UpdateWindow(hwnd);
     SetForegroundWindow(hwnd);
     _AppData._MainWin = hwnd;
-    _AppData._GraphicsResources._DCDirty = true;
+    _AppData._GraphicsResources._RecreateBitmap = true;
 }
 
 static void InitializeSwitchApp()
@@ -1279,37 +1281,31 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
         RECT clientRect;
         ASSERT(GetClientRect(hwnd, &clientRect));
         SGraphicsResources* pGraphRes = &_AppData._GraphicsResources;
-        if (pGraphRes->_DCDirty)
+        if (pGraphRes->_RecreateBitmap)
         {
-            if (pGraphRes->_DCBuffer)
-            {
-                ASSERT(DeleteDC(pGraphRes->_DCBuffer));
+            if (pGraphRes->_Bitmap)
                 ASSERT(DeleteObject(pGraphRes->_Bitmap));
-                pGraphRes->_DCBuffer = NULL;
-                pGraphRes->_Bitmap = NULL;
-            }
-            pGraphRes->_DCBuffer = CreateCompatibleDC(ps.hdc);
-            ASSERT(pGraphRes->_DCBuffer != NULL);
+            pGraphRes->_Bitmap = NULL;
             pGraphRes->_Bitmap = CreateCompatibleBitmap(
                 ps.hdc,
                 clientRect.right - clientRect.left,
                 clientRect.bottom - clientRect.top);
             ASSERT(pGraphRes->_Bitmap != NULL);
-            pGraphRes->_DCDirty = false;
+            pGraphRes->_RecreateBitmap = false;
         }
 
-        HANDLE oldBitmap = SelectObject(pGraphRes->_DCBuffer,  pGraphRes->_Bitmap);
+        HANDLE oldBitmap = SelectObject(pGraphRes->_DC,  pGraphRes->_Bitmap);
         ASSERT(oldBitmap != NULL);
         ASSERT(oldBitmap != HGDI_ERROR);
 
         HBRUSH bgBrush = CreateSolidBrush(pGraphRes->_BackgroundColor);
-        FillRect(pGraphRes->_DCBuffer, &clientRect, bgBrush);
+        FillRect(pGraphRes->_DC, &clientRect, bgBrush);
         DeleteObject(bgBrush);
 
-        SetBkMode(pGraphRes->_DCBuffer, TRANSPARENT); // ?
+        SetBkMode(pGraphRes->_DC, TRANSPARENT); // ?
 
         GpGraphics* pGraphics = NULL;
-        ASSERT(Ok == GdipCreateFromHDC(pGraphRes->_DCBuffer, &pGraphics));
+        ASSERT(Ok == GdipCreateFromHDC(pGraphRes->_DC, &pGraphics));
         GdipSetSmoothingMode(pGraphics, 5);
 
         const uint32_t iconContainerSize = GetSystemMetrics(SM_CXICONSPACING);
@@ -1346,7 +1342,7 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
             }
             else if (pWinGroup->_Icon)
             {
-                DrawIcon(pGraphRes->_DCBuffer, x, padding, pWinGroup->_Icon);
+                DrawIcon(pGraphRes->_DC, x, padding, pWinGroup->_Icon);
             }
 
             {
@@ -1368,7 +1364,7 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
             }
             x += iconContainerSize;
         }
-        BitBlt(ps.hdc, clientRect.left, clientRect.top, clientRect.right - clientRect.left, clientRect.bottom - clientRect.top, pGraphRes->_DCBuffer, 0, 0, SRCCOPY);
+        BitBlt(ps.hdc, clientRect.left, clientRect.top, clientRect.right - clientRect.left, clientRect.bottom - clientRect.top, pGraphRes->_DC, 0, 0, SRCCOPY);
         GdipDeleteGraphics(pGraphics);
         EndPaint(hwnd, &ps);
         return 0;
@@ -1538,8 +1534,6 @@ int StartMacAppSwitcher(HINSTANCE hInstance)
 
     {
         DeInitGraphicsResources(&_AppData._GraphicsResources);
-        if (_AppData._GraphicsResources._DCBuffer)
-            DeleteDC(_AppData._GraphicsResources._DCBuffer);
         if (_AppData._GraphicsResources._Bitmap)
             DeleteObject(_AppData._GraphicsResources._Bitmap);
     }
