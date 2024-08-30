@@ -1366,8 +1366,13 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
             x += iconContainerSize;
         }
         BitBlt(ps.hdc, clientRect.left, clientRect.top, clientRect.right - clientRect.left, clientRect.bottom - clientRect.top, pGraphRes->_DC, 0, 0, SRCCOPY);
+
+        // Always restore old bitmap (see fn doc)
+        SelectObject(pGraphRes->_DC, oldBitmap);
+
         GdipDeleteGraphics(pGraphics);
         EndPaint(hwnd, &ps);
+
         return 0;
     }
     case WM_ERASEBKGND:
