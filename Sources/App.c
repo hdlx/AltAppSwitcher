@@ -1277,7 +1277,8 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
     case WM_PAINT:
     {
         PAINTSTRUCT ps;
-        BeginPaint(hwnd, &ps);
+        if (BeginPaint(hwnd, &ps) == NULL)
+            return 0;
         RECT clientRect;
         ASSERT(GetClientRect(hwnd, &clientRect));
         SGraphicsResources* pGraphRes = &_AppData._GraphicsResources;
