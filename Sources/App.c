@@ -59,9 +59,6 @@ typedef struct KeyState
 
 typedef struct SGraphicsResources
 {
-    HDC _DC;
-    bool _RecreateBitmap;
-    HBITMAP _Bitmap;
     uint32_t _FontSize;
     GpSolidFill* _pBrushText;
     GpSolidFill* _pBrushBg;
@@ -69,6 +66,8 @@ typedef struct SGraphicsResources
     GpStringFormat* _pFormat;
     COLORREF _BackgroundColor;
     COLORREF _TextColor;
+    HBITMAP _Bitmap;
+    HDC _DC;
 } SGraphicsResources;
 
 typedef struct KeyConfig
@@ -148,9 +147,6 @@ static ThemeMode _ThemeMode = ThemeModeAuto;
 
 static void InitGraphicsResources(SGraphicsResources* pRes)
 {
-    pRes->_RecreateBitmap = true;
-    pRes->_DC = NULL;
-    pRes->_Bitmap = NULL;
     // Text
     {
         GpStringFormat* pGenericFormat;
@@ -232,23 +228,14 @@ static void InitGraphicsResources(SGraphicsResources* pRes)
         ASSERT(Ok == GdipCreateSolidFill(pRes->_BackgroundColor | 0xFF000000, &pRes->_pBrushBg));
         ASSERT(Ok == GdipCreateSolidFill(pRes->_TextColor | 0xFF000000, &pRes->_pBrushText));
     }
-    {
-        pRes->_DC = CreateCompatibleDC(NULL);
-        ASSERT(pRes->_DC != NULL);
-    }
 }
 
 static void DeInitGraphicsResources(SGraphicsResources* pRes)
 {
-    ASSERT(Ok == DeleteDC(pRes->_DC));
-    ASSERT(Ok == DeleteObject(pRes->_Bitmap));
     ASSERT(Ok == GdipDeleteBrush(pRes->_pBrushText));
     ASSERT(Ok == GdipDeleteBrush(pRes->_pBrushBg));
     ASSERT(Ok == GdipDeleteStringFormat(pRes->_pFormat));
     ASSERT(Ok == GdipDeleteFont(pRes->_pFont));
-    pRes->_RecreateBitmap = true;
-    pRes->_DC = NULL;
-    pRes->_Bitmap = NULL;
 }
 
 static const char* WindowsClassNamesToSkip[] =
@@ -662,7 +649,7 @@ static BOOL FillWinGroups(HWND hwnd, LPARAM lParam)
     {
         group = &winAppGroupArr->_Data[winAppGroupArr->_Size++];
         strcpy(group->_ModuleFileName, moduleFileName);
-        group->_Icon = NULL;
+        ASSERT(group->_Icon == NULL);
         group->_UWPIconPath[0] = L'\0';
         // Icon
         {
@@ -761,11 +748,6 @@ static const char CLASS_NAME[]  = "MacStyleSwitch";
 static void DestroyWin()
 {
     DestroyWindow(_AppData._MainWin);
-    if (_AppData._GraphicsResources._Bitmap)
-    {
-        DeleteObject(_AppData._GraphicsResources._Bitmap);
-        _AppData._GraphicsResources._Bitmap = NULL;
-    }
     _AppData._MainWin = NULL;
 }
 
@@ -773,7 +755,6 @@ static void CreateWin()
 {
     if (_AppData._MainWin)
         DestroyWin();
-    _AppData._GraphicsResources._RecreateBitmap = true;
     uint32_t px, py, sx, sy;
     ComputeWinPosAndSize(_AppData._WinGroups._Size, &px, &py, &sx, &sy);
 
@@ -799,7 +780,6 @@ static void CreateWin()
     UpdateWindow(hwnd);
     SetForegroundWindow(hwnd);
     _AppData._MainWin = hwnd;
-    _AppData._GraphicsResources._RecreateBitmap = true;
 }
 
 static void InitializeSwitchApp()
@@ -856,6 +836,19 @@ static SWinArr* CreateWinArr(const SWinGroup* winGroup)
     return winArr;
 }
 */
+static void ClearWinGroupArr(SWinGroupArr* winGroups)
+{
+    for (uint32_t i = 0; i < winGroups->_Size; i++)
+    {
+        if (winGroups->_Data[i]._Icon)
+        {
+            DestroyIcon(winGroups->_Data[i]._Icon);
+            winGroups->_Data[i]._Icon = NULL;
+        }
+    }
+    winGroups->_Size = 0;
+}
+
 static void ApplySwitchApp(const SWinGroup* winGroup)
 {
     {
@@ -1251,6 +1244,22 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
     }
     case WM_CREATE:
     {
+        {
+            RECT clientRect;
+            ASSERT(GetWindowRect(hwnd, &clientRect));
+
+            HDC winDC = GetDC(hwnd);
+            ASSERT(winDC);
+            _AppData._GraphicsResources._DC = CreateCompatibleDC(winDC);
+            ASSERT(_AppData._GraphicsResources._DC != NULL);
+            _AppData._GraphicsResources._Bitmap = CreateCompatibleBitmap(
+                    winDC,
+                    clientRect.right - clientRect.left,
+                    clientRect.bottom - clientRect.top);
+            ASSERT(_AppData._GraphicsResources._Bitmap != NULL);
+            ReleaseDC(hwnd, winDC);
+        }
+
         mouseInside = false;
         SetCapture(hwnd);
         return 0;
@@ -1270,34 +1279,33 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
         _AppData._Selection = 0;
         DestroyWin();
         ApplySwitchApp(&_AppData._WinGroups._Data[selection]);
+        ClearWinGroupArr(&_AppData._WinGroups);
         return 0;
     }
     case WM_DESTROY:
+    {
+        DeleteDC(_AppData._GraphicsResources._DC);
+        DeleteObject(_AppData._GraphicsResources._Bitmap);
         return 0;
+    }
     case WM_PAINT:
     {
         PAINTSTRUCT ps;
+        memset(&ps, 0, sizeof(PAINTSTRUCT));
         if (BeginPaint(hwnd, &ps) == NULL)
-            return 0;
-        RECT clientRect;
-        ASSERT(GetClientRect(hwnd, &clientRect));
-        SGraphicsResources* pGraphRes = &_AppData._GraphicsResources;
-        if (pGraphRes->_RecreateBitmap)
         {
-            if (pGraphRes->_Bitmap)
-                ASSERT(DeleteObject(pGraphRes->_Bitmap));
-            pGraphRes->_Bitmap = NULL;
-            pGraphRes->_Bitmap = CreateCompatibleBitmap(
-                ps.hdc,
-                clientRect.right - clientRect.left,
-                clientRect.bottom - clientRect.top);
-            ASSERT(pGraphRes->_Bitmap != NULL);
-            pGraphRes->_RecreateBitmap = false;
+            ASSERT(false);
+            return 0;
         }
 
-        HANDLE oldBitmap = SelectObject(pGraphRes->_DC,  pGraphRes->_Bitmap);
+        SGraphicsResources* pGraphRes = &_AppData._GraphicsResources;
+
+        HANDLE oldBitmap = SelectObject(pGraphRes->_DC, pGraphRes->_Bitmap);
         ASSERT(oldBitmap != NULL);
         ASSERT(oldBitmap != HGDI_ERROR);
+
+        RECT clientRect;
+        ASSERT(GetClientRect(hwnd, &clientRect));
 
         HBRUSH bgBrush = CreateSolidBrush(pGraphRes->_BackgroundColor);
         FillRect(pGraphRes->_DC, &clientRect, bgBrush);
@@ -1408,7 +1416,7 @@ int StartMacAppSwitcher(HINSTANCE hInstance)
     {
         WNDCLASS wc = { };
         wc.lpfnWndProc   = WindowProc;
-        wc.hInstance     = _AppData._Instance;
+        wc.hInstance     = hInstance;
         wc.lpszClassName = CLASS_NAME;
         wc.cbWndExtra = sizeof(SAppData*);
         wc.style = CS_HREDRAW | CS_VREDRAW;
@@ -1518,10 +1526,10 @@ int StartMacAppSwitcher(HINSTANCE hInstance)
             const int selection = _AppData._Selection;
             _AppData._Mode = ModeNone;
             _AppData._Selection = 0;
+
             DestroyWin();
-
             ApplySwitchApp(&_AppData._WinGroups._Data[selection]);
-
+            ClearWinGroupArr(&_AppData._WinGroups);
             break;
         }
         case MSG_DEINIT_WIN:
@@ -1540,8 +1548,6 @@ int StartMacAppSwitcher(HINSTANCE hInstance)
 
     {
         DeInitGraphicsResources(&_AppData._GraphicsResources);
-        if (_AppData._GraphicsResources._Bitmap)
-            DeleteObject(_AppData._GraphicsResources._Bitmap);
     }
 
     GdiplusShutdown(gdiplusToken);
