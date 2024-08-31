@@ -51,7 +51,7 @@ static void MSSError(const char* file, uint32_t line, const char* assertStr)
     static char winMsg[512];
     GetLastWinErrStr(winMsg, 512);
 
-    FILE* f = fopen("./MacAppSwitcherLog.txt", "ab");
+    FILE* f = fopen("./AltAppSwitcherLog.txt", "ab");
     if (f == NULL)
         return;
     fprintf(f, "%s:\nFile: %s, line: %u:\n", timeStr, file, line);

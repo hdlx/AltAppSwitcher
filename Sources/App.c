@@ -22,7 +22,7 @@
 #include <stdlib.h>
 #include <windowsx.h>
 #include <combaseapi.h>
-#include "MacAppSwitcherHelpers.h"
+#include "AltAppSwitcherHelpers.h"
 #include "KeyCodeFromConfigName.h"
 
 LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam);
@@ -624,7 +624,6 @@ static void GetUWPIcon(HANDLE process, wchar_t* iconPath)
 
 static BOOL FillWinGroups(HWND hwnd, LPARAM lParam)
 {
-    // MyPrintWindow(hwnd);
     if (!IsAltTabWindow(hwnd))
         return true;
     DWORD PID = 0;
@@ -650,6 +649,7 @@ static BOOL FillWinGroups(HWND hwnd, LPARAM lParam)
         group = &winAppGroupArr->_Data[winAppGroupArr->_Size++];
         strcpy(group->_ModuleFileName, moduleFileName);
         ASSERT(group->_Icon == NULL);
+        ASSERT(group->_WindowCount == 0);
         group->_UWPIconPath[0] = L'\0';
         // Icon
         {
@@ -785,10 +785,6 @@ static void CreateWin()
 static void InitializeSwitchApp()
 {
     SWinGroupArr* pWinGroups = &(_AppData._WinGroups);
-    for (uint32_t i = 0; i < 64; i++)
-    {
-        pWinGroups->_Data[i]._WindowCount = 0;
-    }
     pWinGroups->_Size = 0;
     EnumDesktopWindows(NULL, FillWinGroups, (LPARAM)pWinGroups);
     _AppData._Mode = ModeApp;
@@ -823,19 +819,6 @@ static void InitializeSwitchWin()
     _AppData._Selection = 0;
     _AppData._Mode = ModeWin;
 }
-/*
-static SWinArr* CreateWinArr(const SWinGroup* winGroup)
-{
-    SWinArr* winArr = malloc(sizeof(SWinArr));
-    winArr->_Size = winGroup->_WindowCount;
-    winArr->_Data = malloc(sizeof(HWND) * winGroup->_WindowCount);
-    for (uint32_t i = 0; i < winGroup->_WindowCount; i++)
-    {
-        winArr->_Data[i] = _AppData._WinGroups._Data[_AppData._Selection]._Windows[i];
-    }
-    return winArr;
-}
-*/
 static void ClearWinGroupArr(SWinGroupArr* winGroups)
 {
     for (uint32_t i = 0; i < winGroups->_Size; i++)
@@ -844,6 +827,7 @@ static void ClearWinGroupArr(SWinGroupArr* winGroups)
         {
             DestroyIcon(winGroups->_Data[i]._Icon);
             winGroups->_Data[i]._Icon = NULL;
+            winGroups->_Data[i]._WindowCount = 0;
         }
     }
     winGroups->_Size = 0;
@@ -1155,15 +1139,15 @@ static void SetKeyConfig()
     _KeyConfig._WinHold = VK_LMENU;
     _KeyConfig._WinSwitch = VK_OEM_3;
     _KeyConfig._Invert = VK_LSHIFT;
-    const char* configFile = "MacAppSwitcherConfig.txt";
+    const char* configFile = "AltAppSwitcherConfig.txt";
     FILE* file = fopen(configFile ,"rb");
     if (file == NULL)
     {
         file = fopen(configFile ,"a");
         fprintf(file,
-            "// MacAppSwitcher config file \n"
+            "// AltAppSwitcher config file\n"
             "// \n"
-            "// Possible key bindings values: \n"
+            "// Possible key bindings values:\n"
             "//     left alt\n"
             "//     right alt\n"
             "//     alt\n"
@@ -1401,7 +1385,7 @@ static DWORD KbHookCb(LPVOID param)
     return (DWORD)0;
 }
 
-int StartMacAppSwitcher(HINSTANCE hInstance)
+int StartAltAppSwitcher(HINSTANCE hInstance)
 {
     SetLastError(0);
 
@@ -1430,6 +1414,7 @@ int StartMacAppSwitcher(HINSTANCE hInstance)
         _AppData._MainWin = NULL;
         _AppData._Instance = hInstance;
         _AppData._WinGroups._Size = 0;
+        memset(&_AppData._WinGroups, 0, sizeof(SWinGroupArr));
         _AppData._MainThread = GetCurrentThreadId();
         SetKeyConfig();
         InitGraphicsResources(&_AppData._GraphicsResources);

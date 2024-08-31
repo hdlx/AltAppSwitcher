@@ -1,3 +1,3 @@
 #pragma once
 #include <minwindef.h>
-int StartMacAppSwitcher(HINSTANCE hInstance);
+int StartAltAppSwitcher(HINSTANCE hInstance);

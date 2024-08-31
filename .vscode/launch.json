@@ -4,7 +4,7 @@
 			"type": "lldb",
 			"request": "launch",
 			"name": "Launch",
-			"program": "${workspaceFolder}/Output/Debug/MacAppSwitcher.exe",
+			"program": "${workspaceFolder}/Output/Debug/AltAppSwitcher.exe",
 			"args": [],
 			"cwd": "${workspaceFolder}/Output/Debug",
 			"preLaunchTask": "Build debug",

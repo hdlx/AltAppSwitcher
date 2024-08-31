@@ -18,11 +18,16 @@ def Common():
 def WarningOptions():
     return "-Werror -Wall -Wextra -Wno-unused-function -Wno-used-but-marked-unused"
 
+def CopyAssets(dir):
+    shutil.copyfile("./Assets/CloseAltAppSwitcher.bat", f"{dir}/CloseAltAppSwitcher.bat")
+    shutil.copyfile("./Assets/AltAppSwitcherConfig.txt", f"{dir}/AltAppSwitcherConfig.txt")
+
 def CompileDbg():
     dir = "./Output/Debug"
     if not os.path.exists(dir):
         os.makedirs(dir)
-    file = f"{dir}/MacAppSwitcher.exe"
+    CopyAssets(dir)
+    file = f"{dir}/AltAppSwitcher.exe"
     cmd = f"clang {CFiles()} -I ./Sources {LinkArgs()} -o {file} {WarningOptions()} {Common()} -g -glldb -target x86_64-mingw64 -D DEBUG=1"
     os.system(cmd)
     #os.system(f"mt.exe -manifest \"./Manifest.xml\" -outputresource:\"{file}\"")
@@ -32,7 +37,8 @@ def CompileRel(arch = "x86_64"):
     dir = f"./Output/Release/{arch}"
     if not os.path.exists(dir):
         os.makedirs(dir)
-    file = f"{dir}/MacAppSwitcher.exe"
+    CopyAssets(dir)
+    file = f"{dir}/AltAppSwitcher.exe"
     cmd = f"clang {CFiles()} -I ./Sources {LinkArgs()} -o {file} -mwindows {WarningOptions()} {Common()} -s -Os -Oz -target {arch}-mingw64"
     os.system(cmd)
     return file

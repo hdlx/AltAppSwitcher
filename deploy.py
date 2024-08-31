@@ -3,12 +3,13 @@ import compileCommon
 import shutil
 
 def deploy(arch, writeManifest = False):
+    srcDir = f"./Output/Release/{arch}"
+    shutil.rmtree(srcDir)
     file = compileCommon.CompileRel(arch)
     dir = "./Output/Deploy"
     if not os.path.exists(dir):
         os.makedirs(dir)
-    zipFile = f"{dir}/MacAppSwitcher_{arch}"
-    srcDir = f"./Output/Release/{arch}"
+    zipFile = f"{dir}/AltAppSwitcher_{arch}"
     shutil.make_archive(zipFile, "zip", srcDir)
 
 deploy("x86_64")
