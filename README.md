@@ -7,7 +7,9 @@ This program brings MacOS-like or Gnome-like application switching to Windows. U
 ![](./Assets/ScreenshotWin10.png)
 
 ## Using AltAppSwitcher:
-Get the executable from the release page https://github.com/hdlx/AltAppSwitcher/releases/. **x86_64** and **ARM64** (AArch64) architectures are available. Please note that I was not able to test the ARM64 one myself.
+Get the executable from the release page https://github.com/hdlx/AltAppSwitcher/releases/.
+
+**x86_64** and **ARM64** (AArch64) architectures are available. Please note that I was not able to test the ARM64 one myself.
 
 **Run it as an administator.**
 
