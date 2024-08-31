@@ -1254,6 +1254,7 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
         {
             _AppData._Mode = ModeNone;
             DestroyWin();
+            ClearWinGroupArr(&_AppData._WinGroups);
             return 0;
         }
         if (!_Mouse)
