@@ -11,9 +11,9 @@ Get the executable from the release page https://github.com/hdlx/AltAppSwitcher/
 
 **Run it as an administator.**
 
-You can kill it from the task manager. Search for "AltAppSwitcher".
+You can kill it from the task manager (look for "AltAppSwitcher") or using CloseAltAppSwitcher.bat.
 
-A config file is created next to the executable at first launch. It lets you change key bindings, theme, and disable mouse support. App restart is required for the changes to take effect.
+A config file lets you change key bindings, theme, and disable mouse support. App restart is required for the changes to take effect.
 
 ## Known issues
 - Missing installer or instructions to have AltAppSwitcher launching on system startup.
