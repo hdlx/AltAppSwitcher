@@ -4,7 +4,8 @@ import shutil
 
 def deploy(arch, writeManifest = False):
     srcDir = f"./Output/Release/{arch}"
-    shutil.rmtree(srcDir)
+    if os.path.exists(srcDir):
+        shutil.rmtree(srcDir)
     file = compileCommon.CompileRel(arch)
     dir = "./Output/Deploy"
     if not os.path.exists(dir):
