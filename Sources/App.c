@@ -827,8 +827,8 @@ static void ClearWinGroupArr(SWinGroupArr* winGroups)
         {
             DestroyIcon(winGroups->_Data[i]._Icon);
             winGroups->_Data[i]._Icon = NULL;
-            winGroups->_Data[i]._WindowCount = 0;
         }
+        winGroups->_Data[i]._WindowCount = 0;
     }
     winGroups->_Size = 0;
 }
