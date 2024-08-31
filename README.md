@@ -1,6 +1,6 @@
 ## AltAppSwitcher: Alternative app switcher for Windows
 
-This program brings MacOS-like application switching to Windows. Use `alt + tab` to select the active app (not window) and `alt + ~` to switch between windows of the active app.
+This program brings MacOS-like or Gnome-like application switching to Windows. Use `alt + tab` to select the active app (not window) and `alt + ~` to switch between windows of the active app. Key bindings are customizable.
 
 **Tested on Windows 10 and Windows 11.**
 
