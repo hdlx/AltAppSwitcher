@@ -20,6 +20,8 @@ def WarningOptions():
 
 def CopyAssets(dir):
     shutil.copyfile("./Assets/CloseAltAppSwitcher.bat", f"{dir}/CloseAltAppSwitcher.bat")
+    shutil.copyfile("./Assets/AddStartupTask.bat", f"{dir}/AddStartupTask.bat")
+    shutil.copyfile("./Assets/RemoveStartupTask.bat", f"{dir}/RemoveStartupTask.bat")
     shutil.copyfile("./Assets/AltAppSwitcherConfig.txt", f"{dir}/AltAppSwitcherConfig.txt")
 
 def CompileDbg():

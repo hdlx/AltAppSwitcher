@@ -21,5 +21,6 @@ if '%errorlevel%' NEQ '0' (
     pushd "%CD%"
     CD /D "%~dp0"
 
-taskkill -f -im "AltAppSwitcher.exe"
+set "fullPath=%cd%\AltAppSwitcher.exe"
+schtasks /create /sc ONSTART /tn AltAppSwitcher /tr %fullPath% /RL HIGHEST
 pause
