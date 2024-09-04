@@ -21,6 +21,5 @@ if '%errorlevel%' NEQ '0' (
     pushd "%CD%"
     CD /D "%~dp0"
 
-set "fullPath=%cd%\AltAppSwitcher.exe"
-schtasks /delete /tr %fullPath%
+schtasks /delete /tn AltAppSwitcher
 pause
