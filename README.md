@@ -18,7 +18,7 @@ Close the application using `CloseAltAppSwitcher.bat` file.
 ## Run at startup:
 Run `AddToStartup.bat` to add AltAppSwitcher to Windows startup apps.
 
-`RemoveFromStartup.bat` reverts this.
+Run `RemoveFromStartup.bat` to revert this.
 
 ## Configuration
 The configuration file, `AltAppSwitcherConfig.txt` lets you change **key bindings**, **theme**, and **mouse support**. App restart is required for the changes to take effect.
