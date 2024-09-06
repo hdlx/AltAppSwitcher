@@ -19,10 +19,8 @@ def WarningOptions():
     return "-Werror -Wall -Wextra -Wno-unused-function -Wno-used-but-marked-unused"
 
 def CopyAssets(dir):
-    shutil.copyfile("./Assets/CloseAltAppSwitcher.bat", f"{dir}/CloseAltAppSwitcher.bat")
-    shutil.copyfile("./Assets/AddStartupTask.bat", f"{dir}/AddStartupTask.bat")
-    shutil.copyfile("./Assets/RemoveStartupTask.bat", f"{dir}/RemoveStartupTask.bat")
-    shutil.copyfile("./Assets/AltAppSwitcherConfig.txt", f"{dir}/AltAppSwitcherConfig.txt")
+    for file in os.listdir("./Assets/"):
+        shutil.copyfile(f"./Assets/{file}", f"{dir}/{file}")
 
 def CompileDbg():
     dir = "./Output/Debug"
