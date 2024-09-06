@@ -6,18 +6,20 @@ This program brings MacOS-like or Gnome-like application switching to Windows. U
 
 ![](./Assets/ScreenshotWin11.png)
 
-## Using AltAppSwitcher:
-Get the executable from the [release page](https://github.com/hdlx/AltAppSwitcher/releases/).
+## Launching AltAppSwitcher:
+Get the archive from the [release page](https://github.com/hdlx/AltAppSwitcher/releases/).
 
 **x86_64** and **ARM64** (AArch64) architectures are available. Please note that I was not able to test the ARM64 one myself.
 
-**Run it as an administator.**
+**Run the `AltAppSwitcher.exe` as an administator.**
 
 You can close it using `CloseAltAppSwitcher.bat` file.
 
+## Add to startup apps:
 Run `AddToStartup.bat` to add AltAppSwitcher to startup apps.
 
-A config file lets you change key bindings, theme, and disable mouse support. App restart is required for the changes to take effect.
+## Configuration
+The configuration file, `AltAppSwitcherConfig.txt` lets you change key bindings, theme, and disable mouse support. App restart is required for the changes to take effect.
 
 ## Known issues
 - Alt tab popup is behind start menu.
