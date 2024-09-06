@@ -22,5 +22,9 @@ if '%errorlevel%' NEQ '0' (
     CD /D "%~dp0"
 
 set "fullPath=%cd%\AltAppSwitcher.exe"
-schtasks /create /sc ONSTART /tn AltAppSwitcher /tr %fullPath% /RL HIGHEST
+echo %fullpath%
+schtasks /create /sc ONEVENT /ec Application /tn AltAppSwitcher /tr %fullPath% /RL HIGHEST /F
+
+reg add "HKEY_CURRENT_USER\SOFTWARE\Microsoft\Windows\CurrentVersion\Run" /v "AltAppSwitcher" /t REG_SZ /d "schtasks /run /tn AltAppSwitcher" /f
+
 pause
