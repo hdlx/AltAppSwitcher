@@ -21,5 +21,17 @@ if '%errorlevel%' NEQ '0' (
     pushd "%CD%"
     CD /D "%~dp0"
 
-schtasks /delete /tn AltAppSwitcher
-pause
+REM reg query "HKEY_CURRENT_USER\SOFTWARE\Microsoft\Windows\CurrentVersion\Run" /v "AltAppSwitcher"
+
+schtasks /delete /tn AltAppSwitcher /f
+if ERRORLEVEL == 1 (
+    msg * "No startup task to remove."
+    exit
+)
+reg delete "HKEY_CURRENT_USER\SOFTWARE\Microsoft\Windows\CurrentVersion\Run" /v "AltAppSwitcher" /f
+if ERRORLEVEL == 1 (
+    msg * "No startup task to remove."
+    exit
+)
+
+msg * "AltAppSwitcher has been removed from startup apps."
