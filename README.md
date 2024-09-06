@@ -4,7 +4,7 @@ This program brings MacOS-like or Gnome-like application switching to Windows. U
 
 **Tested on Windows 10 and Windows 11.**
 
-![](./Assets/ScreenshotWin10.png)
+![](./Assets/ScreenshotWin11.png)
 
 ## Using AltAppSwitcher:
 Get the executable from the [release page](https://github.com/hdlx/AltAppSwitcher/releases/).
@@ -13,7 +13,9 @@ Get the executable from the [release page](https://github.com/hdlx/AltAppSwitche
 
 **Run it as an administator.**
 
-You can kill it from the task manager (look for "AltAppSwitcher") or using `CloseAltAppSwitcher.bat` file.
+You can close it using `CloseAltAppSwitcher.bat` file.
+
+Run `AddToStartup.bat` to add AltAppSwitcher to startup apps.
 
 A config file lets you change key bindings, theme, and disable mouse support. App restart is required for the changes to take effect.
 
