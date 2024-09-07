@@ -20,7 +20,7 @@ if not exist "%fullPath%" (
     exit
 )
 
-schtasks /create /sc ONEVENT /ec Application /tn AltAppSwitcher /tr "%fullPath%" /RL HIGHEST /F
+schtasks /create /sc ONEVENT /ec Application /tn AltAppSwitcher /tr "'%fullPath%'" /RL HIGHEST /F
 
 reg add "HKEY_CURRENT_USER\SOFTWARE\Microsoft\Windows\CurrentVersion\Run" /v "AltAppSwitcher" /t REG_SZ /d "schtasks /run /tn AltAppSwitcher" /f
 
