@@ -55,6 +55,7 @@ typedef struct KeyState
     bool _HoldWinDown;
     bool _HoldAppDown;
     bool _SwitchAppDown;
+    bool _EscapeDown;
 } KeyState;
 
 typedef struct SGraphicsResources
@@ -139,11 +140,7 @@ static ThemeMode _ThemeMode = ThemeModeAuto;
 #define MSG_PREV_APP (WM_USER + 6)
 #define MSG_DEINIT_WIN (WM_USER + 7)
 #define MSG_DEINIT_APP (WM_USER + 8)
-// Worker thread
-/*
-#define MSG_SET_APP (WM_USER + 9)
-#define MSG_SET_WIN (WM_USER + 10)
-*/
+#define MSG_CANCEL_APP (WM_USER + 9)
 
 static void InitGraphicsResources(SGraphicsResources* pRes)
 {
@@ -935,6 +932,7 @@ static LRESULT KbProc(int nCode, WPARAM wParam, LPARAM lParam)
     const bool isInvert = kbStrut.vkCode == _KeyConfig._Invert;
     const bool isTab = kbStrut.vkCode == VK_TAB;
     const bool isShift = kbStrut.vkCode == VK_LSHIFT;
+    const bool isEscape = kbStrut.vkCode == VK_ESCAPE;
     const bool isWatchedKey = 
         isAppHold ||
         isAppSwitch ||
@@ -942,12 +940,13 @@ static LRESULT KbProc(int nCode, WPARAM wParam, LPARAM lParam)
         isWinSwitch ||
         isInvert ||
         isTab ||
-        isShift;
+        isShift ||
+        isEscape;
 
     if (!isWatchedKey)
         return CallNextHookEx(NULL, nCode, wParam, lParam);
 
-    static KeyState keyState =  { false, false, false, false, false };
+    static KeyState keyState =  { false, false, false, false, false, false};
     static Mode targetMode = ModeNone;
 
     const KeyState prevKeyState = keyState;
@@ -966,6 +965,8 @@ static LRESULT KbProc(int nCode, WPARAM wParam, LPARAM lParam)
             keyState._SwitchWinDown = !releasing;
         if (isInvert)
             keyState._InvertKeyDown = !releasing;
+        if (isEscape)
+            keyState._EscapeDown = !releasing;
     }
 
     // Update target app state
@@ -976,6 +977,7 @@ static LRESULT KbProc(int nCode, WPARAM wParam, LPARAM lParam)
         const bool switchAppInput = !prevKeyState._SwitchAppDown && keyState._SwitchAppDown;
         const bool winHoldReleasing = prevKeyState._HoldWinDown && !keyState._HoldWinDown;
         const bool appHoldReleasing = prevKeyState._HoldAppDown && !keyState._HoldAppDown;
+        const bool escapeInput = prevKeyState._EscapeDown && !keyState._EscapeDown;
 
         const bool switchApp =
             switchAppInput &&
@@ -983,6 +985,9 @@ static LRESULT KbProc(int nCode, WPARAM wParam, LPARAM lParam)
         const bool switchWin =
             switchWinInput &&
             keyState._HoldWinDown;
+        const bool cancel =
+            escapeInput &&
+            keyState._HoldAppDown;
 
         bool isApplying = false;
 
@@ -1000,6 +1005,12 @@ static LRESULT KbProc(int nCode, WPARAM wParam, LPARAM lParam)
             targetMode = switchAppInput ? ModeApp : ModeNone;
             isApplying = true;
             PostThreadMessage(_AppData._MainThread, MSG_DEINIT_WIN, 0, 0);
+        }
+        else if (prevTargetMode == ModeApp && cancel)
+        {
+            targetMode = ModeNone;
+            isApplying = true;
+            PostThreadMessage(_AppData._MainThread, MSG_CANCEL_APP, 0, 0);
         }
 
         if (switchApp)
@@ -1496,7 +1507,6 @@ int StartAltAppSwitcher(HINSTANCE hInstance)
             _AppData._Selection = Modulo(_AppData._Selection, _AppData._CurrentWinGroup._WindowCount);
 
             HWND win = _AppData._CurrentWinGroup._Windows[_AppData._Selection];
-            //PostThreadMessage(_AppData._WorkerThread, MSG_SET_WIN, 0, (LPARAM)win);
             ApplySwitchWin(win);
 
             break;
@@ -1505,10 +1515,6 @@ int StartAltAppSwitcher(HINSTANCE hInstance)
         {
             if (_AppData._Mode == ModeNone)
                 break;
-
-            // SWinArr* winArr = CreateWinArr(&_AppData._WinGroups._Data[_AppData._Selection]);
-            //PostThreadMessage(_AppData._WorkerThread, MSG_SET_APP, 0, (LPARAM)winArr);
-
             const int selection = _AppData._Selection;
             _AppData._Mode = ModeNone;
             _AppData._Selection = 0;
@@ -1518,11 +1524,17 @@ int StartAltAppSwitcher(HINSTANCE hInstance)
             ClearWinGroupArr(&_AppData._WinGroups);
             break;
         }
+        case MSG_CANCEL_APP:
+        {
+            _AppData._Mode = ModeNone;
+            DestroyWin();
+            ClearWinGroupArr(&_AppData._WinGroups);
+            break;
+        }
         case MSG_DEINIT_WIN:
         {
             if (_AppData._Mode == ModeNone)
                 break;
-
             _AppData._Mode = ModeNone;
             _AppData._Selection = 0;
             break;
