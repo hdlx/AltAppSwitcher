@@ -80,6 +80,21 @@ typedef struct KeyConfig
     DWORD _Invert;
 } KeyConfig;
 
+
+typedef enum ThemeMode
+{
+    ThemeModeAuto,
+    ThemeModeLight,
+    ThemeModeDark
+} ThemeMode;
+
+typedef struct Config
+{
+    KeyConfig _Key;
+    bool _Mouse;
+    ThemeMode _ThemeMode;
+} Config;
+
 typedef enum Mode
 {
     ModeNone,
@@ -109,6 +124,7 @@ typedef struct SAppData
     SWinGroupArr _WinGroups;
     SWinGroup _CurrentWinGroup;
     SUWPIconMap _UWPIconMap;
+    Config _Config;
 } SAppData;
 
 typedef struct SFoundWin
@@ -117,16 +133,7 @@ typedef struct SFoundWin
     uint32_t _Size;
 } SFoundWin;
 
-typedef enum ThemeMode
-{
-    ThemeModeAuto,
-    ThemeModeLight,
-    ThemeModeDark
-} ThemeMode;
-
-static KeyConfig _KeyConfig;
-static bool _Mouse = true;
-static ThemeMode _ThemeMode = ThemeModeAuto;
+static const KeyConfig* _KeyConfig;
 static DWORD _MainThread;
 
 // Main thread
@@ -140,7 +147,7 @@ static DWORD _MainThread;
 #define MSG_DEINIT_APP (WM_USER + 8)
 #define MSG_CANCEL_APP (WM_USER + 9)
 
-static void InitGraphicsResources(SGraphicsResources* pRes)
+static void InitGraphicsResources(SGraphicsResources* pRes, const Config* config)
 {
     // Text
     {
@@ -157,7 +164,7 @@ static void InitGraphicsResources(SGraphicsResources* pRes)
     // Colors
     {
         bool lightTheme = true;
-        if (_ThemeMode == ThemeModeAuto)
+        if (config->_ThemeMode == ThemeModeAuto)
         {
             HKEY key;
             RegOpenKeyEx(HKEY_CURRENT_USER,
@@ -200,7 +207,7 @@ static void InitGraphicsResources(SGraphicsResources* pRes)
         }
         else
         {
-            lightTheme = _ThemeMode == ThemeModeLight;
+            lightTheme = config->_ThemeMode == ThemeModeLight;
         }
 
         // Colorref do not support alpha and high order bits MUST be 00
@@ -918,11 +925,11 @@ static void ApplySwitchWin(HWND win)
 static LRESULT KbProc(int nCode, WPARAM wParam, LPARAM lParam)
 {
     const KBDLLHOOKSTRUCT kbStrut = *(KBDLLHOOKSTRUCT*)lParam;
-    const bool isAppHold = kbStrut.vkCode == _KeyConfig._AppHold;
-    const bool isAppSwitch = kbStrut.vkCode == _KeyConfig._AppSwitch;
-    const bool isWinHold = kbStrut.vkCode == _KeyConfig._WinHold;
-    const bool isWinSwitch = kbStrut.vkCode == _KeyConfig._WinSwitch;
-    const bool isInvert = kbStrut.vkCode == _KeyConfig._Invert;
+    const bool isAppHold = kbStrut.vkCode == _KeyConfig->_AppHold;
+    const bool isAppSwitch = kbStrut.vkCode == _KeyConfig->_AppSwitch;
+    const bool isWinHold = kbStrut.vkCode == _KeyConfig->_WinHold;
+    const bool isWinSwitch = kbStrut.vkCode == _KeyConfig->_WinSwitch;
+    const bool isInvert = kbStrut.vkCode == _KeyConfig->_Invert;
     const bool isTab = kbStrut.vkCode == VK_TAB;
     const bool isShift = kbStrut.vkCode == VK_LSHIFT;
     const bool isEscape = kbStrut.vkCode == VK_ESCAPE;
@@ -1136,13 +1143,16 @@ static bool TryGetTheme(const char* lineBuf, const char* token, ThemeMode* theme
     return false;
 }
 
-static void LoadConfig()
+static void LoadConfig(Config* config)
 {
-    _KeyConfig._AppHold = VK_LMENU;
-    _KeyConfig._AppSwitch = VK_TAB;
-    _KeyConfig._WinHold = VK_LMENU;
-    _KeyConfig._WinSwitch = VK_OEM_3;
-    _KeyConfig._Invert = VK_LSHIFT;
+    config->_Key._AppHold = VK_LMENU;
+    config->_Key._AppSwitch = VK_TAB;
+    config->_Key._WinHold = VK_LMENU;
+    config->_Key._WinSwitch = VK_OEM_3;
+    config->_Key._Invert = VK_LSHIFT;
+    config->_Mouse = true;
+    config->_ThemeMode = ThemeModeAuto;
+
     const char* configFile = "AltAppSwitcherConfig.txt";
     FILE* file = fopen(configFile ,"rb");
     if (file == NULL)
@@ -1183,19 +1193,19 @@ static void LoadConfig()
     {
         if (!strncmp(lineBuf, "//", 2))
             continue;
-        if (TryGetKey(lineBuf, "app hold key: ", &_KeyConfig._AppHold))
+        if (TryGetKey(lineBuf, "app hold key: ", &config->_Key._AppHold))
             continue;
-        if (TryGetKey(lineBuf, "app switch key: ", &_KeyConfig._AppSwitch))
+        if (TryGetKey(lineBuf, "app switch key: ", &config->_Key._AppSwitch))
             continue;
-        if (TryGetKey(lineBuf, "window hold key: ", &_KeyConfig._WinHold))
+        if (TryGetKey(lineBuf, "window hold key: ", &config->_Key._WinHold))
             continue;
-        if (TryGetKey(lineBuf, "window switch key: ", &_KeyConfig._WinSwitch))
+        if (TryGetKey(lineBuf, "window switch key: ", &config->_Key._WinSwitch))
             continue;
-        if (TryGetKey(lineBuf, "invert order key: ", &_KeyConfig._Invert))
+        if (TryGetKey(lineBuf, "invert order key: ", &config->_Key._Invert))
             continue;
-        if (TryGetBool(lineBuf, "allow mouse: ", &_Mouse))
+        if (TryGetBool(lineBuf, "allow mouse: ", &config->_Mouse))
             continue;
-        if (TryGetTheme(lineBuf, "theme: ", &_ThemeMode))
+        if (TryGetTheme(lineBuf, "theme: ", &config->_ThemeMode))
             continue;
     }
     fclose(file);
@@ -1215,7 +1225,7 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
     }
     case WM_MOUSEMOVE:
     {
-        if (!_Mouse)
+        if (!appData->_Config._Mouse)
             return 0;
         if (!mouseInside)
         {
@@ -1263,7 +1273,7 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
             ClearWinGroupArr(&appData->_WinGroups);
             return 0;
         }
-        if (!_Mouse)
+        if (!appData->_Config._Mouse)
             return 0;
         const int selection = appData->_Selection;
         appData->_Mode = ModeNone;
@@ -1424,9 +1434,11 @@ int StartAltAppSwitcher(HINSTANCE hInstance)
         _AppData._Instance = hInstance;
         _AppData._WinGroups._Size = 0;
         memset(&_AppData._WinGroups, 0, sizeof(SWinGroupArr));
+        // Hook needs globals
         _MainThread = GetCurrentThreadId();
-        LoadConfig();
-        InitGraphicsResources(&_AppData._GraphicsResources);
+        _KeyConfig = &_AppData._Config._Key;
+        LoadConfig(&_AppData._Config);
+        InitGraphicsResources(&_AppData._GraphicsResources, &_AppData._Config);
         InitUWPIconMap(&_AppData._UWPIconMap);
     }
 
