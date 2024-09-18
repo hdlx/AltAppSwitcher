@@ -24,6 +24,9 @@
 #include <combaseapi.h>
 #include "AltAppSwitcherHelpers.h"
 #include "KeyCodeFromConfigName.h"
+#include "initguid.h"
+#include "Shellapi.h"
+#include "commoncontrols.h"
 
 LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam);
 
@@ -33,6 +36,7 @@ typedef struct SWinGroup
     HWND _Windows[64];
     uint32_t _WindowCount;
     HICON _Icon;
+    uint32_t _ImageListID;
     wchar_t _UWPIconPath[512];
 } SWinGroup;
 
@@ -69,6 +73,7 @@ typedef struct SGraphicsResources
     COLORREF _TextColor;
     HBITMAP _Bitmap;
     HDC _DC;
+    HIMAGELIST _ImageList;
 } SGraphicsResources;
 
 typedef struct KeyConfig
@@ -93,6 +98,7 @@ typedef struct Config
     KeyConfig _Key;
     bool _Mouse;
     ThemeMode _ThemeMode;
+    uint32_t _IconSize;
 } Config;
 
 typedef enum Mode
@@ -146,6 +152,13 @@ static DWORD _MainThread;
 #define MSG_DEINIT_WIN (WM_USER + 7)
 #define MSG_DEINIT_APP (WM_USER + 8)
 #define MSG_CANCEL_APP (WM_USER + 9)
+
+static HIMAGELIST GetSysImgList()
+{
+    void* out = NULL;
+    SHGetImageList(SHIL_JUMBO, &IID_IImageList, &out);
+    return (HIMAGELIST)out;
+}
 
 static void InitGraphicsResources(SGraphicsResources* pRes, const Config* config)
 {
@@ -661,8 +674,11 @@ static BOOL FillWinGroups(HWND hwnd, LPARAM lParam)
             GetModuleFileNameEx(process, NULL, pathStr, 512);
             if (process)
             {
-                group->_Icon = ExtractIcon(process, pathStr, 0);
-                if (group->_Icon == NULL && isUWP)
+                SHFILEINFO fi;
+                SHGetFileInfo(pathStr, 0, &fi, sizeof(fi), SHGFI_SYSICONINDEX);
+                group->_ImageListID = fi.iIcon;
+               // group->_Icon = ExtractAssociatedIcon(process, pathStr, &idx);
+                if (fi.iIcon == 2 && isUWP)
                     GetUWPIcon(process, group->_UWPIconPath, appData);
                 CloseHandle(process);
             }
@@ -695,26 +711,11 @@ static BOOL FillCurrentWinGroup(HWND hwnd, LPARAM lParam)
     return true;
 }
 
-static void FitWindow(HWND hwnd, uint32_t iconCount)
+static void ComputeWinPosAndSize(uint32_t iconCount, uint32_t iconSize, uint32_t* px, uint32_t* py, uint32_t* sx, uint32_t* sy)
 {
     const int centerY = GetSystemMetrics(SM_CYSCREEN) / 2;
     const int centerX = GetSystemMetrics(SM_CXSCREEN) / 2;
-    const uint32_t iconContainerSize = GetSystemMetrics(SM_CXICONSPACING);
-    const uint32_t sizeX = iconCount * iconContainerSize;
-    const uint32_t halfSizeX = sizeX / 2;
-    const uint32_t sizeY = 1 * iconContainerSize;
-    const uint32_t halfSizeY = sizeY / 2;
-    POINT p;
-    p.x = centerX-halfSizeX;
-    p.y = centerY-halfSizeY;
-    SetWindowPos(hwnd, 0, p.x, p.y, sizeX, sizeY, SWP_NOOWNERZORDER);
-}
-
-static void ComputeWinPosAndSize(uint32_t iconCount, uint32_t* px, uint32_t* py, uint32_t* sx, uint32_t* sy)
-{
-    const int centerY = GetSystemMetrics(SM_CYSCREEN) / 2;
-    const int centerX = GetSystemMetrics(SM_CXSCREEN) / 2;
-    const uint32_t iconContainerSize = GetSystemMetrics(SM_CXICONSPACING);
+    const uint32_t iconContainerSize = 1.2 * iconSize;
     const uint32_t sizeX = iconCount * iconContainerSize;
     const uint32_t halfSizeX = sizeX / 2;
     const uint32_t sizeY = 1 * iconContainerSize;
@@ -724,7 +725,6 @@ static void ComputeWinPosAndSize(uint32_t iconCount, uint32_t* px, uint32_t* py,
     *sx = sizeX;
     *sy = sizeY;
 }
-
 
 static DWORD GetParentPID(DWORD PID)
 {
@@ -759,7 +759,7 @@ static void CreateWin(SAppData* appData)
     if (appData->_MainWin)
         DestroyWin(appData->_MainWin);
     uint32_t px, py, sx, sy;
-    ComputeWinPosAndSize(appData->_WinGroups._Size, &px, &py, &sx, &sy);
+    ComputeWinPosAndSize(appData->_WinGroups._Size, appData->_Config._IconSize, &px, &py, &sx, &sy);
 
     HWND hwnd = CreateWindowEx(
         WS_EX_TOPMOST | WS_EX_TOOLWINDOW, // Optional window styles (WS_EX_)
@@ -831,6 +831,7 @@ static void ClearWinGroupArr(SWinGroupArr* winGroups)
             DestroyIcon(winGroups->_Data[i]._Icon);
             winGroups->_Data[i]._Icon = NULL;
         }
+        winGroups->_Data[i]._ImageListID = 0;
         winGroups->_Data[i]._WindowCount = 0;
     }
     winGroups->_Size = 0;
@@ -1152,6 +1153,7 @@ static void LoadConfig(Config* config)
     config->_Key._Invert = VK_LSHIFT;
     config->_Mouse = true;
     config->_ThemeMode = ThemeModeAuto;
+    config->_IconSize = 3.* GetSystemMetrics(SM_CXICON);
 
     const char* configFile = "AltAppSwitcherConfig.txt";
     FILE* file = fopen(configFile ,"rb");
@@ -1318,8 +1320,8 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
         ASSERT(Ok == GdipCreateFromHDC(pGraphRes->_DC, &pGraphics));
         GdipSetSmoothingMode(pGraphics, 5);
 
-        const uint32_t iconContainerSize = GetSystemMetrics(SM_CXICONSPACING);
-        const uint32_t iconSize = GetSystemMetrics(SM_CXICON);
+        const uint32_t iconSize = appData->_Config._IconSize;
+        const uint32_t iconContainerSize = 1.2 * iconSize;// GetSystemMetrics(SM_CXICONSPACING);
         const uint32_t padding = (iconContainerSize - iconSize) / 2;
         uint32_t x = padding;
         for (uint32_t i = 0; i < appData->_WinGroups._Size; i++)
@@ -1352,11 +1354,12 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
             }
             else if (pWinGroup->_Icon)
             {
-                DrawIcon(pGraphRes->_DC, x, padding, pWinGroup->_Icon);
+               // DrawIconEx(pGraphRes->_DC, x, padding, pWinGroup->_Icon, iconSize, iconSize, 0, 0, DI_NORMAL);
+                ImageList_DrawEx(GetSysImgList(), pWinGroup->_ImageListID, pGraphRes->_DC, x, padding, iconSize, iconSize, CLR_NONE, CLR_NONE, ILD_NORMAL);// iconSize, iconSize, 0, 0, DI_NORMAL);
             }
-
+    
             {
-                WCHAR count[4];
+                WCHAR count[4]; 
                 const uint32_t winCount = pWinGroup->_WindowCount;
                 const uint32_t digitsCount = winCount > 99 ? 3 : winCount > 9 ? 2 : 1;
                 const uint32_t width = digitsCount * (uint32_t)(0.7 * (float)pGraphRes->_FontSize) + 5;
