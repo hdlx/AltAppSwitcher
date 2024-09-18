@@ -27,7 +27,9 @@
 #include "initguid.h"
 #include "Shellapi.h"
 #include "commoncontrols.h"
-
+#define COBJMACROS
+#include "Shobjidl.h"
+#undef COBJMACROS
 LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam);
 
 typedef struct SWinGroup
@@ -35,8 +37,9 @@ typedef struct SWinGroup
     char _ModuleFileName[512];
     HWND _Windows[64];
     uint32_t _WindowCount;
-    HBITMAP _IconBitmap;
+    GpBitmap* _IconBitmap;
     HDC _DC;
+    uint32_t iconData[256 * 256];
 } SWinGroup;
 
 typedef struct SWinArr
@@ -635,7 +638,32 @@ static void GetUWPIcon(HANDLE process, wchar_t* iconPath, SAppData* appData)
     }
 }
 
-static BYTE dummyBitmapData[256 * 256 * sizeof(uint32_t)];
+// static BYTE dummyBitmapData[256 * 256 * sizeof(uint32_t)];
+
+
+static HBITMAP hbitmapForFile(PCWSTR path, int w, int h)
+{
+    IShellItemImageFactory* pif;
+    
+    void* out = NULL;
+    HBITMAP hbm;
+    SIZE sz = { w, h };
+    CoInitializeEx(NULL, COINIT_APARTMENTTHREADED);
+    //CoInitialize(NULL);
+    
+    HRESULT toto = SHCreateItemFromParsingName(path, NULL, &IID_IShellItemImageFactory, &out);
+    if (toto)
+        return 0;
+
+    pif = (IShellItemImageFactory*)out;
+
+    IShellItemImageFactory_GetImage(pif, sz, SIIGBF_RESIZETOFIT, &hbm);
+    IShellItemImageFactory_Release(pif);
+    CoUninitialize();
+  // pif->GetImage(sz, SIIGBF_RESIZETOFIT, &hbm);
+  // pif->Release();
+    return hbm;
+}
 
 static BOOL FillWinGroups(HWND hwnd, LPARAM lParam)
 {
@@ -652,6 +680,7 @@ static BOOL FillWinGroups(HWND hwnd, LPARAM lParam)
     SWinGroupArr* winAppGroupArr = &(appData->_WinGroups);
 
     SWinGroup* group = NULL;
+    
     for (uint32_t i = 0; i < winAppGroupArr->_Size; i++)
     {
         SWinGroup* const _group = &(winAppGroupArr->_Data[i]);
@@ -674,53 +703,45 @@ static BOOL FillWinGroups(HWND hwnd, LPARAM lParam)
             if (process)
             {
                 ASSERT(group->_IconBitmap == NULL);
-                HDC dc = CreateCompatibleDC(NULL);
-           //     group->_IconBitmap = CreateCompatibleBitmap(dc, 256, 256);
-                group->_IconBitmap = CreateBitmap(256, 256, 1, 32, (void*)dummyBitmapData);
-                HANDLE oldBitmap = SelectObject(dc, group->_IconBitmap);
-                ASSERT(oldBitmap != NULL);
-                //GdipCreateBitmapFromScan0(256, 256, 4, PixelFormat32bppPARGB, toto, &group->_IconBitmap);
 
-                SHFILEINFO fi;
-                SHGetFileInfo(pathStr, 0, &fi, sizeof(fi), SHGFI_SYSICONINDEX);
-                ImageList_DrawEx(GetSysImgList(), fi.iIcon, dc, 0, 0, 256, 256, CLR_NONE, CLR_NONE, ILD_NORMAL);// iconSize, iconSize, 0, 0, DI_NORMAL);
+                HICON icon = ExtractIcon(process, pathStr, 0);
+                bool stdIcon = icon != NULL;
+                DestroyIcon(icon);
+                if (stdIcon)
+                {
+                    CoInitializeEx(NULL, COINIT_APARTMENTTHREADED);
 
-                SelectObject(dc, oldBitmap);
+                    SHFILEINFO fi;
+                    SHGetFileInfo(pathStr, 0, &fi, sizeof(fi), SHGFI_SYSICONINDEX);
 
-                ReleaseDC(NULL, dc);
-                DeleteDC(dc);
+                    HICON icon = ImageList_GetIcon(GetSysImgList(), fi.iIcon, ILD_TRANSPARENT);
+
+                    ICONINFO icInf;
+                    memset(&icInf, 0, sizeof(ICONINFO));
+                    GetIconInfo(icon, &icInf);
+
+                    memset(group->iconData, 0, sizeof(group->iconData));
+
+                    GdipCreateBitmapFromScan0(256, 256, 4*256, PixelFormat32bppARGB, (void*)&group->iconData[0], &group->_IconBitmap);
+
+                    GpRect r = { 0, 0, 256, 256 };
+                    BITMAP bi;
+                    memset(&bi, 0, sizeof(BITMAP));
+                    GetObject(icInf.hbmColor, sizeof(BITMAP), (void*)&bi);
+                    BitmapData dstData;
+                    memset(&dstData, 0, sizeof(BitmapData));
+                    GdipBitmapLockBits(group->_IconBitmap,&r, 0, PixelFormat32bppARGB, &dstData);
+                    GetBitmapBits(icInf.hbmColor, sizeof(uint32_t) * 256 * 256, dstData.Scan0);
+                    GdipBitmapUnlockBits(group->_IconBitmap, &dstData);
+                    CoUninitialize();
+                }
+                else if (isUWP)
+                {
+                    wchar_t iconPath[256];
+                    GetUWPIcon(process, iconPath, appData);
+                    GdipLoadImageFromFile(iconPath, &group->_IconBitmap);
+                }
             }
-                /*
-
-                ImageList_DrawEx(GetSysImgList(), pWinGroup->_ImageListID, pGraphRes->_DC, x, padding, iconSize, iconSize, CLR_NONE, CLR_NONE, ILD_NORMAL);// iconSize, iconSize, 0, 0, DI_NORMAL);
-
-            ASSERT(winDC);
-            appData->_GraphicsResources._DC = CreateCompatibleDC(winDC);
-            ASSERT(appData->_GraphicsResources._DC != NULL);
-            appData->_GraphicsResources._Bitmap = CreateCompatibleBitmap(
-                    winDC,
-                    clientRect.right - clientRect.left,
-                    clientRect.bottom - clientRect.top);
-            ASSERT(appData->_GraphicsResources._Bitmap != NULL);
-            ReleaseDC(hwnd, winDC);
-*/
-
-
-
-                
-               // group->_Icon = ExtractAssociatedIcon(process, pathStr, &idx);
-            /*
-                if (fi.iIcon == 2 && isUWP)
-                    GetUWPIcon(process, group->_UWPIconPath, appData);
-                CloseHandle(process);
-            }
-            if (!group->_Icon &&  group->_UWPIconPath[0] == L'\0')
-            {
-                // Probalby but not necessarily an error
-                // PrintLastError();
-                group->_Icon = LoadIcon(NULL, IDI_APPLICATION);
-            }
-            */
         }
     }
     group->_Windows[group->_WindowCount++] = hwnd;
@@ -861,7 +882,7 @@ static void ClearWinGroupArr(SWinGroupArr* winGroups)
     {
         if (winGroups->_Data[i]._IconBitmap)
         {
-         //   DestroyIcon(winGroups->_Data[i]._Icon);
+            GdipDisposeImage(winGroups->_Data[i]._IconBitmap);
             winGroups->_Data[i]._IconBitmap = NULL;
         }
         winGroups->_Data[i]._WindowCount = 0;
@@ -1351,6 +1372,7 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
         GpGraphics* pGraphics = NULL;
         ASSERT(Ok == GdipCreateFromHDC(pGraphRes->_DC, &pGraphics));
         GdipSetSmoothingMode(pGraphics, 5);
+        GdipSetPixelOffsetMode(pGraphics, 3);
 
         const uint32_t iconSize = appData->_Config._IconSize;
         const uint32_t iconContainerSize = 1.5 * iconSize;// GetSystemMetrics(SM_CXICONSPACING);
@@ -1377,21 +1399,9 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
             // https://learn.microsoft.com/en-us/windows/win32/gdiplus/-gdiplus-using-a-color-remap-table-use
             // https://learn.microsoft.com/en-us/windows/win32/gdiplus/-gdiplus-using-a-color-matrix-to-transform-a-single-color-use
             // Also check palette to see if monochrome
-            /*
-            if (pWinGroup->_UWPIconPath[0] != L'\0')
+            if (pWinGroup->_IconBitmap)
             {
-                GpImage* img = NULL;
-                GdipLoadImageFromFile(pWinGroup->_UWPIconPath, &img);
-                GdipDrawImageRectI(pGraphics, img, x, padding, iconSize, iconSize);
-                GdipDisposeImage(img);
-            }
-            */
-            else if (pWinGroup->_IconBitmap)
-            {
-                GpBitmap* bitmap;
-                GdipCreateBitmapFromHBITMAP(pWinGroup->_IconBitmap, 0, &bitmap);
-                GdipDrawImageRectI(pGraphics, bitmap, x, padding, iconSize, iconSize);
-                //AlphaBlend()
+                GdipDrawImageRectI(pGraphics, pWinGroup->_IconBitmap, x, padding, iconSize, iconSize);
             }
 
             {
