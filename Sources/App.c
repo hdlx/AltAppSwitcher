@@ -1206,7 +1206,7 @@ static void LoadConfig(Config* config)
     config->_Key._Invert = VK_LSHIFT;
     config->_Mouse = true;
     config->_ThemeMode = ThemeModeAuto;
-    config->_IconSize = 3.* GetSystemMetrics(SM_CXICON);
+    config->_IconSize = 2.0 * GetSystemMetrics(SM_CXICON);
 
     const char* configFile = "AltAppSwitcherConfig.txt";
     FILE* file = fopen(configFile ,"rb");
@@ -1371,8 +1371,10 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 
         GpGraphics* pGraphics = NULL;
         ASSERT(Ok == GdipCreateFromHDC(pGraphRes->_DC, &pGraphics));
+        // gdiplus/gdiplusenums.h
         GdipSetSmoothingMode(pGraphics, 5);
-        GdipSetPixelOffsetMode(pGraphics, 3);
+        GdipSetPixelOffsetMode(pGraphics, 2);
+        GdipSetInterpolationMode(pGraphics, 7); // InterpolationModeHighQualityBicubic
 
         const uint32_t iconSize = appData->_Config._IconSize;
         const uint32_t iconContainerSize = 1.5 * iconSize;// GetSystemMetrics(SM_CXICONSPACING);
