@@ -35,9 +35,8 @@ typedef struct SWinGroup
     char _ModuleFileName[512];
     HWND _Windows[64];
     uint32_t _WindowCount;
-    HICON _Icon;
-    uint32_t _ImageListID;
-    wchar_t _UWPIconPath[512];
+    HBITMAP _IconBitmap;
+    HDC _DC;
 } SWinGroup;
 
 typedef struct SWinArr
@@ -636,6 +635,8 @@ static void GetUWPIcon(HANDLE process, wchar_t* iconPath, SAppData* appData)
     }
 }
 
+static BYTE dummyBitmapData[256 * 256 * sizeof(uint32_t)];
+
 static BOOL FillWinGroups(HWND hwnd, LPARAM lParam)
 {
     if (!IsAltTabWindow(hwnd))
@@ -664,9 +665,7 @@ static BOOL FillWinGroups(HWND hwnd, LPARAM lParam)
     {
         group = &winAppGroupArr->_Data[winAppGroupArr->_Size++];
         strcpy(group->_ModuleFileName, moduleFileName);
-        ASSERT(group->_Icon == NULL);
         ASSERT(group->_WindowCount == 0);
-        group->_UWPIconPath[0] = L'\0';
         // Icon
         {
             const HANDLE process = OpenProcess(PROCESS_QUERY_INFORMATION, FALSE, PID);
@@ -674,10 +673,43 @@ static BOOL FillWinGroups(HWND hwnd, LPARAM lParam)
             GetModuleFileNameEx(process, NULL, pathStr, 512);
             if (process)
             {
+                ASSERT(group->_IconBitmap == NULL);
+                HDC dc = CreateCompatibleDC(NULL);
+           //     group->_IconBitmap = CreateCompatibleBitmap(dc, 256, 256);
+                group->_IconBitmap = CreateBitmap(256, 256, 1, 32, (void*)dummyBitmapData);
+                HANDLE oldBitmap = SelectObject(dc, group->_IconBitmap);
+                ASSERT(oldBitmap != NULL);
+                //GdipCreateBitmapFromScan0(256, 256, 4, PixelFormat32bppPARGB, toto, &group->_IconBitmap);
+
                 SHFILEINFO fi;
                 SHGetFileInfo(pathStr, 0, &fi, sizeof(fi), SHGFI_SYSICONINDEX);
-                group->_ImageListID = fi.iIcon;
+                ImageList_DrawEx(GetSysImgList(), fi.iIcon, dc, 0, 0, 256, 256, CLR_NONE, CLR_NONE, ILD_NORMAL);// iconSize, iconSize, 0, 0, DI_NORMAL);
+
+                SelectObject(dc, oldBitmap);
+
+                ReleaseDC(NULL, dc);
+                DeleteDC(dc);
+            }
+                /*
+
+                ImageList_DrawEx(GetSysImgList(), pWinGroup->_ImageListID, pGraphRes->_DC, x, padding, iconSize, iconSize, CLR_NONE, CLR_NONE, ILD_NORMAL);// iconSize, iconSize, 0, 0, DI_NORMAL);
+
+            ASSERT(winDC);
+            appData->_GraphicsResources._DC = CreateCompatibleDC(winDC);
+            ASSERT(appData->_GraphicsResources._DC != NULL);
+            appData->_GraphicsResources._Bitmap = CreateCompatibleBitmap(
+                    winDC,
+                    clientRect.right - clientRect.left,
+                    clientRect.bottom - clientRect.top);
+            ASSERT(appData->_GraphicsResources._Bitmap != NULL);
+            ReleaseDC(hwnd, winDC);
+*/
+
+
+
+                
                // group->_Icon = ExtractAssociatedIcon(process, pathStr, &idx);
+            /*
                 if (fi.iIcon == 2 && isUWP)
                     GetUWPIcon(process, group->_UWPIconPath, appData);
                 CloseHandle(process);
@@ -688,6 +720,7 @@ static BOOL FillWinGroups(HWND hwnd, LPARAM lParam)
                 // PrintLastError();
                 group->_Icon = LoadIcon(NULL, IDI_APPLICATION);
             }
+            */
         }
     }
     group->_Windows[group->_WindowCount++] = hwnd;
@@ -715,7 +748,7 @@ static void ComputeWinPosAndSize(uint32_t iconCount, uint32_t iconSize, uint32_t
 {
     const int centerY = GetSystemMetrics(SM_CYSCREEN) / 2;
     const int centerX = GetSystemMetrics(SM_CXSCREEN) / 2;
-    const uint32_t iconContainerSize = 1.2 * iconSize;
+    const uint32_t iconContainerSize = 1.5 * iconSize;
     const uint32_t sizeX = iconCount * iconContainerSize;
     const uint32_t halfSizeX = sizeX / 2;
     const uint32_t sizeY = 1 * iconContainerSize;
@@ -826,12 +859,11 @@ static void ClearWinGroupArr(SWinGroupArr* winGroups)
 {
     for (uint32_t i = 0; i < winGroups->_Size; i++)
     {
-        if (winGroups->_Data[i]._Icon)
+        if (winGroups->_Data[i]._IconBitmap)
         {
-            DestroyIcon(winGroups->_Data[i]._Icon);
-            winGroups->_Data[i]._Icon = NULL;
+         //   DestroyIcon(winGroups->_Data[i]._Icon);
+            winGroups->_Data[i]._IconBitmap = NULL;
         }
-        winGroups->_Data[i]._ImageListID = 0;
         winGroups->_Data[i]._WindowCount = 0;
     }
     winGroups->_Size = 0;
@@ -1236,7 +1268,7 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
             mouseInside = true;
             return 0;
         }
-        const int iconContainerSize = (int)GetSystemMetrics(SM_CXICONSPACING);
+        const int iconContainerSize = (int)appData->_Config._IconSize * 1.5;
         const int posX = GET_X_LPARAM(lParam);
         appData->_Selection = min(max(0, posX / iconContainerSize), (int)appData->_WinGroups._Size);
         InvalidateRect(appData->_MainWin, 0, FALSE);
@@ -1321,7 +1353,7 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
         GdipSetSmoothingMode(pGraphics, 5);
 
         const uint32_t iconSize = appData->_Config._IconSize;
-        const uint32_t iconContainerSize = 1.2 * iconSize;// GetSystemMetrics(SM_CXICONSPACING);
+        const uint32_t iconContainerSize = 1.5 * iconSize;// GetSystemMetrics(SM_CXICONSPACING);
         const uint32_t padding = (iconContainerSize - iconSize) / 2;
         uint32_t x = padding;
         for (uint32_t i = 0; i < appData->_WinGroups._Size; i++)
@@ -1345,6 +1377,7 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
             // https://learn.microsoft.com/en-us/windows/win32/gdiplus/-gdiplus-using-a-color-remap-table-use
             // https://learn.microsoft.com/en-us/windows/win32/gdiplus/-gdiplus-using-a-color-matrix-to-transform-a-single-color-use
             // Also check palette to see if monochrome
+            /*
             if (pWinGroup->_UWPIconPath[0] != L'\0')
             {
                 GpImage* img = NULL;
@@ -1352,12 +1385,15 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
                 GdipDrawImageRectI(pGraphics, img, x, padding, iconSize, iconSize);
                 GdipDisposeImage(img);
             }
-            else if (pWinGroup->_Icon)
+            */
+            else if (pWinGroup->_IconBitmap)
             {
-               // DrawIconEx(pGraphRes->_DC, x, padding, pWinGroup->_Icon, iconSize, iconSize, 0, 0, DI_NORMAL);
-                ImageList_DrawEx(GetSysImgList(), pWinGroup->_ImageListID, pGraphRes->_DC, x, padding, iconSize, iconSize, CLR_NONE, CLR_NONE, ILD_NORMAL);// iconSize, iconSize, 0, 0, DI_NORMAL);
+                GpBitmap* bitmap;
+                GdipCreateBitmapFromHBITMAP(pWinGroup->_IconBitmap, 0, &bitmap);
+                GdipDrawImageRectI(pGraphics, bitmap, x, padding, iconSize, iconSize);
+                //AlphaBlend()
             }
-    
+
             {
                 WCHAR count[4]; 
                 const uint32_t winCount = pWinGroup->_WindowCount;
