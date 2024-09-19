@@ -1032,12 +1032,12 @@ static LRESULT KbProc(int nCode, WPARAM wParam, LPARAM lParam)
         const bool prevAppInput = !prevKeyState._PrevAppDown && keyState._PrevAppDown;
         const bool winHoldReleasing = prevKeyState._HoldWinDown && !keyState._HoldWinDown;
         const bool appHoldReleasing = prevKeyState._HoldAppDown && !keyState._HoldAppDown;
-        const bool escapeInput = prevKeyState._EscapeDown && !keyState._EscapeDown;
+        const bool escapeInput = !prevKeyState._EscapeDown && keyState._EscapeDown;
 
         const bool switchApp =
             switchAppInput &&
             keyState._HoldAppDown;
-       const bool prevApp =
+        const bool prevApp =
             prevAppInput &&
             keyState._HoldAppDown;
         const bool switchWin =
