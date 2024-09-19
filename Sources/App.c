@@ -1226,7 +1226,7 @@ static void LoadConfig(Config* config)
         file = fopen(configFile ,"a");
         fprintf(file, ConfigStr);
         fclose(file);
-        return;
+        fopen(configFile ,"rb");
     }
 
     static char lineBuf[1024];
