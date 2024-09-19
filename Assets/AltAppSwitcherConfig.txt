@@ -17,7 +17,7 @@ app hold key: left alt
 next app key: tab
 previous app key: tilde
 window hold key: left alt
-window switch key: tilde
+next window key: tilde
 invert order key: left shift
 
 // Graphic options
