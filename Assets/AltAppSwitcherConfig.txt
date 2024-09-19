@@ -14,8 +14,8 @@
 //     none
 
 app hold key: left alt
-app switch key: tab
-app previous key: tilde
+next app key: tab
+previous app key: tilde
 window hold key: left alt
 window switch key: tilde
 invert order key: left shift

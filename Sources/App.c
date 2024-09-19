@@ -1206,7 +1206,7 @@ static bool TryGetTheme(const char* lineBuf, const char* token, ThemeMode* theme
     }
     return false;
 }
-
+#include "_Generated/ConfigStr.h"
 static void LoadConfig(Config* config)
 {
     config->_Key._AppHold = VK_LMENU;
@@ -1224,32 +1224,7 @@ static void LoadConfig(Config* config)
     if (file == NULL)
     {
         file = fopen(configFile ,"a");
-        fprintf(file,
-            "// AltAppSwitcher config file\n"
-            "// \n"
-            "// Possible key bindings values:\n"
-            "//     left alt\n"
-            "//     right alt\n"
-            "//     alt\n"
-            "//     tilde\n"
-            "//     left super (left windows)\n"
-            "//     right super (right windows)\n"
-            "//     left control\n"
-            "//     left shift\n"
-            "//     right shift\n"
-            "//     tab\n"
-            "\n"
-            "app hold key: left alt\n"
-            "app switch key: tab\n"
-            "window hold key: left alt\n"
-            "window switch key: tilde\n"
-            "invert order key: left shift\n"
-            "\n"
-            "// Theme can be \"auto\" (matches windows theme),\n"
-            "// \"light\" or \"dark\"\n"
-            "theme: auto\n"
-            "// Other options \n"
-            "allow mouse: true \n");
+        fprintf(file, ConfigStr);
         fclose(file);
         return;
     }
@@ -1261,15 +1236,15 @@ static void LoadConfig(Config* config)
             continue;
         if (TryGetKey(lineBuf, "app hold key: ", &config->_Key._AppHold))
             continue;
-        if (TryGetKey(lineBuf, "app switch key: ", &config->_Key._AppSwitch))
+        if (TryGetKey(lineBuf, "next app key: ", &config->_Key._AppSwitch))
+            continue;
+        if (TryGetKey(lineBuf, "previous app key: ", &config->_Key._PrevApp))
             continue;
         if (TryGetKey(lineBuf, "window hold key: ", &config->_Key._WinHold))
             continue;
-        if (TryGetKey(lineBuf, "window switch key: ", &config->_Key._WinSwitch))
+        if (TryGetKey(lineBuf, "next window key: ", &config->_Key._WinSwitch))
             continue;
         if (TryGetKey(lineBuf, "invert order key: ", &config->_Key._Invert))
-            continue;
-        if (TryGetKey(lineBuf, "app previous key: ", &config->_Key._PrevApp))
             continue;
         if (TryGetBool(lineBuf, "allow mouse: ", &config->_Mouse))
             continue;
