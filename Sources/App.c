@@ -1090,7 +1090,7 @@ static LRESULT KbProc(int nCode, WPARAM wParam, LPARAM lParam)
             if (switchApp)
                 PostThreadMessage(_MainThread, keyState._InvertKeyDown ? MSG_PREV_APP : MSG_NEXT_APP, 0, 0);
             else if (prevApp)
-                PostThreadMessage(_MainThread, MSG_NEXT_APP, 0, 0);
+                PostThreadMessage(_MainThread, MSG_PREV_APP, 0, 0);
         }
         else if (switchWin)
         {
