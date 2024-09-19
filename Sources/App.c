@@ -38,7 +38,6 @@ typedef struct SWinGroup
     HWND _Windows[64];
     uint32_t _WindowCount;
     GpBitmap* _IconBitmap;
-    HDC _DC;
     uint32_t iconData[256 * 256];
 } SWinGroup;
 
@@ -62,6 +61,7 @@ typedef struct KeyState
     bool _HoldAppDown;
     bool _SwitchAppDown;
     bool _EscapeDown;
+    bool _PrevAppDown;
 } KeyState;
 
 typedef struct SGraphicsResources
@@ -78,6 +78,16 @@ typedef struct SGraphicsResources
     HIMAGELIST _ImageList;
 } SGraphicsResources;
 
+typedef struct Metrics
+{
+    uint32_t _WinPosX;
+    uint32_t _WinPosY;
+    uint32_t _WinX;
+    uint32_t _WinY;
+    uint32_t _Icon;
+    uint32_t _IconContainer;
+} Metrics;
+
 typedef struct KeyConfig
 {
     DWORD _AppHold;
@@ -85,6 +95,7 @@ typedef struct KeyConfig
     DWORD _WinHold;
     DWORD _WinSwitch;
     DWORD _Invert;
+    DWORD _PrevApp;
 } KeyConfig;
 
 
@@ -100,7 +111,7 @@ typedef struct Config
     KeyConfig _Key;
     bool _Mouse;
     ThemeMode _ThemeMode;
-    uint32_t _IconSize;
+    float _Scale;
 } Config;
 
 typedef enum Mode
@@ -133,6 +144,7 @@ typedef struct SAppData
     SWinGroup _CurrentWinGroup;
     SUWPIconMap _UWPIconMap;
     Config _Config;
+    Metrics _Metrics;
 } SAppData;
 
 typedef struct SFoundWin
@@ -638,33 +650,6 @@ static void GetUWPIcon(HANDLE process, wchar_t* iconPath, SAppData* appData)
     }
 }
 
-// static BYTE dummyBitmapData[256 * 256 * sizeof(uint32_t)];
-
-
-static HBITMAP hbitmapForFile(PCWSTR path, int w, int h)
-{
-    IShellItemImageFactory* pif;
-    
-    void* out = NULL;
-    HBITMAP hbm;
-    SIZE sz = { w, h };
-    CoInitializeEx(NULL, COINIT_APARTMENTTHREADED);
-    //CoInitialize(NULL);
-    
-    HRESULT toto = SHCreateItemFromParsingName(path, NULL, &IID_IShellItemImageFactory, &out);
-    if (toto)
-        return 0;
-
-    pif = (IShellItemImageFactory*)out;
-
-    IShellItemImageFactory_GetImage(pif, sz, SIIGBF_RESIZETOFIT, &hbm);
-    IShellItemImageFactory_Release(pif);
-    CoUninitialize();
-  // pif->GetImage(sz, SIIGBF_RESIZETOFIT, &hbm);
-  // pif->Release();
-    return hbm;
-}
-
 static BOOL FillWinGroups(HWND hwnd, LPARAM lParam)
 {
     if (!IsAltTabWindow(hwnd))
@@ -704,10 +689,14 @@ static BOOL FillWinGroups(HWND hwnd, LPARAM lParam)
             {
                 ASSERT(group->_IconBitmap == NULL);
 
-                HICON icon = ExtractIcon(process, pathStr, 0);
-                bool stdIcon = icon != NULL;
-                DestroyIcon(icon);
-                if (stdIcon)
+                bool stdIcon = false;
+                {
+                    HICON icon = ExtractIcon(process, pathStr, 0);
+                    stdIcon = icon != NULL;
+                    DestroyIcon(icon);
+                }
+
+                if (stdIcon | !isUWP)
                 {
                     CoInitializeEx(NULL, COINIT_APARTMENTTHREADED);
 
@@ -722,7 +711,7 @@ static BOOL FillWinGroups(HWND hwnd, LPARAM lParam)
 
                     memset(group->iconData, 0, sizeof(group->iconData));
 
-                    GdipCreateBitmapFromScan0(256, 256, 4*256, PixelFormat32bppARGB, (void*)&group->iconData[0], &group->_IconBitmap);
+                    GdipCreateBitmapFromScan0(256, 256, 4 * 256, PixelFormat32bppARGB, (void*)&group->iconData[0], &group->_IconBitmap);
 
                     GpRect r = { 0, 0, 256, 256 };
                     BITMAP bi;
@@ -733,6 +722,10 @@ static BOOL FillWinGroups(HWND hwnd, LPARAM lParam)
                     GdipBitmapLockBits(group->_IconBitmap,&r, 0, PixelFormat32bppARGB, &dstData);
                     GetBitmapBits(icInf.hbmColor, sizeof(uint32_t) * 256 * 256, dstData.Scan0);
                     GdipBitmapUnlockBits(group->_IconBitmap, &dstData);
+
+                    DeleteObject(icInf.hbmColor);
+                    DeleteObject(icInf.hbmMask);
+                    DestroyIcon(icon);
                     CoUninitialize();
                 }
                 else if (isUWP)
@@ -765,19 +758,22 @@ static BOOL FillCurrentWinGroup(HWND hwnd, LPARAM lParam)
     return true;
 }
 
-static void ComputeWinPosAndSize(uint32_t iconCount, uint32_t iconSize, uint32_t* px, uint32_t* py, uint32_t* sx, uint32_t* sy)
+static void ComputeMetrics(uint32_t iconCount, float scale, Metrics *metrics)
 {
     const int centerY = GetSystemMetrics(SM_CYSCREEN) / 2;
     const int centerX = GetSystemMetrics(SM_CXSCREEN) / 2;
-    const uint32_t iconContainerSize = 1.5 * iconSize;
+    const int screenWidth = GetSystemMetrics(SM_CXFULLSCREEN);
+    const uint32_t iconContainerSize = min(scale * 2 * GetSystemMetrics(SM_CXICON), (screenWidth * 0.9) / iconCount);
     const uint32_t sizeX = iconCount * iconContainerSize;
     const uint32_t halfSizeX = sizeX / 2;
     const uint32_t sizeY = 1 * iconContainerSize;
     const uint32_t halfSizeY = sizeY / 2;
-    *px = centerX-halfSizeX;
-    *py = centerY-halfSizeY;
-    *sx = sizeX;
-    *sy = sizeY;
+    metrics->_WinPosX = centerX - halfSizeX;
+    metrics->_WinPosY = centerY - halfSizeY;
+    metrics->_WinX = sizeX;
+    metrics->_WinY = sizeY;
+    metrics->_Icon = iconContainerSize / 2;
+    metrics->_IconContainer = iconContainerSize;
 }
 
 static DWORD GetParentPID(DWORD PID)
@@ -812,8 +808,8 @@ static void CreateWin(SAppData* appData)
 {
     if (appData->_MainWin)
         DestroyWin(appData->_MainWin);
-    uint32_t px, py, sx, sy;
-    ComputeWinPosAndSize(appData->_WinGroups._Size, appData->_Config._IconSize, &px, &py, &sx, &sy);
+
+    ComputeMetrics(appData->_WinGroups._Size, appData->_Config._Scale, &appData->_Metrics);
 
     HWND hwnd = CreateWindowEx(
         WS_EX_TOPMOST | WS_EX_TOOLWINDOW, // Optional window styles (WS_EX_)
@@ -821,7 +817,7 @@ static void CreateWin(SAppData* appData)
         "", // Window text
         WS_BORDER | WS_POPUP | WS_VISIBLE, // Window style
         // Pos and size
-        px, py, sx, sy,
+        appData->_Metrics._WinPosX, appData->_Metrics._WinPosY, appData->_Metrics._WinX, appData->_Metrics._WinY,
         NULL, // Parent window
         NULL, // Menu
         appData->_Instance, // Instance handle
@@ -981,6 +977,7 @@ static LRESULT KbProc(int nCode, WPARAM wParam, LPARAM lParam)
     const KBDLLHOOKSTRUCT kbStrut = *(KBDLLHOOKSTRUCT*)lParam;
     const bool isAppHold = kbStrut.vkCode == _KeyConfig->_AppHold;
     const bool isAppSwitch = kbStrut.vkCode == _KeyConfig->_AppSwitch;
+    const bool isPrevApp = kbStrut.vkCode == _KeyConfig->_PrevApp;
     const bool isWinHold = kbStrut.vkCode == _KeyConfig->_WinHold;
     const bool isWinSwitch = kbStrut.vkCode == _KeyConfig->_WinSwitch;
     const bool isInvert = kbStrut.vkCode == _KeyConfig->_Invert;
@@ -995,12 +992,13 @@ static LRESULT KbProc(int nCode, WPARAM wParam, LPARAM lParam)
         isInvert ||
         isTab ||
         isShift ||
+        (isPrevApp && _KeyConfig->_PrevApp != 0xFFFFFFFF) ||
         isEscape;
 
     if (!isWatchedKey)
         return CallNextHookEx(NULL, nCode, wParam, lParam);
 
-    static KeyState keyState =  { false, false, false, false, false, false};
+    static KeyState keyState =  { false, false, false, false, false, false, false };
     static Mode targetMode = ModeNone;
 
     const KeyState prevKeyState = keyState;
@@ -1013,6 +1011,8 @@ static LRESULT KbProc(int nCode, WPARAM wParam, LPARAM lParam)
             keyState._HoldAppDown = !releasing;
         if (isAppSwitch)
             keyState._SwitchAppDown = !releasing;
+        if (isPrevApp)
+            keyState._PrevAppDown = !releasing;
         if (isWinHold)
             keyState._HoldWinDown = !releasing;
         if (isWinSwitch)
@@ -1029,12 +1029,16 @@ static LRESULT KbProc(int nCode, WPARAM wParam, LPARAM lParam)
     {
         const bool switchWinInput = !prevKeyState._SwitchWinDown && keyState._SwitchWinDown;
         const bool switchAppInput = !prevKeyState._SwitchAppDown && keyState._SwitchAppDown;
+        const bool prevAppInput = !prevKeyState._PrevAppDown && keyState._PrevAppDown;
         const bool winHoldReleasing = prevKeyState._HoldWinDown && !keyState._HoldWinDown;
         const bool appHoldReleasing = prevKeyState._HoldAppDown && !keyState._HoldAppDown;
         const bool escapeInput = prevKeyState._EscapeDown && !keyState._EscapeDown;
 
         const bool switchApp =
             switchAppInput &&
+            keyState._HoldAppDown;
+       const bool prevApp =
+            prevAppInput &&
             keyState._HoldAppDown;
         const bool switchWin =
             switchWinInput &&
@@ -1047,9 +1051,9 @@ static LRESULT KbProc(int nCode, WPARAM wParam, LPARAM lParam)
 
         // Denit.
         if (prevTargetMode == ModeApp &&
-            (switchWin || appHoldReleasing))
+            (switchWin || appHoldReleasing) && !prevApp)
         {
-            targetMode = switchWinInput ? ModeWin : ModeNone;
+            targetMode = ModeNone;
             isApplying = true;
             PostThreadMessage(_MainThread, MSG_DEINIT_APP, 0, 0);
         }
@@ -1067,9 +1071,9 @@ static LRESULT KbProc(int nCode, WPARAM wParam, LPARAM lParam)
             PostThreadMessage(_MainThread, MSG_CANCEL_APP, 0, 0);
         }
 
-        if (switchApp)
+        if (targetMode == ModeNone && switchApp)
             targetMode = ModeApp;
-        else if (switchWin)
+        else if (targetMode == ModeNone && switchWin)
             targetMode = ModeWin;
 
         if (targetMode == ModeApp && prevTargetMode != ModeApp)
@@ -1089,6 +1093,10 @@ static LRESULT KbProc(int nCode, WPARAM wParam, LPARAM lParam)
             else
                 PostThreadMessage(_MainThread, MSG_NEXT_APP, 0, 0);
         }
+        else if (targetMode == ModeApp && prevApp)
+        {
+            PostThreadMessage(_MainThread, MSG_PREV_APP, 0, 0);
+        }
         else if (switchWin)
         {
             targetMode = ModeWin;
@@ -1100,7 +1108,7 @@ static LRESULT KbProc(int nCode, WPARAM wParam, LPARAM lParam)
 
         bypassMsg = 
             ((targetMode != ModeNone) || isApplying) &&
-            (isWinSwitch || isAppSwitch || isWinHold || isAppHold || isInvert);
+            (isWinSwitch || isAppSwitch || isWinHold || isAppHold || isInvert || isPrevApp);
     }
 
     if (bypassMsg)
@@ -1173,6 +1181,17 @@ static bool TryGetBool(const char* lineBuf, const char* token, bool* boolToSet)
     return false;
 }
 
+static bool TryGetFloat(const char* lineBuf, const char* token, float* floatToSet)
+{
+    const char* pValue = strstr(lineBuf, token);
+    if (pValue != NULL)
+    {
+        *floatToSet = strtof(pValue + strlen(token)  - 1, NULL);
+        return true;
+    }
+    return false;
+}
+
 static bool TryGetTheme(const char* lineBuf, const char* token, ThemeMode* theme)
 {
     const char* pValue = strstr(lineBuf, token);
@@ -1204,9 +1223,10 @@ static void LoadConfig(Config* config)
     config->_Key._WinHold = VK_LMENU;
     config->_Key._WinSwitch = VK_OEM_3;
     config->_Key._Invert = VK_LSHIFT;
+    config->_Key._PrevApp = 0xFFFFFFFF;
     config->_Mouse = true;
     config->_ThemeMode = ThemeModeAuto;
-    config->_IconSize = 2.0 * GetSystemMetrics(SM_CXICON);
+    config->_Scale = 1.5;
 
     const char* configFile = "AltAppSwitcherConfig.txt";
     FILE* file = fopen(configFile ,"rb");
@@ -1258,9 +1278,13 @@ static void LoadConfig(Config* config)
             continue;
         if (TryGetKey(lineBuf, "invert order key: ", &config->_Key._Invert))
             continue;
+        if (TryGetKey(lineBuf, "app previous key: ", &config->_Key._PrevApp))
+            continue;
         if (TryGetBool(lineBuf, "allow mouse: ", &config->_Mouse))
             continue;
         if (TryGetTheme(lineBuf, "theme: ", &config->_ThemeMode))
+            continue;
+        if (TryGetFloat(lineBuf, "scale: ", &config->_Scale))
             continue;
     }
     fclose(file);
@@ -1289,7 +1313,7 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
             mouseInside = true;
             return 0;
         }
-        const int iconContainerSize = (int)appData->_Config._IconSize * 1.5;
+        const int iconContainerSize = (int)appData->_Metrics._IconContainer;
         const int posX = GET_X_LPARAM(lParam);
         appData->_Selection = min(max(0, posX / iconContainerSize), (int)appData->_WinGroups._Size);
         InvalidateRect(appData->_MainWin, 0, FALSE);
@@ -1376,8 +1400,8 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
         GdipSetPixelOffsetMode(pGraphics, 2);
         GdipSetInterpolationMode(pGraphics, 7); // InterpolationModeHighQualityBicubic
 
-        const uint32_t iconSize = appData->_Config._IconSize;
-        const uint32_t iconContainerSize = 1.5 * iconSize;// GetSystemMetrics(SM_CXICONSPACING);
+        const uint32_t iconSize = appData->_Metrics._Icon;
+        const uint32_t iconContainerSize = 2.0 * iconSize;// GetSystemMetrics(SM_CXICONSPACING);
         const uint32_t padding = (iconContainerSize - iconSize) / 2;
         uint32_t x = padding;
         for (uint32_t i = 0; i < appData->_WinGroups._Size; i++)
@@ -1466,6 +1490,7 @@ int StartAltAppSwitcher(HINSTANCE hInstance)
     }
 
     static SAppData _AppData;
+    memset(&_AppData, 0, sizeof(SAppData));
 
     {
         WNDCLASS wc = { };
