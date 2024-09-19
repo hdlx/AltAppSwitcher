@@ -20,11 +20,11 @@ window hold key: left alt
 next window key: tilde
 invert order key: left shift
 
-// Graphic options
-// Theme can be "auto" (matches windows theme),
-// "light" or "dark"
+// Graphic options:
+// Theme can be "auto" (matches windows theme), "light" or "dark".
+// Scale is a multiplier applied on Windows default icon size.
 theme: auto
 scale: 1.5
 
-// Other options
+// Other options:
 allow mouse: true
