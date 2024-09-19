@@ -10,7 +10,7 @@ def CFiles():
     return cFiles
 
 def LinkArgs():
-    return "-l dwmapi -l User32 -l Gdi32 -l Gdiplus -l shlwapi -l pthread -l Ole32"
+    return "-l dwmapi -l User32 -l Gdi32 -l Gdiplus -l shlwapi -l pthread -l Ole32 -l Comctl32"
 
 def Common():
     return "-static -static-libgcc"
@@ -22,7 +22,23 @@ def CopyAssets(dir):
     for file in os.listdir("./Assets/"):
         shutil.copyfile(f"./Assets/{file}", f"{dir}/{file}")
 
+def MakeStaticStr():
+    fsrc = open("./Assets/AltAppSwitcherConfig.txt", "r")
+    if not os.path.exists("./Sources/_Generated"):
+        os.makedirs("./Sources/_Generated")
+    fdst = open("./Sources/_Generated/ConfigStr.h", "w")
+    fdst.write("static const char ConfigStr[] =\n" )
+    for line in fsrc:
+        fdst.write("\"")
+        fdst.write(line.strip("\n").replace('"', r'\"'))
+        fdst.write(r"\n")
+        fdst.write("\"")
+        fdst.write("\n")
+    fdst.write(";")
+
+
 def CompileDbg():
+    MakeStaticStr()
     dir = "./Output/Debug"
     if not os.path.exists(dir):
         os.makedirs(dir)
@@ -34,6 +50,7 @@ def CompileDbg():
     return file
 
 def CompileRel(arch = "x86_64"):
+    MakeStaticStr()
     dir = f"./Output/Release/{arch}"
     if not os.path.exists(dir):
         os.makedirs(dir)

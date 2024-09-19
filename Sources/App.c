@@ -24,7 +24,12 @@
 #include <combaseapi.h>
 #include "AltAppSwitcherHelpers.h"
 #include "KeyCodeFromConfigName.h"
-
+#include "initguid.h"
+#include "Shellapi.h"
+#include "commoncontrols.h"
+#define COBJMACROS
+#include "Shobjidl.h"
+#undef COBJMACROS
 LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam);
 
 typedef struct SWinGroup
@@ -32,8 +37,8 @@ typedef struct SWinGroup
     char _ModuleFileName[512];
     HWND _Windows[64];
     uint32_t _WindowCount;
-    HICON _Icon;
-    wchar_t _UWPIconPath[512];
+    GpBitmap* _IconBitmap;
+    uint32_t iconData[256 * 256];
 } SWinGroup;
 
 typedef struct SWinArr
@@ -56,6 +61,7 @@ typedef struct KeyState
     bool _HoldAppDown;
     bool _SwitchAppDown;
     bool _EscapeDown;
+    bool _PrevAppDown;
 } KeyState;
 
 typedef struct SGraphicsResources
@@ -69,7 +75,18 @@ typedef struct SGraphicsResources
     COLORREF _TextColor;
     HBITMAP _Bitmap;
     HDC _DC;
+    HIMAGELIST _ImageList;
 } SGraphicsResources;
+
+typedef struct Metrics
+{
+    uint32_t _WinPosX;
+    uint32_t _WinPosY;
+    uint32_t _WinX;
+    uint32_t _WinY;
+    uint32_t _Icon;
+    uint32_t _IconContainer;
+} Metrics;
 
 typedef struct KeyConfig
 {
@@ -78,6 +95,7 @@ typedef struct KeyConfig
     DWORD _WinHold;
     DWORD _WinSwitch;
     DWORD _Invert;
+    DWORD _PrevApp;
 } KeyConfig;
 
 
@@ -93,6 +111,7 @@ typedef struct Config
     KeyConfig _Key;
     bool _Mouse;
     ThemeMode _ThemeMode;
+    float _Scale;
 } Config;
 
 typedef enum Mode
@@ -125,6 +144,7 @@ typedef struct SAppData
     SWinGroup _CurrentWinGroup;
     SUWPIconMap _UWPIconMap;
     Config _Config;
+    Metrics _Metrics;
 } SAppData;
 
 typedef struct SFoundWin
@@ -146,6 +166,13 @@ static DWORD _MainThread;
 #define MSG_DEINIT_WIN (WM_USER + 7)
 #define MSG_DEINIT_APP (WM_USER + 8)
 #define MSG_CANCEL_APP (WM_USER + 9)
+
+static HIMAGELIST GetSysImgList()
+{
+    void* out = NULL;
+    SHGetImageList(SHIL_JUMBO, &IID_IImageList, &out);
+    return (HIMAGELIST)out;
+}
 
 static void InitGraphicsResources(SGraphicsResources* pRes, const Config* config)
 {
@@ -638,6 +665,7 @@ static BOOL FillWinGroups(HWND hwnd, LPARAM lParam)
     SWinGroupArr* winAppGroupArr = &(appData->_WinGroups);
 
     SWinGroup* group = NULL;
+    
     for (uint32_t i = 0; i < winAppGroupArr->_Size; i++)
     {
         SWinGroup* const _group = &(winAppGroupArr->_Data[i]);
@@ -651,9 +679,7 @@ static BOOL FillWinGroups(HWND hwnd, LPARAM lParam)
     {
         group = &winAppGroupArr->_Data[winAppGroupArr->_Size++];
         strcpy(group->_ModuleFileName, moduleFileName);
-        ASSERT(group->_Icon == NULL);
         ASSERT(group->_WindowCount == 0);
-        group->_UWPIconPath[0] = L'\0';
         // Icon
         {
             const HANDLE process = OpenProcess(PROCESS_QUERY_INFORMATION, FALSE, PID);
@@ -661,16 +687,53 @@ static BOOL FillWinGroups(HWND hwnd, LPARAM lParam)
             GetModuleFileNameEx(process, NULL, pathStr, 512);
             if (process)
             {
-                group->_Icon = ExtractIcon(process, pathStr, 0);
-                if (group->_Icon == NULL && isUWP)
-                    GetUWPIcon(process, group->_UWPIconPath, appData);
-                CloseHandle(process);
-            }
-            if (!group->_Icon &&  group->_UWPIconPath[0] == L'\0')
-            {
-                // Probalby but not necessarily an error
-                // PrintLastError();
-                group->_Icon = LoadIcon(NULL, IDI_APPLICATION);
+                ASSERT(group->_IconBitmap == NULL);
+
+                bool stdIcon = false;
+                {
+                    HICON icon = ExtractIcon(process, pathStr, 0);
+                    stdIcon = icon != NULL;
+                    DestroyIcon(icon);
+                }
+
+                if (stdIcon | !isUWP)
+                {
+                    CoInitializeEx(NULL, COINIT_APARTMENTTHREADED);
+
+                    SHFILEINFO fi;
+                    SHGetFileInfo(pathStr, 0, &fi, sizeof(fi), SHGFI_SYSICONINDEX);
+
+                    HICON icon = ImageList_GetIcon(GetSysImgList(), fi.iIcon, ILD_TRANSPARENT);
+
+                    ICONINFO icInf;
+                    memset(&icInf, 0, sizeof(ICONINFO));
+                    GetIconInfo(icon, &icInf);
+
+                    memset(group->iconData, 0, sizeof(group->iconData));
+
+                    GdipCreateBitmapFromScan0(256, 256, 4 * 256, PixelFormat32bppARGB, (void*)&group->iconData[0], &group->_IconBitmap);
+
+                    GpRect r = { 0, 0, 256, 256 };
+                    BITMAP bi;
+                    memset(&bi, 0, sizeof(BITMAP));
+                    GetObject(icInf.hbmColor, sizeof(BITMAP), (void*)&bi);
+                    BitmapData dstData;
+                    memset(&dstData, 0, sizeof(BitmapData));
+                    GdipBitmapLockBits(group->_IconBitmap,&r, 0, PixelFormat32bppARGB, &dstData);
+                    GetBitmapBits(icInf.hbmColor, sizeof(uint32_t) * 256 * 256, dstData.Scan0);
+                    GdipBitmapUnlockBits(group->_IconBitmap, &dstData);
+
+                    DeleteObject(icInf.hbmColor);
+                    DeleteObject(icInf.hbmMask);
+                    DestroyIcon(icon);
+                    CoUninitialize();
+                }
+                else if (isUWP)
+                {
+                    wchar_t iconPath[256];
+                    GetUWPIcon(process, iconPath, appData);
+                    GdipLoadImageFromFile(iconPath, &group->_IconBitmap);
+                }
             }
         }
     }
@@ -695,36 +758,23 @@ static BOOL FillCurrentWinGroup(HWND hwnd, LPARAM lParam)
     return true;
 }
 
-static void FitWindow(HWND hwnd, uint32_t iconCount)
+static void ComputeMetrics(uint32_t iconCount, float scale, Metrics *metrics)
 {
     const int centerY = GetSystemMetrics(SM_CYSCREEN) / 2;
     const int centerX = GetSystemMetrics(SM_CXSCREEN) / 2;
-    const uint32_t iconContainerSize = GetSystemMetrics(SM_CXICONSPACING);
+    const int screenWidth = GetSystemMetrics(SM_CXFULLSCREEN);
+    const uint32_t iconContainerSize = min(scale * 2 * GetSystemMetrics(SM_CXICON), (screenWidth * 0.9) / iconCount);
     const uint32_t sizeX = iconCount * iconContainerSize;
     const uint32_t halfSizeX = sizeX / 2;
     const uint32_t sizeY = 1 * iconContainerSize;
     const uint32_t halfSizeY = sizeY / 2;
-    POINT p;
-    p.x = centerX-halfSizeX;
-    p.y = centerY-halfSizeY;
-    SetWindowPos(hwnd, 0, p.x, p.y, sizeX, sizeY, SWP_NOOWNERZORDER);
+    metrics->_WinPosX = centerX - halfSizeX;
+    metrics->_WinPosY = centerY - halfSizeY;
+    metrics->_WinX = sizeX;
+    metrics->_WinY = sizeY;
+    metrics->_Icon = iconContainerSize / 2;
+    metrics->_IconContainer = iconContainerSize;
 }
-
-static void ComputeWinPosAndSize(uint32_t iconCount, uint32_t* px, uint32_t* py, uint32_t* sx, uint32_t* sy)
-{
-    const int centerY = GetSystemMetrics(SM_CYSCREEN) / 2;
-    const int centerX = GetSystemMetrics(SM_CXSCREEN) / 2;
-    const uint32_t iconContainerSize = GetSystemMetrics(SM_CXICONSPACING);
-    const uint32_t sizeX = iconCount * iconContainerSize;
-    const uint32_t halfSizeX = sizeX / 2;
-    const uint32_t sizeY = 1 * iconContainerSize;
-    const uint32_t halfSizeY = sizeY / 2;
-    *px = centerX-halfSizeX;
-    *py = centerY-halfSizeY;
-    *sx = sizeX;
-    *sy = sizeY;
-}
-
 
 static DWORD GetParentPID(DWORD PID)
 {
@@ -758,8 +808,8 @@ static void CreateWin(SAppData* appData)
 {
     if (appData->_MainWin)
         DestroyWin(appData->_MainWin);
-    uint32_t px, py, sx, sy;
-    ComputeWinPosAndSize(appData->_WinGroups._Size, &px, &py, &sx, &sy);
+
+    ComputeMetrics(appData->_WinGroups._Size, appData->_Config._Scale, &appData->_Metrics);
 
     HWND hwnd = CreateWindowEx(
         WS_EX_TOPMOST | WS_EX_TOOLWINDOW, // Optional window styles (WS_EX_)
@@ -767,7 +817,7 @@ static void CreateWin(SAppData* appData)
         "", // Window text
         WS_BORDER | WS_POPUP | WS_VISIBLE, // Window style
         // Pos and size
-        px, py, sx, sy,
+        appData->_Metrics._WinPosX, appData->_Metrics._WinPosY, appData->_Metrics._WinX, appData->_Metrics._WinY,
         NULL, // Parent window
         NULL, // Menu
         appData->_Instance, // Instance handle
@@ -826,10 +876,10 @@ static void ClearWinGroupArr(SWinGroupArr* winGroups)
 {
     for (uint32_t i = 0; i < winGroups->_Size; i++)
     {
-        if (winGroups->_Data[i]._Icon)
+        if (winGroups->_Data[i]._IconBitmap)
         {
-            DestroyIcon(winGroups->_Data[i]._Icon);
-            winGroups->_Data[i]._Icon = NULL;
+            GdipDisposeImage(winGroups->_Data[i]._IconBitmap);
+            winGroups->_Data[i]._IconBitmap = NULL;
         }
         winGroups->_Data[i]._WindowCount = 0;
     }
@@ -927,6 +977,7 @@ static LRESULT KbProc(int nCode, WPARAM wParam, LPARAM lParam)
     const KBDLLHOOKSTRUCT kbStrut = *(KBDLLHOOKSTRUCT*)lParam;
     const bool isAppHold = kbStrut.vkCode == _KeyConfig->_AppHold;
     const bool isAppSwitch = kbStrut.vkCode == _KeyConfig->_AppSwitch;
+    const bool isPrevApp = kbStrut.vkCode == _KeyConfig->_PrevApp;
     const bool isWinHold = kbStrut.vkCode == _KeyConfig->_WinHold;
     const bool isWinSwitch = kbStrut.vkCode == _KeyConfig->_WinSwitch;
     const bool isInvert = kbStrut.vkCode == _KeyConfig->_Invert;
@@ -941,13 +992,14 @@ static LRESULT KbProc(int nCode, WPARAM wParam, LPARAM lParam)
         isInvert ||
         isTab ||
         isShift ||
+        (isPrevApp && _KeyConfig->_PrevApp != 0xFFFFFFFF) ||
         isEscape;
 
     if (!isWatchedKey)
         return CallNextHookEx(NULL, nCode, wParam, lParam);
 
-    static KeyState keyState =  { false, false, false, false, false, false};
-    static Mode targetMode = ModeNone;
+    static KeyState keyState =  { false, false, false, false, false, false, false };
+    static Mode mode = ModeNone;
 
     const KeyState prevKeyState = keyState;
 
@@ -959,6 +1011,8 @@ static LRESULT KbProc(int nCode, WPARAM wParam, LPARAM lParam)
             keyState._HoldAppDown = !releasing;
         if (isAppSwitch)
             keyState._SwitchAppDown = !releasing;
+        if (isPrevApp)
+            keyState._PrevAppDown = !releasing;
         if (isWinHold)
             keyState._HoldWinDown = !releasing;
         if (isWinSwitch)
@@ -971,16 +1025,20 @@ static LRESULT KbProc(int nCode, WPARAM wParam, LPARAM lParam)
 
     // Update target app state
     bool bypassMsg = false;
-    const Mode prevTargetMode = targetMode;
+    const Mode prevMode = mode;
     {
         const bool switchWinInput = !prevKeyState._SwitchWinDown && keyState._SwitchWinDown;
         const bool switchAppInput = !prevKeyState._SwitchAppDown && keyState._SwitchAppDown;
+        const bool prevAppInput = !prevKeyState._PrevAppDown && keyState._PrevAppDown;
         const bool winHoldReleasing = prevKeyState._HoldWinDown && !keyState._HoldWinDown;
         const bool appHoldReleasing = prevKeyState._HoldAppDown && !keyState._HoldAppDown;
         const bool escapeInput = prevKeyState._EscapeDown && !keyState._EscapeDown;
 
         const bool switchApp =
             switchAppInput &&
+            keyState._HoldAppDown;
+       const bool prevApp =
+            prevAppInput &&
             keyState._HoldAppDown;
         const bool switchWin =
             switchWinInput &&
@@ -992,61 +1050,56 @@ static LRESULT KbProc(int nCode, WPARAM wParam, LPARAM lParam)
         bool isApplying = false;
 
         // Denit.
-        if (prevTargetMode == ModeApp &&
-            (switchWin || appHoldReleasing))
+        if ((prevMode == ModeApp) &&
+            (switchWin || appHoldReleasing) && !prevApp)
         {
-            targetMode = switchWinInput ? ModeWin : ModeNone;
+            mode = ModeNone;
             isApplying = true;
             PostThreadMessage(_MainThread, MSG_DEINIT_APP, 0, 0);
         }
-        else if (prevTargetMode == ModeWin &&
+        else if (prevMode == ModeWin &&
             (switchApp || winHoldReleasing))
         {
-            targetMode = switchAppInput ? ModeApp : ModeNone;
+            mode = switchAppInput ? ModeApp : ModeNone;
             isApplying = true;
             PostThreadMessage(_MainThread, MSG_DEINIT_WIN, 0, 0);
         }
-        else if (prevTargetMode == ModeApp && cancel)
+        else if (prevMode == ModeApp && cancel)
         {
-            targetMode = ModeNone;
+            mode = ModeNone;
             isApplying = true;
             PostThreadMessage(_MainThread, MSG_CANCEL_APP, 0, 0);
         }
 
-        if (switchApp)
-            targetMode = ModeApp;
-        else if (switchWin)
-            targetMode = ModeWin;
+        if (mode == ModeNone && switchApp)
+            mode = ModeApp;
+        else if (mode == ModeNone && switchWin)
+            mode = ModeWin;
 
-        if (targetMode == ModeApp && prevTargetMode != ModeApp)
+        if (mode == ModeApp && prevMode != ModeApp)
         {
             PostThreadMessage(_MainThread, MSG_INIT_APP, 0, 0);
         }
-        else if (targetMode == ModeWin && prevTargetMode != ModeWin)
+        else if (mode == ModeWin && prevMode != ModeWin)
         {
             PostThreadMessage(_MainThread, MSG_INIT_WIN, 0, 0);
         }
 
-        if (switchApp)
+        if (mode == ModeApp)
         {
-            targetMode = ModeApp;
-            if (keyState._InvertKeyDown)
+            if (switchApp)
+                PostThreadMessage(_MainThread, keyState._InvertKeyDown ? MSG_PREV_APP : MSG_NEXT_APP, 0, 0);
+            else if (prevApp)
                 PostThreadMessage(_MainThread, MSG_PREV_APP, 0, 0);
-            else
-                PostThreadMessage(_MainThread, MSG_NEXT_APP, 0, 0);
         }
         else if (switchWin)
         {
-            targetMode = ModeWin;
-            if (keyState._InvertKeyDown)
-                PostThreadMessage(_MainThread, MSG_PREV_WIN, 0, 0);
-            else
-                PostThreadMessage(_MainThread, MSG_NEXT_WIN, 0, 0);
+            PostThreadMessage(_MainThread, keyState._InvertKeyDown ? MSG_PREV_WIN : MSG_NEXT_WIN, 0, 0);
         }
 
         bypassMsg = 
-            ((targetMode != ModeNone) || isApplying) &&
-            (isWinSwitch || isAppSwitch || isWinHold || isAppHold || isInvert);
+            ((mode != ModeNone) || isApplying) &&
+            (isWinSwitch || isAppSwitch || isWinHold || isAppHold || isInvert || isPrevApp);
     }
 
     if (bypassMsg)
@@ -1119,6 +1172,17 @@ static bool TryGetBool(const char* lineBuf, const char* token, bool* boolToSet)
     return false;
 }
 
+static bool TryGetFloat(const char* lineBuf, const char* token, float* floatToSet)
+{
+    const char* pValue = strstr(lineBuf, token);
+    if (pValue != NULL)
+    {
+        *floatToSet = strtof(pValue + strlen(token)  - 1, NULL);
+        return true;
+    }
+    return false;
+}
+
 static bool TryGetTheme(const char* lineBuf, const char* token, ThemeMode* theme)
 {
     const char* pValue = strstr(lineBuf, token);
@@ -1142,7 +1206,7 @@ static bool TryGetTheme(const char* lineBuf, const char* token, ThemeMode* theme
     }
     return false;
 }
-
+#include "_Generated/ConfigStr.h"
 static void LoadConfig(Config* config)
 {
     config->_Key._AppHold = VK_LMENU;
@@ -1150,40 +1214,17 @@ static void LoadConfig(Config* config)
     config->_Key._WinHold = VK_LMENU;
     config->_Key._WinSwitch = VK_OEM_3;
     config->_Key._Invert = VK_LSHIFT;
+    config->_Key._PrevApp = 0xFFFFFFFF;
     config->_Mouse = true;
     config->_ThemeMode = ThemeModeAuto;
+    config->_Scale = 1.5;
 
     const char* configFile = "AltAppSwitcherConfig.txt";
     FILE* file = fopen(configFile ,"rb");
     if (file == NULL)
     {
         file = fopen(configFile ,"a");
-        fprintf(file,
-            "// AltAppSwitcher config file\n"
-            "// \n"
-            "// Possible key bindings values:\n"
-            "//     left alt\n"
-            "//     right alt\n"
-            "//     alt\n"
-            "//     tilde\n"
-            "//     left super (left windows)\n"
-            "//     right super (right windows)\n"
-            "//     left control\n"
-            "//     left shift\n"
-            "//     right shift\n"
-            "//     tab\n"
-            "\n"
-            "app hold key: left alt\n"
-            "app switch key: tab\n"
-            "window hold key: left alt\n"
-            "window switch key: tilde\n"
-            "invert order key: left shift\n"
-            "\n"
-            "// Theme can be \"auto\" (matches windows theme),\n"
-            "// \"light\" or \"dark\"\n"
-            "theme: auto\n"
-            "// Other options \n"
-            "allow mouse: true \n");
+        fprintf(file, ConfigStr);
         fclose(file);
         return;
     }
@@ -1195,17 +1236,21 @@ static void LoadConfig(Config* config)
             continue;
         if (TryGetKey(lineBuf, "app hold key: ", &config->_Key._AppHold))
             continue;
-        if (TryGetKey(lineBuf, "app switch key: ", &config->_Key._AppSwitch))
+        if (TryGetKey(lineBuf, "next app key: ", &config->_Key._AppSwitch))
+            continue;
+        if (TryGetKey(lineBuf, "previous app key: ", &config->_Key._PrevApp))
             continue;
         if (TryGetKey(lineBuf, "window hold key: ", &config->_Key._WinHold))
             continue;
-        if (TryGetKey(lineBuf, "window switch key: ", &config->_Key._WinSwitch))
+        if (TryGetKey(lineBuf, "next window key: ", &config->_Key._WinSwitch))
             continue;
         if (TryGetKey(lineBuf, "invert order key: ", &config->_Key._Invert))
             continue;
         if (TryGetBool(lineBuf, "allow mouse: ", &config->_Mouse))
             continue;
         if (TryGetTheme(lineBuf, "theme: ", &config->_ThemeMode))
+            continue;
+        if (TryGetFloat(lineBuf, "scale: ", &config->_Scale))
             continue;
     }
     fclose(file);
@@ -1234,7 +1279,7 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
             mouseInside = true;
             return 0;
         }
-        const int iconContainerSize = (int)GetSystemMetrics(SM_CXICONSPACING);
+        const int iconContainerSize = (int)appData->_Metrics._IconContainer;
         const int posX = GET_X_LPARAM(lParam);
         appData->_Selection = min(max(0, posX / iconContainerSize), (int)appData->_WinGroups._Size);
         InvalidateRect(appData->_MainWin, 0, FALSE);
@@ -1316,10 +1361,13 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 
         GpGraphics* pGraphics = NULL;
         ASSERT(Ok == GdipCreateFromHDC(pGraphRes->_DC, &pGraphics));
+        // gdiplus/gdiplusenums.h
         GdipSetSmoothingMode(pGraphics, 5);
+        GdipSetPixelOffsetMode(pGraphics, 2);
+        GdipSetInterpolationMode(pGraphics, 7); // InterpolationModeHighQualityBicubic
 
-        const uint32_t iconContainerSize = GetSystemMetrics(SM_CXICONSPACING);
-        const uint32_t iconSize = GetSystemMetrics(SM_CXICON);
+        const uint32_t iconSize = appData->_Metrics._Icon;
+        const uint32_t iconContainerSize = 2.0 * iconSize;// GetSystemMetrics(SM_CXICONSPACING);
         const uint32_t padding = (iconContainerSize - iconSize) / 2;
         uint32_t x = padding;
         for (uint32_t i = 0; i < appData->_WinGroups._Size; i++)
@@ -1343,20 +1391,13 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
             // https://learn.microsoft.com/en-us/windows/win32/gdiplus/-gdiplus-using-a-color-remap-table-use
             // https://learn.microsoft.com/en-us/windows/win32/gdiplus/-gdiplus-using-a-color-matrix-to-transform-a-single-color-use
             // Also check palette to see if monochrome
-            if (pWinGroup->_UWPIconPath[0] != L'\0')
+            if (pWinGroup->_IconBitmap)
             {
-                GpImage* img = NULL;
-                GdipLoadImageFromFile(pWinGroup->_UWPIconPath, &img);
-                GdipDrawImageRectI(pGraphics, img, x, padding, iconSize, iconSize);
-                GdipDisposeImage(img);
-            }
-            else if (pWinGroup->_Icon)
-            {
-                DrawIcon(pGraphRes->_DC, x, padding, pWinGroup->_Icon);
+                GdipDrawImageRectI(pGraphics, pWinGroup->_IconBitmap, x, padding, iconSize, iconSize);
             }
 
             {
-                WCHAR count[4];
+                WCHAR count[4]; 
                 const uint32_t winCount = pWinGroup->_WindowCount;
                 const uint32_t digitsCount = winCount > 99 ? 3 : winCount > 9 ? 2 : 1;
                 const uint32_t width = digitsCount * (uint32_t)(0.7 * (float)pGraphRes->_FontSize) + 5;
@@ -1415,6 +1456,7 @@ int StartAltAppSwitcher(HINSTANCE hInstance)
     }
 
     static SAppData _AppData;
+    memset(&_AppData, 0, sizeof(SAppData));
 
     {
         WNDCLASS wc = { };

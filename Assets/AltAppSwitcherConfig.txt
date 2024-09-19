@@ -11,16 +11,20 @@
 //     left shift
 //     right shift
 //     tab
+//     none
 
 app hold key: left alt
-app switch key: tab
+next app key: tab
+previous app key: tilde
 window hold key: left alt
 window switch key: tilde
 invert order key: left shift
 
+// Graphic options
 // Theme can be "auto" (matches windows theme),
 // "light" or "dark"
 theme: auto
+scale: 1.5
 
 // Other options
 allow mouse: true
