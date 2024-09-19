@@ -3,11 +3,20 @@
 		{
 			"type": "lldb",
 			"request": "launch",
-			"name": "Launch",
+			"name": "Build and debug",
 			"program": "${workspaceFolder}/Output/Debug/AltAppSwitcher.exe",
 			"args": [],
 			"cwd": "${workspaceFolder}/Output/Debug",
 			"preLaunchTask": "Build debug",
+			"console": "integratedTerminal"
+		},
+		{
+			"type": "lldb",
+			"request": "launch",
+			"name": "Debug",
+			"program": "${workspaceFolder}/Output/Debug/AltAppSwitcher.exe",
+			"args": [],
+			"cwd": "${workspaceFolder}/Output/Debug",
 			"console": "integratedTerminal"
 		}
 	]

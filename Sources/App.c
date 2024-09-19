@@ -999,7 +999,7 @@ static LRESULT KbProc(int nCode, WPARAM wParam, LPARAM lParam)
         return CallNextHookEx(NULL, nCode, wParam, lParam);
 
     static KeyState keyState =  { false, false, false, false, false, false, false };
-    static Mode targetMode = ModeNone;
+    static Mode mode = ModeNone;
 
     const KeyState prevKeyState = keyState;
 
@@ -1025,7 +1025,7 @@ static LRESULT KbProc(int nCode, WPARAM wParam, LPARAM lParam)
 
     // Update target app state
     bool bypassMsg = false;
-    const Mode prevTargetMode = targetMode;
+    const Mode prevMode = mode;
     {
         const bool switchWinInput = !prevKeyState._SwitchWinDown && keyState._SwitchWinDown;
         const bool switchAppInput = !prevKeyState._SwitchAppDown && keyState._SwitchAppDown;
@@ -1050,64 +1050,55 @@ static LRESULT KbProc(int nCode, WPARAM wParam, LPARAM lParam)
         bool isApplying = false;
 
         // Denit.
-        if (prevTargetMode == ModeApp &&
+        if ((prevMode == ModeApp) &&
             (switchWin || appHoldReleasing) && !prevApp)
         {
-            targetMode = ModeNone;
+            mode = ModeNone;
             isApplying = true;
             PostThreadMessage(_MainThread, MSG_DEINIT_APP, 0, 0);
         }
-        else if (prevTargetMode == ModeWin &&
+        else if (prevMode == ModeWin &&
             (switchApp || winHoldReleasing))
         {
-            targetMode = switchAppInput ? ModeApp : ModeNone;
+            mode = switchAppInput ? ModeApp : ModeNone;
             isApplying = true;
             PostThreadMessage(_MainThread, MSG_DEINIT_WIN, 0, 0);
         }
-        else if (prevTargetMode == ModeApp && cancel)
+        else if (prevMode == ModeApp && cancel)
         {
-            targetMode = ModeNone;
+            mode = ModeNone;
             isApplying = true;
             PostThreadMessage(_MainThread, MSG_CANCEL_APP, 0, 0);
         }
 
-        if (targetMode == ModeNone && switchApp)
-            targetMode = ModeApp;
-        else if (targetMode == ModeNone && switchWin)
-            targetMode = ModeWin;
+        if (mode == ModeNone && switchApp)
+            mode = ModeApp;
+        else if (mode == ModeNone && switchWin)
+            mode = ModeWin;
 
-        if (targetMode == ModeApp && prevTargetMode != ModeApp)
+        if (mode == ModeApp && prevMode != ModeApp)
         {
             PostThreadMessage(_MainThread, MSG_INIT_APP, 0, 0);
         }
-        else if (targetMode == ModeWin && prevTargetMode != ModeWin)
+        else if (mode == ModeWin && prevMode != ModeWin)
         {
             PostThreadMessage(_MainThread, MSG_INIT_WIN, 0, 0);
         }
 
-        if (switchApp)
+        if (mode == ModeApp)
         {
-            targetMode = ModeApp;
-            if (keyState._InvertKeyDown)
-                PostThreadMessage(_MainThread, MSG_PREV_APP, 0, 0);
-            else
+            if (switchApp)
+                PostThreadMessage(_MainThread, keyState._InvertKeyDown ? MSG_PREV_APP : MSG_NEXT_APP, 0, 0);
+            else if (prevApp)
                 PostThreadMessage(_MainThread, MSG_NEXT_APP, 0, 0);
-        }
-        else if (targetMode == ModeApp && prevApp)
-        {
-            PostThreadMessage(_MainThread, MSG_PREV_APP, 0, 0);
         }
         else if (switchWin)
         {
-            targetMode = ModeWin;
-            if (keyState._InvertKeyDown)
-                PostThreadMessage(_MainThread, MSG_PREV_WIN, 0, 0);
-            else
-                PostThreadMessage(_MainThread, MSG_NEXT_WIN, 0, 0);
+            PostThreadMessage(_MainThread, keyState._InvertKeyDown ? MSG_PREV_WIN : MSG_NEXT_WIN, 0, 0);
         }
 
         bypassMsg = 
-            ((targetMode != ModeNone) || isApplying) &&
+            ((mode != ModeNone) || isApplying) &&
             (isWinSwitch || isAppSwitch || isWinHold || isAppHold || isInvert || isPrevApp);
     }
 

@@ -195,6 +195,7 @@ static Pair Pairs[] = {
     { "left shift", VK_LSHIFT },
     { "right shift", VK_RSHIFT },
     { "tab", VK_TAB },
+    { "none", 0xFFFFFFFF },
 };
 
 static const uint32_t count = sizeof(Pairs) / sizeof(Pairs[0]);
