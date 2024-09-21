@@ -703,29 +703,33 @@ static BOOL FillWinGroups(HWND hwnd, LPARAM lParam)
                     SHFILEINFO fi;
                     SHGetFileInfo(pathStr, 0, &fi, sizeof(fi), SHGFI_SYSICONINDEX);
 
-                    HICON icon = ImageList_GetIcon(GetSysImgList(), fi.iIcon, ILD_TRANSPARENT);
+                    IShellItemImageFactory* shellItem;
+                    wchar_t wpath[256];
+                    mbstowcs(wpath, pathStr,256);
+                    HRESULT hr = SHCreateItemFromParsingName(wpath, NULL, &IID_IShellItemImageFactory, (void**)&shellItem);
+                    (void)hr;
+                    SIZE s = { 256, 256 };
+                    HBITMAP hbi = NULL;
+                    IShellItemImageFactory_GetImage(shellItem, s, SIIGBF_SCALEUP, &hbi);
 
-                    ICONINFO icInf;
-                    memset(&icInf, 0, sizeof(ICONINFO));
-                    GetIconInfo(icon, &icInf);
-
-                    memset(group->iconData, 0, sizeof(group->iconData));
-
-                    GdipCreateBitmapFromScan0(256, 256, 4 * 256, PixelFormat32bppARGB, (void*)&group->iconData[0], &group->_IconBitmap);
-
-                    GpRect r = { 0, 0, 256, 256 };
                     BITMAP bi;
                     memset(&bi, 0, sizeof(BITMAP));
-                    GetObject(icInf.hbmColor, sizeof(BITMAP), (void*)&bi);
+                    GetObject(hbi, sizeof(BITMAP), (void*)&bi);
+
+                    ASSERT(bi.bmWidth <= 256 && bi.bmHeight <= 256);
+ 
+                    memset(group->iconData, 0, sizeof(group->iconData));
+                    GdipCreateBitmapFromScan0(bi.bmWidth, bi.bmHeight, 4 * bi.bmWidth, PixelFormat32bppARGB, (void*)&group->iconData[0], &group->_IconBitmap);
+
+                    GpRect r = { 0, 0, bi.bmWidth, bi.bmHeight };
+
                     BitmapData dstData;
                     memset(&dstData, 0, sizeof(BitmapData));
                     GdipBitmapLockBits(group->_IconBitmap,&r, 0, PixelFormat32bppARGB, &dstData);
-                    GetBitmapBits(icInf.hbmColor, sizeof(uint32_t) * 256 * 256, dstData.Scan0);
+                    GetBitmapBits(hbi, sizeof(uint32_t) * bi.bmWidth * bi.bmHeight, dstData.Scan0);
                     GdipBitmapUnlockBits(group->_IconBitmap, &dstData);
 
-                    DeleteObject(icInf.hbmColor);
-                    DeleteObject(icInf.hbmMask);
-                    DestroyIcon(icon);
+                    DeleteObject(hbi);
                     CoUninitialize();
                 }
                 else if (isUWP)
