@@ -1,3 +1,5 @@
+#define COBJMACROS
+#define CINTERFACE
 #include <minwindef.h>
 #include <stdio.h>
 #include <string.h>
@@ -27,8 +29,11 @@
 #include "initguid.h"
 #include "Shellapi.h"
 #include "commoncontrols.h"
-#define COBJMACROS
+
 #include "Shobjidl.h"
+#include "objidl.h"
+#include "Unknwn.h"
+#include <um/appxpackaging.h>
 #undef COBJMACROS
 LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam);
 
@@ -650,6 +655,81 @@ static void GetUWPIcon(HANDLE process, wchar_t* iconPath, SAppData* appData)
     }
 }
 
+//https://github.com/microsoft/Windows-classic-samples/blob/main/Samples/AppxPackingDescribeAppx/cpp/DescribeAppx.cpp
+static void GetUWPIcon2(HANDLE process, wchar_t* iconPath)
+{
+    (void)iconPath;
+    static wchar_t userModelID[256];
+    uint32_t userModelIDLength = 256;
+    {
+        GetApplicationUserModelId(process, &userModelIDLength, userModelID);
+    }
+
+    PACKAGE_ID pid[32];
+    uint32_t pidSize = sizeof(pid);
+    GetPackageId(process, &pidSize, (BYTE*)pid);
+    static wchar_t packagePath[256];
+    uint32_t packagePathLength = 256;
+    GetPackagePath(pid, 0, &packagePathLength, packagePath);
+    static wchar_t manifestPath[256];
+    wcscat(manifestPath, packagePath);
+    wcscat(manifestPath, L"/AppXManifest.xml");
+
+    IStream* inputStream = NULL;
+    HRESULT res = SHCreateStreamOnFileEx(
+                manifestPath,
+                STGM_READ | STGM_SHARE_EXCLUSIVE,
+                0, // default file attributes
+                FALSE, // do not create new file
+                NULL, // no template
+                &inputStream);
+    if (!SUCCEEDED(res))
+        return;
+
+    IAppxFactory* appxfac = NULL;
+    GUID clsid;
+    CLSIDFromString(L"{5842a140-ff9f-4166-8f5c-62f5b7b0c781}", &clsid);
+    GUID iid;
+    CLSIDFromString(L"{beb94909-e451-438b-b5a7-d79e767b75d8}", &iid);
+    res = CoCreateInstance(&clsid, NULL, CLSCTX_INPROC_SERVER, &iid, (void**)&appxfac);
+    if (!SUCCEEDED(res))
+        return;
+
+    IAppxManifestReader* pr = NULL;
+    res = IAppxFactory_CreateManifestReader(appxfac, inputStream, &pr);
+
+    if (!SUCCEEDED(res))
+        return;
+
+    IAppxManifestProperties* prop = NULL;
+    res = IAppxManifestReader_GetProperties(pr, &prop);
+
+    if (!SUCCEEDED(res))
+        return;
+
+    wchar_t* logoProp;
+    
+    res = IAppxManifestProperties_GetStringValue(prop, L"Logo", &logoProp);
+
+    if (!SUCCEEDED(res))
+        return;
+
+    iconPath[0] = L'\0';
+
+    wcscat(iconPath, packagePath);
+    wcscat(iconPath, L"/");
+    wcscat(iconPath, logoProp);
+
+    //CoCreateInstance(&CLSID_AppxFactory, NULL, 0, &IID_IAppxFactory, (void**)&appxfac);
+    /*
+    QueryInterface()
+    IAppxFactory_QueryInterface()
+    CreatePackageReader( )
+    IID_IAppxFactory
+    IAppxFactory_CreatePackageReader()*/
+}
+
+
 static BOOL FillWinGroups(HWND hwnd, LPARAM lParam)
 {
     if (!IsAltTabWindow(hwnd))
@@ -696,9 +776,10 @@ static BOOL FillWinGroups(HWND hwnd, LPARAM lParam)
                     DestroyIcon(icon);
                 }
 
+                CoInitializeEx(NULL, COINIT_APARTMENTTHREADED);
+
                 if (stdIcon | !isUWP)
                 {
-                    CoInitializeEx(NULL, COINIT_APARTMENTTHREADED);
 
                     SHFILEINFO fi;
                     SHGetFileInfo(pathStr, 0, &fi, sizeof(fi), SHGFI_SYSICONINDEX);
@@ -730,14 +811,14 @@ static BOOL FillWinGroups(HWND hwnd, LPARAM lParam)
                     GdipBitmapUnlockBits(group->_IconBitmap, &dstData);
 
                     DeleteObject(hbi);
-                    CoUninitialize();
                 }
                 else if (isUWP)
                 {
                     wchar_t iconPath[256];
-                    GetUWPIcon(process, iconPath, appData);
+                    GetUWPIcon2(process, iconPath);
                     GdipLoadImageFromFile(iconPath, &group->_IconBitmap);
                 }
+                CoUninitialize();
             }
         }
     }
