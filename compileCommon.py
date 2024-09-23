@@ -19,7 +19,7 @@ def WarningOptions():
     return "-Werror -Wall -Wextra -Wno-unused-function -Wno-used-but-marked-unused -Wno-nonportable-include-path"
 
 def Includes():
-    return "-I ./Sources -I \"C:/Program Files (x86)/Windows Kits/10/Include/10.0.22621.0/\""
+    return "-I ./Sources -I ./SDK"
 
 def CopyAssets(dir):
     for file in os.listdir("./Assets/"):
@@ -46,7 +46,7 @@ def CompileDbg(arch = "x86_64"):
         os.makedirs(dir)
     CopyAssets(dir)
     file = f"{dir}/AltAppSwitcher.exe"
-    cmd = f"clang {CFiles()} {Includes()} -L ./Lib/{arch} {LinkArgs()} -o {file} {WarningOptions()} {Common()} -g -glldb -target x86_64-mingw64 -D DEBUG=1"
+    cmd = f"clang {CFiles()} {Includes()} {LinkArgs()} -o {file} {WarningOptions()} {Common()} -g -glldb -target x86_64-mingw64 -D DEBUG=1"
     os.system(cmd)
     #os.system(f"mt.exe -manifest \"./Manifest.xml\" -outputresource:\"{file}\"")
     return file
@@ -58,6 +58,6 @@ def CompileRel(arch = "x86_64"):
         os.makedirs(dir)
     CopyAssets(dir)
     file = f"{dir}/AltAppSwitcher.exe"
-    cmd = f"clang {CFiles()} {Includes()} -L ./Lib/{arch} {LinkArgs()} -o {file} -mwindows {WarningOptions()} {Common()} -s -Os -Oz -target {arch}-mingw64"
+    cmd = f"clang {CFiles()} {Includes()} {LinkArgs()} -o {file} -mwindows {WarningOptions()} {Common()} -s -Os -Oz -target {arch}-mingw64"
     os.system(cmd)
     return file

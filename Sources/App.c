@@ -1,5 +1,4 @@
 #define COBJMACROS
-#define CINTERFACE
 #include <minwindef.h>
 #include <stdio.h>
 #include <string.h>
@@ -29,11 +28,10 @@
 #include "initguid.h"
 #include "Shellapi.h"
 #include "commoncontrols.h"
-
 #include "Shobjidl.h"
 #include "objidl.h"
 #include "Unknwn.h"
-#include <um/appxpackaging.h>
+#include <appxpackaging.h>
 #undef COBJMACROS
 LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam);
 
