@@ -23,16 +23,16 @@
 #include <stdlib.h>
 #include <windowsx.h>
 #include <combaseapi.h>
-#include "AltAppSwitcherHelpers.h"
-#include "KeyCodeFromConfigName.h"
-#include "initguid.h"
-#include "Shellapi.h"
-#include "commoncontrols.h"
-#include "Shobjidl.h"
-#include "objidl.h"
-#include "Unknwn.h"
+#include <initguid.h>
+#include <Shellapi.h>
+#include <commoncontrols.h>
+#include <Shobjidl.h>
+#include <objidl.h>
+#include <Unknwn.h>
 #include <appxpackaging.h>
 #undef COBJMACROS
+#include "AltAppSwitcherHelpers.h"
+#include "KeyCodeFromConfigName.h"
 LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam);
 
 typedef struct SWinGroup
@@ -654,9 +654,9 @@ static void GetUWPIcon(HANDLE process, wchar_t* iconPath, SAppData* appData)
 }
 
 //https://github.com/microsoft/Windows-classic-samples/blob/main/Samples/AppxPackingDescribeAppx/cpp/DescribeAppx.cpp
-static void GetUWPIcon2(HANDLE process, wchar_t* iconPath)
+static void GetUWPIcon2(HANDLE process, wchar_t* outIconPath)
 {
-    (void)iconPath;
+    (void)outIconPath;
     static wchar_t userModelID[256];
     uint32_t userModelIDLength = 256;
     {
@@ -693,31 +693,92 @@ static void GetUWPIcon2(HANDLE process, wchar_t* iconPath)
     if (!SUCCEEDED(res))
         return;
 
-    IAppxManifestReader* pr = NULL;
-    res = IAppxFactory_CreateManifestReader(appxfac, inputStream, &pr);
+    IAppxManifestReader* reader = NULL;
+    res = IAppxFactory_CreateManifestReader(appxfac, inputStream, &reader);
 
     if (!SUCCEEDED(res))
         return;
 
-    IAppxManifestProperties* prop = NULL;
-    res = IAppxManifestReader_GetProperties(pr, &prop);
+    IAppxManifestApplicationsEnumerator* appEnum = NULL;
+    res = IAppxManifestReader_GetApplications(reader, &appEnum);
 
     if (!SUCCEEDED(res))
         return;
+
+    IAppxManifestApplication* app = NULL;
+    BOOL hasApp = false;
+    IAppxManifestApplicationsEnumerator_GetHasCurrent(appEnum, &hasApp);
+    while (hasApp != NULL)
+    {
+        IAppxManifestApplication_GetAppUserModelId()
+        IAppxManifestApplication_GetStringValue()
+        IAppxManifestApplicationsEnumerator_MoveNext(appEnum, &hasApp);
+    }
 
     wchar_t* logoProp;
-    
+    IAppxManifestProperties* prop = NULL;
+    res = IAppxManifestReader_GetProperties(reader, &prop);
+
+    if (!SUCCEEDED(res))
+        return;
+
     res = IAppxManifestProperties_GetStringValue(prop, L"Logo", &logoProp);
 
     if (!SUCCEEDED(res))
         return;
 
-    iconPath[0] = L'\0';
+    for (uint32_t i = 0; logoProp[i] != L'\0'; i++)
+    {
+        if (logoProp[i] == L'\\')
+            logoProp[i] = L'/';
+    }
 
-    wcscat(iconPath, packagePath);
-    wcscat(iconPath, L"/");
-    wcscat(iconPath, logoProp);
+    wchar_t logoPath[256];
+    wcscpy(logoPath, packagePath);
+    wcscat(logoPath, L"/");
+    wcscat(logoPath, logoProp);
 
+    wchar_t parentDir[256];
+    wcscpy(parentDir, logoPath);
+    wcscpy(wcsrchr(parentDir, L'/'), L"/*");
+
+    wchar_t logoNoExt[256];
+    wchar_t* atLastSlash = wcsrchr(logoProp, L'/');
+    wcscpy(logoNoExt, atLastSlash ? atLastSlash + 1 : logoProp);
+    wcsrchr(logoNoExt, L'.')[0] = L'\0';
+
+    wchar_t ext[16];
+    wcscpy(ext, wcsrchr(logoProp, L'.'));
+
+    WIN32_FIND_DATAW findData;
+    HANDLE hFind = INVALID_HANDLE_VALUE;
+    hFind = FindFirstFileW(parentDir, &findData);
+
+    if (hFind == INVALID_HANDLE_VALUE)
+        return;
+
+    uint32_t maxSize = 0;
+    while (FindNextFileW(hFind, &findData) != 0)
+    {
+        wprintf(findData.cFileName);
+        wprintf(L"\n");
+        wchar_t* at = wcsstr(findData.cFileName, logoNoExt);
+        if (at == NULL)
+            continue;
+        at += wcslen(logoNoExt);
+        at = wcsstr(at, L"targetsize-");
+        if (at == NULL)
+            continue;
+        at += wcslen(L"targetsize-");
+
+        const uint32_t size = wcstol(at, NULL, 10);
+        if (size > maxSize)
+        {
+            maxSize = size;
+            wcscpy(outIconPath, packagePath);
+            wcscat(outIconPath, findData.cFileName);
+        }
+    }
     //CoCreateInstance(&CLSID_AppxFactory, NULL, 0, &IID_IAppxFactory, (void**)&appxfac);
     /*
     QueryInterface()

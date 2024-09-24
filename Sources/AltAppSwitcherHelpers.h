@@ -22,13 +22,6 @@ static void GetLastWinErrStr(char* str, uint32_t strSize)
     LocalFree(msg);
 }
 
-static void PrintLastError()
-{
-    static char msg[512];
-    GetLastWinErrStr(msg, 512);
-    printf("%s", msg);
-}
-
 static void GetCurrentProcessName(char* processName, uint32_t strMaxSize)
 {
     HMODULE module[1] = {};
@@ -50,6 +43,7 @@ static void MSSError(const char* file, uint32_t line, const char* assertStr)
     timeStr[strlen(timeStr) - 1] = '\0';
     static char winMsg[512];
     GetLastWinErrStr(winMsg, 512);
+    SetLastError(0);
 
     FILE* f = fopen("./AltAppSwitcherLog.txt", "ab");
     if (f == NULL)
@@ -59,7 +53,8 @@ static void MSSError(const char* file, uint32_t line, const char* assertStr)
     fprintf(f, "Last winapi error: %s\n\n", winMsg[0] == '\0' ? "None" : winMsg);
     fclose(f);
 
-    SetLastError(0);
+    printf( "Assert: %s\n", assertStr);
+    printf("Last winapi error: %s\n\n", winMsg[0] == '\0' ? "None" : winMsg);
 
     DebugBreak();
 }
