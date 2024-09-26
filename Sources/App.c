@@ -670,7 +670,7 @@ static void GetUWPIcon2(HANDLE process, wchar_t* outIconPath)
     uint32_t packagePathLength = 256;
     GetPackagePath(pid, 0, &packagePathLength, packagePath);
     static wchar_t manifestPath[256];
-    wcscat(manifestPath, packagePath);
+    wcscpy(manifestPath, packagePath);
     wcscat(manifestPath, L"/AppXManifest.xml");
 
     IStream* inputStream = NULL;
@@ -699,33 +699,51 @@ static void GetUWPIcon2(HANDLE process, wchar_t* outIconPath)
     if (!SUCCEEDED(res))
         return;
 
-    IAppxManifestApplicationsEnumerator* appEnum = NULL;
-    res = IAppxManifestReader_GetApplications(reader, &appEnum);
+    wchar_t* logoProp = NULL;
+#if 0
 
-    if (!SUCCEEDED(res))
-        return;
-
-    IAppxManifestApplication* app = NULL;
-    BOOL hasApp = false;
-    IAppxManifestApplicationsEnumerator_GetHasCurrent(appEnum, &hasApp);
-    while (hasApp != NULL)
     {
-        IAppxManifestApplication_GetAppUserModelId()
-        IAppxManifestApplication_GetStringValue()
-        IAppxManifestApplicationsEnumerator_MoveNext(appEnum, &hasApp);
+        IAppxManifestApplicationsEnumerator* appEnum = NULL;
+        res = IAppxManifestReader_GetApplications(reader, &appEnum);
+        if (!SUCCEEDED(res))
+            return;
+
+        IAppxManifestApplication* app = NULL;
+        BOOL hasApp = false;
+        IAppxManifestApplicationsEnumerator_GetHasCurrent(appEnum, &hasApp);
+        IAppxManifestApplicationsEnumerator_GetCurrent(appEnum, &app);
+        while (hasApp)
+        {
+            static wchar_t* aumid = NULL;
+            IAppxManifestApplication_GetAppUserModelId(app, &aumid);
+            if (!wcscmp(aumid, userModelID))
+            {
+                IAppxManifestApplication_GetStringValue(app, L"Logo", &logoProp);
+                break;
+            }
+            IAppxManifestApplicationsEnumerator_MoveNext(appEnum, &hasApp);
+        }
     }
+#else
+    {
+        IAppxManifestProperties* prop = NULL;
+        res = IAppxManifestReader_GetProperties(reader, &prop);
 
-    wchar_t* logoProp;
-    IAppxManifestProperties* prop = NULL;
-    res = IAppxManifestReader_GetProperties(reader, &prop);
+        if (!SUCCEEDED(res))
+            return;
 
-    if (!SUCCEEDED(res))
-        return;
+        res = IAppxManifestProperties_GetStringValue(prop, L"Logo", &logoProp);
 
-    res = IAppxManifestProperties_GetStringValue(prop, L"Logo", &logoProp);
+        if (!SUCCEEDED(res))
+            return;
 
-    if (!SUCCEEDED(res))
-        return;
+        IAppxManifestProperties_Release(prop);
+    }
+#endif
+    ASSERT(logoProp != NULL);
+
+    IAppxManifestReader_Release(reader);
+    IStream_Release(inputStream);
 
     for (uint32_t i = 0; logoProp[i] != L'\0'; i++)
     {
@@ -740,7 +758,11 @@ static void GetUWPIcon2(HANDLE process, wchar_t* outIconPath)
 
     wchar_t parentDir[256];
     wcscpy(parentDir, logoPath);
-    wcscpy(wcsrchr(parentDir, L'/'), L"/*");
+    *wcsrchr(parentDir, L'/') = L'\0';
+
+    wchar_t parentDirStar[256];
+    wcscpy(parentDirStar, parentDir);
+    wcscat(parentDirStar, L"/*");
 
     wchar_t logoNoExt[256];
     wchar_t* atLastSlash = wcsrchr(logoProp, L'/');
@@ -752,33 +774,43 @@ static void GetUWPIcon2(HANDLE process, wchar_t* outIconPath)
 
     WIN32_FIND_DATAW findData;
     HANDLE hFind = INVALID_HANDLE_VALUE;
-    hFind = FindFirstFileW(parentDir, &findData);
+    hFind = FindFirstFileW(parentDirStar, &findData);
 
     if (hFind == INVALID_HANDLE_VALUE)
         return;
 
     uint32_t maxSize = 0;
+    bool foundAny = false;
     while (FindNextFileW(hFind, &findData) != 0)
     {
-        wprintf(findData.cFileName);
-        wprintf(L"\n");
+        // wprintf(findData.cFileName);
+        // wprintf(L"\n");
         wchar_t* at = wcsstr(findData.cFileName, logoNoExt);
         if (at == NULL)
             continue;
         at += wcslen(logoNoExt);
         at = wcsstr(at, L"targetsize-");
+        uint32_t size = 0;
         if (at == NULL)
-            continue;
-        at += wcslen(L"targetsize-");
-
-        const uint32_t size = wcstol(at, NULL, 10);
-        if (size > maxSize)
+        {
+            size = 0;
+        }
+        else
+        {
+            at += wcslen(L"targetsize-");
+            size = wcstol(at, NULL, 10);
+        }
+        if (size > maxSize || !foundAny)
         {
             maxSize = size;
-            wcscpy(outIconPath, packagePath);
+            foundAny = true;
+            wcscpy(outIconPath, parentDir);
+            wcscat(outIconPath, L"/");
             wcscat(outIconPath, findData.cFileName);
         }
     }
+
+
     //CoCreateInstance(&CLSID_AppxFactory, NULL, 0, &IID_IAppxFactory, (void**)&appxfac);
     /*
     QueryInterface()
@@ -839,7 +871,6 @@ static BOOL FillWinGroups(HWND hwnd, LPARAM lParam)
 
                 if (stdIcon | !isUWP)
                 {
-
                     SHFILEINFO fi;
                     SHGetFileInfo(pathStr, 0, &fi, sizeof(fi), SHGFI_SYSICONINDEX);
 
