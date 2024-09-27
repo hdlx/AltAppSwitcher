@@ -700,8 +700,8 @@ static void GetUWPIcon2(HANDLE process, wchar_t* outIconPath)
         return;
 
     wchar_t* logoProp = NULL;
-#if 0
 
+#if 1
     {
         IAppxManifestApplicationsEnumerator* appEnum = NULL;
         res = IAppxManifestReader_GetApplications(reader, &appEnum);
@@ -718,7 +718,7 @@ static void GetUWPIcon2(HANDLE process, wchar_t* outIconPath)
             IAppxManifestApplication_GetAppUserModelId(app, &aumid);
             if (!wcscmp(aumid, userModelID))
             {
-                IAppxManifestApplication_GetStringValue(app, L"Logo", &logoProp);
+                IAppxManifestApplication_GetStringValue(app, L"Square44x44Logo", &logoProp);
                 break;
             }
             IAppxManifestApplicationsEnumerator_MoveNext(appEnum, &hasApp);
@@ -867,9 +867,17 @@ static BOOL FillWinGroups(HWND hwnd, LPARAM lParam)
                     DestroyIcon(icon);
                 }
 
-                CoInitializeEx(NULL, COINIT_APARTMENTTHREADED);
+                {
+                    static wchar_t userModelID[256];
+                    userModelID[0] = L'\0';
+                    uint32_t userModelIDLength = 256;
+                    GetApplicationUserModelId(process, &userModelIDLength, userModelID);
+                    isUWP = userModelID[0] != L'\0';
+                }
 
-                if (stdIcon | !isUWP)
+                CoInitializeEx(NULL, COINIT_APARTMENTTHREADED);
+                (void)stdIcon;
+                if (!isUWP)
                 {
                     SHFILEINFO fi;
                     SHGetFileInfo(pathStr, 0, &fi, sizeof(fi), SHGFI_SYSICONINDEX);
@@ -882,13 +890,13 @@ static BOOL FillWinGroups(HWND hwnd, LPARAM lParam)
                     SIZE s = { 256, 256 };
                     HBITMAP hbi = NULL;
                     IShellItemImageFactory_GetImage(shellItem, s, SIIGBF_SCALEUP, &hbi);
-
+                    
                     BITMAP bi;
                     memset(&bi, 0, sizeof(BITMAP));
                     GetObject(hbi, sizeof(BITMAP), (void*)&bi);
 
                     ASSERT(bi.bmWidth <= 256 && bi.bmHeight <= 256);
- 
+
                     memset(group->iconData, 0, sizeof(group->iconData));
                     GdipCreateBitmapFromScan0(bi.bmWidth, bi.bmHeight, 4 * bi.bmWidth, PixelFormat32bppARGB, (void*)&group->iconData[0], &group->_IconBitmap);
 
@@ -904,7 +912,8 @@ static BOOL FillWinGroups(HWND hwnd, LPARAM lParam)
                 }
                 else if (isUWP)
                 {
-                    wchar_t iconPath[256];
+                    static wchar_t iconPath[256];
+                    iconPath[0] = L'\0';
                     GetUWPIcon2(process, iconPath);
                     GdipLoadImageFromFile(iconPath, &group->_IconBitmap);
                 }
