@@ -688,13 +688,13 @@ static void GetUWPIcon2(HANDLE process, wchar_t* outIconPath)
     GUID clsid;
     CLSIDFromString(L"{5842a140-ff9f-4166-8f5c-62f5b7b0c781}", &clsid);
     GUID iid;
-    CLSIDFromString(L"{beb94909-e451-438b-b5a7-d79e767b75d8}", &iid);
+    IIDFromString(L"{beb94909-e451-438b-b5a7-d79e767b75d8}", &iid);
     res = CoCreateInstance(&clsid, NULL, CLSCTX_INPROC_SERVER, &iid, (void**)&appxfac);
     if (!SUCCEEDED(res))
         return;
 
     IAppxManifestReader* reader = NULL;
-    res = IAppxFactory_CreateManifestReader(appxfac, inputStream, &reader);
+    res = IAppxFactory_CreateManifestReader(appxfac, inputStream, (IAppxManifestReader**)&reader);
 
     if (!SUCCEEDED(res))
         return;
@@ -742,9 +742,6 @@ static void GetUWPIcon2(HANDLE process, wchar_t* outIconPath)
 #endif
     ASSERT(logoProp != NULL);
 
-    IAppxManifestReader_Release(reader);
-    IStream_Release(inputStream);
-
     for (uint32_t i = 0; logoProp[i] != L'\0'; i++)
     {
         if (logoProp[i] == L'\\')
@@ -771,6 +768,16 @@ static void GetUWPIcon2(HANDLE process, wchar_t* outIconPath)
 
     wchar_t ext[16];
     wcscpy(ext, wcsrchr(logoProp, L'.'));
+
+    GUID iidreader2;
+    IIDFromString(L"{d06f67bc-b31d-4eba-a8af-638e73e77b4d}", &iidreader2);
+    IAppxManifestReader2* reader2 = NULL;
+    IAppxManifestReader_QueryInterface(reader, &iidreader2, (void**)&reader2);
+    IAppxManifestQualifiedResourcesEnumerator* resEnum = NULL;
+    IAppxManifestReader2_GetQualifiedResources(reader2, &resEnum);
+
+    IAppxManifestReader_Release(reader);
+    IStream_Release(inputStream);
 
     WIN32_FIND_DATAW findData;
     HANDLE hFind = INVALID_HANDLE_VALUE;
@@ -809,15 +816,6 @@ static void GetUWPIcon2(HANDLE process, wchar_t* outIconPath)
             wcscat(outIconPath, findData.cFileName);
         }
     }
-
-
-    //CoCreateInstance(&CLSID_AppxFactory, NULL, 0, &IID_IAppxFactory, (void**)&appxfac);
-    /*
-    QueryInterface()
-    IAppxFactory_QueryInterface()
-    CreatePackageReader( )
-    IID_IAppxFactory
-    IAppxFactory_CreatePackageReader()*/
 }
 
 
