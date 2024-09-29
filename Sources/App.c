@@ -29,7 +29,7 @@
 #include <Shobjidl.h>
 #include <objidl.h>
 #include <Unknwn.h>
-#include <appxpackaging.h>
+#include "AppxPackaging.h"
 #undef COBJMACROS
 #include "AltAppSwitcherHelpers.h"
 #include "KeyCodeFromConfigName.h"
@@ -673,36 +673,37 @@ static void GetUWPIcon2(HANDLE process, wchar_t* outIconPath)
     wcscpy(manifestPath, packagePath);
     wcscat(manifestPath, L"/AppXManifest.xml");
 
-    IStream* inputStream = NULL;
-    HRESULT res = SHCreateStreamOnFileEx(
-                manifestPath,
-                STGM_READ | STGM_SHARE_EXCLUSIVE,
-                0, // default file attributes
-                FALSE, // do not create new file
-                NULL, // no template
-                &inputStream);
-    if (!SUCCEEDED(res))
-        return;
-
-    IAppxFactory* appxfac = NULL;
-    GUID clsid;
-    CLSIDFromString(L"{5842a140-ff9f-4166-8f5c-62f5b7b0c781}", &clsid);
-    GUID iid;
-    IIDFromString(L"{beb94909-e451-438b-b5a7-d79e767b75d8}", &iid);
-    res = CoCreateInstance(&clsid, NULL, CLSCTX_INPROC_SERVER, &iid, (void**)&appxfac);
-    if (!SUCCEEDED(res))
-        return;
-
-    IAppxManifestReader* reader = NULL;
-    res = IAppxFactory_CreateManifestReader(appxfac, inputStream, (IAppxManifestReader**)&reader);
-
-    if (!SUCCEEDED(res))
-        return;
-
     wchar_t* logoProp = NULL;
-
-#if 1
     {
+        // Stream
+        IStream* inputStream = NULL;
+        HRESULT res = SHCreateStreamOnFileEx(
+                    manifestPath,
+                    STGM_READ | STGM_SHARE_EXCLUSIVE,
+                    0, // default file attributes
+                    FALSE, // do not create new file
+                    NULL, // no template
+                    &inputStream);
+        if (!SUCCEEDED(res))
+            return;
+
+        // Appxfactory
+        IAppxFactory* appxfac = NULL;
+        GUID clsid;
+        CLSIDFromString(L"{5842a140-ff9f-4166-8f5c-62f5b7b0c781}", &clsid);
+        GUID iid;
+        IIDFromString(L"{beb94909-e451-438b-b5a7-d79e767b75d8}", &iid);
+        res = CoCreateInstance(&clsid, NULL, CLSCTX_INPROC_SERVER, &iid, (void**)&appxfac);
+        if (!SUCCEEDED(res))
+            return;
+        
+        // Manifest reader
+        IAppxManifestReader* reader = NULL;
+        res = IAppxFactory_CreateManifestReader(appxfac, inputStream, (IAppxManifestReader**)&reader);
+        if (!SUCCEEDED(res))
+            return;
+
+        // App enumerator
         IAppxManifestApplicationsEnumerator* appEnum = NULL;
         res = IAppxManifestReader_GetApplications(reader, &appEnum);
         if (!SUCCEEDED(res))
@@ -723,25 +724,13 @@ static void GetUWPIcon2(HANDLE process, wchar_t* outIconPath)
             }
             IAppxManifestApplicationsEnumerator_MoveNext(appEnum, &hasApp);
         }
+
+        IAppxManifestApplicationsEnumerator_Release(appEnum);
+        IAppxManifestReader_Release(reader);
+        IStream_Release(inputStream);
+        IAppxFactory_Release(appxfac);
+        ASSERT(logoProp != NULL);
     }
-#else
-    {
-        IAppxManifestProperties* prop = NULL;
-        res = IAppxManifestReader_GetProperties(reader, &prop);
-
-        if (!SUCCEEDED(res))
-            return;
-
-        res = IAppxManifestProperties_GetStringValue(prop, L"Logo", &logoProp);
-
-        if (!SUCCEEDED(res))
-            return;
-
-        IAppxManifestProperties_Release(prop);
-    }
-#endif
-    ASSERT(logoProp != NULL);
-
     for (uint32_t i = 0; logoProp[i] != L'\0'; i++)
     {
         if (logoProp[i] == L'\\')
@@ -768,16 +757,6 @@ static void GetUWPIcon2(HANDLE process, wchar_t* outIconPath)
 
     wchar_t ext[16];
     wcscpy(ext, wcsrchr(logoProp, L'.'));
-
-    GUID iidreader2;
-    IIDFromString(L"{d06f67bc-b31d-4eba-a8af-638e73e77b4d}", &iidreader2);
-    IAppxManifestReader2* reader2 = NULL;
-    IAppxManifestReader_QueryInterface(reader, &iidreader2, (void**)&reader2);
-    IAppxManifestQualifiedResourcesEnumerator* resEnum = NULL;
-    IAppxManifestReader2_GetQualifiedResources(reader2, &resEnum);
-
-    IAppxManifestReader_Release(reader);
-    IStream_Release(inputStream);
 
     WIN32_FIND_DATAW findData;
     HANDLE hFind = INVALID_HANDLE_VALUE;
