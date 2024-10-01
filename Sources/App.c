@@ -79,6 +79,7 @@ typedef struct SGraphicsResources
     HBITMAP _Bitmap;
     HDC _DC;
     HIMAGELIST _ImageList;
+    bool _LightTheme;
 } SGraphicsResources;
 
 typedef struct Metrics
@@ -244,6 +245,7 @@ static void InitGraphicsResources(SGraphicsResources* pRes, const Config* config
         // This is different from gdip "ARGB" type
         COLORREF darkColor = 0x002C2C2C;
         COLORREF lightColor = 0x00FFFFFF;
+        pRes->_LightTheme = lightTheme;
         if (lightTheme)
         {
             pRes->_BackgroundColor = lightColor;
@@ -654,7 +656,7 @@ static void GetUWPIcon(HANDLE process, wchar_t* iconPath, SAppData* appData)
 }
 
 //https://github.com/microsoft/Windows-classic-samples/blob/main/Samples/AppxPackingDescribeAppx/cpp/DescribeAppx.cpp
-static void GetUWPIcon2(HANDLE process, wchar_t* outIconPath)
+static void GetUWPIcon2(HANDLE process, wchar_t* outIconPath, SAppData* appData)
 {
     (void)outIconPath;
     static wchar_t userModelID[256];
@@ -767,28 +769,38 @@ static void GetUWPIcon2(HANDLE process, wchar_t* outIconPath)
 
     uint32_t maxSize = 0;
     bool foundAny = false;
+
+    // https://learn.microsoft.com/en-us/windows/apps/design/style/iconography/app-icon-construction
     while (FindNextFileW(hFind, &findData) != 0)
     {
-        // wprintf(findData.cFileName);
-        // wprintf(L"\n");
-        wchar_t* at = wcsstr(findData.cFileName, logoNoExt);
-        if (at == NULL)
-            continue;
-        at += wcslen(logoNoExt);
-        at = wcsstr(at, L"targetsize-");
-        uint32_t size = 0;
-        if (at == NULL)
+        const wchar_t* postLogoName = NULL;
         {
-            size = 0;
+            const wchar_t* at = wcsstr(findData.cFileName, logoNoExt);
+            if (at == NULL)
+                continue;
+            postLogoName = at + wcslen(logoNoExt);
         }
-        else
+
+        uint32_t targetsize = 0;
         {
-            at += wcslen(L"targetsize-");
-            size = wcstol(at, NULL, 10);
+            const wchar_t* at = wcsstr(postLogoName, L"targetsize-");
+            if (at != NULL)
+            {
+                at += (sizeof(L"targetsize-") / sizeof(wchar_t)) - 1;
+                targetsize = wcstol(at, NULL, 10);
+            }
         }
-        if (size > maxSize || !foundAny)
+
+        const bool lightUnplated = wcsstr(postLogoName, L"altform-lightunplated") != NULL;
+        const bool unplated = wcsstr(postLogoName, L"altform-unplated") != NULL;
+        const bool constrast = wcsstr(postLogoName, L"contrast") != NULL;
+        const bool matchingTheme = !constrast &&
+            ((appData->_GraphicsResources._LightTheme && lightUnplated) ||
+            (!appData->_GraphicsResources._LightTheme && unplated));
+
+        if (targetsize > maxSize || !foundAny || (targetsize == maxSize && matchingTheme))
         {
-            maxSize = size;
+            maxSize = targetsize;
             foundAny = true;
             wcscpy(outIconPath, parentDir);
             wcscat(outIconPath, L"/");
@@ -796,7 +808,6 @@ static void GetUWPIcon2(HANDLE process, wchar_t* outIconPath)
         }
     }
 }
-
 
 static BOOL FillWinGroups(HWND hwnd, LPARAM lParam)
 {
@@ -891,7 +902,7 @@ static BOOL FillWinGroups(HWND hwnd, LPARAM lParam)
                 {
                     static wchar_t iconPath[256];
                     iconPath[0] = L'\0';
-                    GetUWPIcon2(process, iconPath);
+                    GetUWPIcon2(process, iconPath, appData);
                     GdipLoadImageFromFile(iconPath, &group->_IconBitmap);
                 }
                 CoUninitialize();
