@@ -1,4 +1,0 @@
-CompileFlags:
-  Add:
-    - -I/SDK
-    - -I/Sources
