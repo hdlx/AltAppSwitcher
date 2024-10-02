@@ -128,12 +128,14 @@ typedef enum Mode
 typedef struct SUWPIconMapElement
 {
     wchar_t _UserModelID[512];
-    wchar_t _Icon[512];
+    wchar_t _Icon[MAX_PATH];
 } SUWPIconMapElement;
 
+#define UWPICONMAPSIZE 8
 typedef struct SUWPIconMap
 {
-    SUWPIconMapElement _Data[512];
+    SUWPIconMapElement _Data[UWPICONMAPSIZE];
+    uint32_t _Head;
     uint32_t _Count;
 } SUWPIconMap;
 
@@ -488,35 +490,6 @@ static HWND FindAltTabWin()
     return 0;
 }
 
-static void BuildLogoIndirectString(const wchar_t* logoPath, uint32_t logoPathLength,
-    const wchar_t* packageFullName, uint32_t packageFullNameLength,
-    const wchar_t* packageName, uint32_t packageNameLength,
-    wchar_t* outStr)
-{
-    uint32_t i = 0;
-
-    memcpy((void*)&outStr[i], (void*)L"@{", sizeof(L"@{"));
-    i += (sizeof(L"@{") / sizeof(wchar_t)) - 1;
-
-    memcpy((void*)&outStr[i], (void*)packageFullName, packageFullNameLength * sizeof(wchar_t));
-    i += packageFullNameLength - 1;
-
-    memcpy((void*)&outStr[i], (void*)L"?ms-resource://", sizeof(L"?ms-resource://"));
-    i += (sizeof(L"?ms-resource://") / sizeof(wchar_t)) - 1;
-
-    memcpy((void*)&outStr[i], (void*)packageName, packageNameLength * sizeof(wchar_t));
-    i += packageNameLength - 1;
-
-    memcpy((void*)&outStr[i], (void*)L"/Files/", sizeof(L"/Files/"));
-    i += (sizeof(L"/Files/") / sizeof(wchar_t)) - 1;
-
-    memcpy((void*)&outStr[i], (void*)logoPath, logoPathLength * sizeof(wchar_t));
-    i += logoPathLength; // Does not count \0 unlike other length
-
-    memcpy((void*)&outStr[i], (void*)L"}", sizeof(L"}"));
-    i += (sizeof(L"}") / sizeof(wchar_t)) - 1;
-}
-
 void ErrorDescription(HRESULT hr) 
 {
      if(FACILITY_WINDOWS == HRESULT_FACILITY(hr)) 
@@ -534,144 +507,34 @@ void ErrorDescription(HRESULT hr)
          printf( TEXT("[Could not find a description for error # %#x.]\n"), (int)hr); 
 }
 
-static void InitUWPIconMap(SUWPIconMap* map)
-{
-    // Needed otherwise some shloadindirectstring() calls fail
-    CoInitializeEx(NULL, COINIT_APARTMENTTHREADED);
-
-    map->_Count = 0;
-
-    HKEY classesKey;
-    RegOpenKeyEx(HKEY_CLASSES_ROOT,
-        NULL,
-        0,
-        KEY_READ,
-        &classesKey);
-
-    DWORD cSubKeys = 0;
-    RegQueryInfoKey(
-        classesKey,
-        NULL, NULL, NULL,
-        &cSubKeys,
-        NULL, NULL, NULL, NULL, NULL, NULL, NULL);
-
-    for (uint32_t i = 0; i < cSubKeys; i++)
-    {
-        char className[512] = "";
-        uint32_t classNameSize = 512;
-        RegEnumKeyEx(classesKey,
-                i,
-                className,
-                (LPDWORD)&classNameSize,
-                NULL,
-                NULL,
-                NULL,
-                NULL);
-
-        strcat(className, "\\Application");
-
-        {
-            HKEY appKey = NULL;
-            RegOpenKeyEx(classesKey,
-                className,
-                0,
-                KEY_READ,
-                &appKey);
-            if (appKey == NULL) //check returned value instead ?
-            {
-                continue;
-            }
-
-            uint32_t valCount = 0;
-            RegQueryInfoKey(
-                appKey,
-                NULL,
-                NULL,
-                NULL, NULL, NULL, NULL,
-                (DWORD*)&valCount,
-                NULL, NULL, NULL, NULL);
-
-            bool hasIcon = false;
-            bool hasUserModelID = false;
-            for (uint32_t k = 0; k < valCount; k++)
-            {
-                char name[512] = "";
-                uint32_t nameSize = 512;
-                char value[512] = "";
-                uint32_t valueSize = 512;
-                RegEnumValue(
-                    appKey,
-                    k,
-                    name,
-                    (DWORD*)&nameSize,
-                    NULL, NULL,
-                    (BYTE*)value,
-                    (DWORD*)&valueSize);
-                if (!lstrcmpiA(name, "ApplicationIcon") && nameSize > 0)
-                {
-                    // printf("indirect string: %s \n", value);
-                    wchar_t indirectStr[512];
-                    mbstowcs(indirectStr, value, valueSize);
-                    map->_Data[map->_Count]._Icon[0] = '\0';
-                    HRESULT res = SHLoadIndirectString(indirectStr, map->_Data[map->_Count]._Icon, 512 * sizeof(wchar_t), NULL);
-                    /*if (res != S_OK)
-                    {
-                        ErrorDescription(res);
-                        ASSERT(false);
-                    }*/
-                    if (res == S_OK && map->_Data[map->_Count]._Icon[0] != '\0')
-                        hasIcon = true;
-                }
-                if (!lstrcmpiA(name, "AppUserModelID") && valueSize > 0)
-                {
-                    mbstowcs(map->_Data[map->_Count]._UserModelID, value, valueSize);
-                    hasUserModelID = true;
-                }
-            }
-            if (hasIcon && hasUserModelID)
-                map->_Count++;
-            RegCloseKey(appKey);
-        }
-    }
-
-    CoUninitialize();
-}
-
-static void GetUWPIcon(HANDLE process, wchar_t* iconPath, SAppData* appData)
-{
-    static wchar_t userModelID[256];
-    uint32_t userModelIDLength = 256;
-    {
-        GetApplicationUserModelId(process, &userModelIDLength, userModelID);
-    }
-
-    for (uint32_t i = 0; i < appData->_UWPIconMap._Count; i++)
-    {
-        if (!lstrcmpiW(appData->_UWPIconMap._Data[i]._UserModelID, userModelID))
-        {
-            wcscpy(iconPath, appData->_UWPIconMap._Data[i]._Icon);
-            return;
-        }
-    }
-}
-
 //https://github.com/microsoft/Windows-classic-samples/blob/main/Samples/AppxPackingDescribeAppx/cpp/DescribeAppx.cpp
-static void GetUWPIcon2(HANDLE process, wchar_t* outIconPath, SAppData* appData)
+static void GetUWPIcon(HANDLE process, wchar_t* outIconPath, SAppData* appData)
 {
-    (void)outIconPath;
-    static wchar_t userModelID[256];
-    uint32_t userModelIDLength = 256;
+    static wchar_t userModelID[512];
     {
-        GetApplicationUserModelId(process, &userModelIDLength, userModelID);
+        uint32_t length = 512;
+        GetApplicationUserModelId(process, &length, userModelID);
     }
+
+    SUWPIconMap* iconMap = &appData->_UWPIconMap;
+    for (uint32_t i = 0; i < iconMap->_Count; i++)
+    {
+        const uint32_t i0 = Modulo(iconMap->_Head - 1 - i, UWPICONMAPSIZE) ;
+        if (wcscmp(iconMap->_Data[i0]._UserModelID, userModelID))
+            continue;
+        wcscpy(outIconPath, iconMap->_Data[i0]._Icon);
+        return;
+    }
+
+    CoInitializeEx(NULL, COINIT_APARTMENTTHREADED);
 
     PACKAGE_ID pid[32];
     uint32_t pidSize = sizeof(pid);
     GetPackageId(process, &pidSize, (BYTE*)pid);
-    static wchar_t packagePath[256];
-    uint32_t packagePathLength = 256;
+    static wchar_t packagePath[MAX_PATH];
+    uint32_t packagePathLength = MAX_PATH;
     GetPackagePath(pid, 0, &packagePathLength, packagePath);
-    static wchar_t manifestPath[256];
+    static wchar_t manifestPath[MAX_PATH];
     wcscpy(manifestPath, packagePath);
     wcscat(manifestPath, L"/AppXManifest.xml");
 
@@ -739,20 +602,20 @@ static void GetUWPIcon2(HANDLE process, wchar_t* outIconPath, SAppData* appData)
             logoProp[i] = L'/';
     }
 
-    wchar_t logoPath[256];
+    wchar_t logoPath[MAX_PATH];
     wcscpy(logoPath, packagePath);
     wcscat(logoPath, L"/");
     wcscat(logoPath, logoProp);
 
-    wchar_t parentDir[256];
+    wchar_t parentDir[MAX_PATH];
     wcscpy(parentDir, logoPath);
     *wcsrchr(parentDir, L'/') = L'\0';
 
-    wchar_t parentDirStar[256];
+    wchar_t parentDirStar[MAX_PATH];
     wcscpy(parentDirStar, parentDir);
     wcscat(parentDirStar, L"/*");
 
-    wchar_t logoNoExt[256];
+    wchar_t logoNoExt[MAX_PATH];
     wchar_t* atLastSlash = wcsrchr(logoProp, L'/');
     wcscpy(logoNoExt, atLastSlash ? atLastSlash + 1 : logoProp);
     wcsrchr(logoNoExt, L'.')[0] = L'\0';
@@ -807,6 +670,15 @@ static void GetUWPIcon2(HANDLE process, wchar_t* outIconPath, SAppData* appData)
             wcscat(outIconPath, findData.cFileName);
         }
     }
+
+    {
+        wcscpy(iconMap->_Data[iconMap->_Head]._UserModelID, userModelID);
+        wcscpy(iconMap->_Data[iconMap->_Head]._Icon, outIconPath);
+        iconMap->_Count = min(iconMap->_Count + 1, UWPICONMAPSIZE);
+        iconMap->_Head = Modulo(iconMap->_Head + 1, UWPICONMAPSIZE);
+    }
+
+    CoUninitialize();
 }
 
 static BOOL FillWinGroups(HWND hwnd, LPARAM lParam)
@@ -863,22 +735,25 @@ static BOOL FillWinGroups(HWND hwnd, LPARAM lParam)
                     isUWP = userModelID[0] != L'\0';
                 }
 
-                CoInitializeEx(NULL, COINIT_APARTMENTTHREADED);
                 (void)stdIcon;
                 if (!isUWP)
                 {
                     SHFILEINFO fi;
                     SHGetFileInfo(pathStr, 0, &fi, sizeof(fi), SHGFI_SYSICONINDEX);
 
-                    IShellItemImageFactory* shellItem;
-                    wchar_t wpath[256];
-                    mbstowcs(wpath, pathStr,256);
-                    HRESULT hr = SHCreateItemFromParsingName(wpath, NULL, &IID_IShellItemImageFactory, (void**)&shellItem);
-                    (void)hr;
-                    SIZE s = { 256, 256 };
                     HBITMAP hbi = NULL;
-                    IShellItemImageFactory_GetImage(shellItem, s, SIIGBF_SCALEUP, &hbi);
-                    
+                    {
+                        CoInitializeEx(NULL, COINIT_APARTMENTTHREADED);
+                        IShellItemImageFactory* shellItem;
+                        wchar_t wpath[MAX_PATH];
+                        mbstowcs(wpath, pathStr,MAX_PATH);
+                        HRESULT hr = SHCreateItemFromParsingName(wpath, NULL, &IID_IShellItemImageFactory, (void**)&shellItem);
+                        (void)hr;
+                        SIZE s = { 256, 256 };
+                        IShellItemImageFactory_GetImage(shellItem, s, SIIGBF_SCALEUP, &hbi);
+                        IShellItemImageFactory_Release(shellItem);
+                        CoUninitialize();
+                    }
                     BITMAP bi;
                     memset(&bi, 0, sizeof(BITMAP));
                     GetObject(hbi, sizeof(BITMAP), (void*)&bi);
@@ -900,12 +775,11 @@ static BOOL FillWinGroups(HWND hwnd, LPARAM lParam)
                 }
                 else if (isUWP)
                 {
-                    static wchar_t iconPath[256];
+                    static wchar_t iconPath[MAX_PATH];
                     iconPath[0] = L'\0';
-                    GetUWPIcon2(process, iconPath, appData);
+                    GetUWPIcon(process, iconPath, appData);
                     GdipLoadImageFromFile(iconPath, &group->_IconBitmap);
                 }
-                CoUninitialize();
             }
         }
     }
@@ -1653,7 +1527,6 @@ int StartAltAppSwitcher(HINSTANCE hInstance)
         _KeyConfig = &_AppData._Config._Key;
         LoadConfig(&_AppData._Config);
         InitGraphicsResources(&_AppData._GraphicsResources, &_AppData._Config);
-        InitUWPIconMap(&_AppData._UWPIconMap);
     }
 
     HANDLE threadKbHook = CreateRemoteThread(GetCurrentProcess(), NULL, 0, *KbHookCb, (void*)&_AppData, 0, NULL);
