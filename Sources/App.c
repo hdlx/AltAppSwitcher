@@ -35,6 +35,8 @@
 #include "KeyCodeFromConfigName.h"
 LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam);
 
+#define MEM_INIT(ARG) memset(&ARG, 0,  sizeof(ARG))
+
 typedef struct SWinGroup
 {
     char _ModuleFileName[512];
@@ -755,18 +757,17 @@ static BOOL FillWinGroups(HWND hwnd, LPARAM lParam)
                         CoUninitialize();
                     }
                     BITMAP bi;
-                    memset(&bi, 0, sizeof(BITMAP));
+                    MEM_INIT(bi);
                     GetObject(hbi, sizeof(BITMAP), (void*)&bi);
 
                     ASSERT(bi.bmWidth <= 256 && bi.bmHeight <= 256);
-
                     memset(group->iconData, 0, sizeof(group->iconData));
                     GdipCreateBitmapFromScan0(bi.bmWidth, bi.bmHeight, 4 * bi.bmWidth, PixelFormat32bppARGB, (void*)&group->iconData[0], &group->_IconBitmap);
 
                     GpRect r = { 0, 0, bi.bmWidth, bi.bmHeight };
 
                     BitmapData dstData;
-                    memset(&dstData, 0, sizeof(BitmapData));
+                    MEM_INIT(dstData);
                     GdipBitmapLockBits(group->_IconBitmap,&r, 0, PixelFormat32bppARGB, &dstData);
                     GetBitmapBits(hbi, sizeof(uint32_t) * bi.bmWidth * bi.bmHeight, dstData.Scan0);
                     GdipBitmapUnlockBits(group->_IconBitmap, &dstData);
@@ -1383,7 +1384,7 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
     case WM_PAINT:
     {
         PAINTSTRUCT ps;
-        memset(&ps, 0, sizeof(PAINTSTRUCT));
+        MEM_INIT(ps);
         if (BeginPaint(hwnd, &ps) == NULL)
         {
             ASSERT(false);
@@ -1502,7 +1503,7 @@ int StartAltAppSwitcher(HINSTANCE hInstance)
     }
 
     static SAppData _AppData;
-    memset(&_AppData, 0, sizeof(SAppData));
+    MEM_INIT(_AppData);
 
     {
         WNDCLASS wc = { };
@@ -1521,7 +1522,7 @@ int StartAltAppSwitcher(HINSTANCE hInstance)
         _AppData._MainWin = NULL;
         _AppData._Instance = hInstance;
         _AppData._WinGroups._Size = 0;
-        memset(&_AppData._WinGroups, 0, sizeof(SWinGroupArr));
+        MEM_INIT(_AppData._WinGroups);
         // Hook needs globals
         _MainThread = GetCurrentThreadId();
         _KeyConfig = &_AppData._Config._Key;
