@@ -683,6 +683,50 @@ static void GetUWPIcon(HANDLE process, wchar_t* outIconPath, SAppData* appData)
     CoUninitialize();
 }
 
+// https://devblogs.microsoft.com/oldnewthing/20120720-00/?p=7083
+typedef struct GRPICONDIRENTRY
+{
+    BYTE  bWidth;
+    BYTE  bHeight;
+    BYTE  bColorCount;
+    BYTE  bReserved;
+    WORD  wPlanes;
+    WORD  wBitCount;
+    DWORD dwBytesInRes;
+    WORD  nId;
+} GRPICONDIRENTRY;
+
+typedef struct GRPICONDIR
+{
+    WORD idReserved;
+    WORD idType;
+    WORD idCount;
+    GRPICONDIRENTRY idEntries[];
+} GRPICONDIR;
+
+typedef struct
+{
+        BITMAPINFOHEADER   icHeader;   // DIB header
+        RGBQUAD         icColors[1];   // Color table
+        BYTE            icXOR[1];      // DIB bits for XOR mask
+        BYTE            icAND[1];      // DIB bits for AND mask
+} ICONIMAGE, *LPICONIMAGE;
+
+
+static BOOL EnumResName(HMODULE hModule, LPCSTR lpType, LPSTR lpName, LONG_PTR lParam)
+{
+    (void)hModule; (void)lpType; (void)lpName; (void)lParam;
+    if (IS_INTRESOURCE(lpType))
+    {
+        *(char**)lParam = lpName;
+    }
+    else
+    {
+        strcpy(*(char**)lParam, lpName);
+    }
+    return true;
+}
+
 static BOOL FillWinGroups(HWND hwnd, LPARAM lParam)
 {
     if (!IsAltTabWindow(hwnd))
@@ -714,73 +758,110 @@ static BOOL FillWinGroups(HWND hwnd, LPARAM lParam)
         strcpy(group->_ModuleFileName, moduleFileName);
         ASSERT(group->_WindowCount == 0);
         // Icon
+        const HANDLE process = OpenProcess(PROCESS_QUERY_INFORMATION, FALSE, PID);
+        static char pathStr[512];
+        GetModuleFileNameEx(process, NULL, pathStr, 512);
+        if (process)
         {
-            const HANDLE process = OpenProcess(PROCESS_QUERY_INFORMATION, FALSE, PID);
-            static char pathStr[512];
-            GetModuleFileNameEx(process, NULL, pathStr, 512);
-            if (process)
+            ASSERT(group->_IconBitmap == NULL);
+            bool stdIcon = false;
+
             {
-                ASSERT(group->_IconBitmap == NULL);
+                HICON icon = ExtractIcon(process, pathStr, 0);
+                stdIcon = icon != NULL;
+                DestroyIcon(icon);
+            }
 
-                bool stdIcon = false;
+            {
+                static wchar_t userModelID[256];
+                userModelID[0] = L'\0';
+                uint32_t userModelIDLength = 256;
+                GetApplicationUserModelId(process, &userModelIDLength, userModelID);
+                isUWP = userModelID[0] != L'\0';
+            }
+
+            (void)stdIcon;
+            if (!isUWP)
+            {
+                /*
+                HBITMAP hbi = NULL;
+                HICON outIcons[64];
+                const uint32_t iconCount = min(64, ExtractIconEx(pathStr, -1, NULL, NULL, 0));
+                ExtractIconEx(pathStr, 0, outIcons, NULL, iconCount);
+                uint32_t iconSize = 0;
+                uint32_t largestIcon = 0;
+                for (uint32_t i = 0; i < iconCount; i++)
                 {
-                    HICON icon = ExtractIcon(process, pathStr, 0);
-                    stdIcon = icon != NULL;
-                    DestroyIcon(icon);
-                }
-
-                {
-                    static wchar_t userModelID[256];
-                    userModelID[0] = L'\0';
-                    uint32_t userModelIDLength = 256;
-                    GetApplicationUserModelId(process, &userModelIDLength, userModelID);
-                    isUWP = userModelID[0] != L'\0';
-                }
-
-                (void)stdIcon;
-                if (!isUWP)
-                {
-                    SHFILEINFO fi;
-                    SHGetFileInfo(pathStr, 0, &fi, sizeof(fi), SHGFI_SYSICONINDEX);
-
-                    HBITMAP hbi = NULL;
+                    ICONINFO ii;
+                    MEM_INIT(ii);
+                    GetIconInfo(outIcons[i], &ii);
+                    BITMAP bm;
+                    GetObject(ii.hbmMask, sizeof(bm), &bm);
+                    if ((uint32_t)bm.bmWidth > iconSize)
                     {
-                        CoInitializeEx(NULL, COINIT_APARTMENTTHREADED);
-                        IShellItemImageFactory* shellItem;
-                        wchar_t wpath[MAX_PATH];
-                        mbstowcs(wpath, pathStr,MAX_PATH);
-                        HRESULT hr = SHCreateItemFromParsingName(wpath, NULL, &IID_IShellItemImageFactory, (void**)&shellItem);
-                        (void)hr;
-                        SIZE s = { 256, 256 };
-                        IShellItemImageFactory_GetImage(shellItem, s, SIIGBF_SCALEUP, &hbi);
-                        IShellItemImageFactory_Release(shellItem);
-                        CoUninitialize();
+                        iconSize = bm.bmWidth;
+                        largestIcon = i;
                     }
-                    BITMAP bi;
-                    MEM_INIT(bi);
-                    GetObject(hbi, sizeof(BITMAP), (void*)&bi);
-
-                    ASSERT(bi.bmWidth <= 256 && bi.bmHeight <= 256);
-                    memset(group->iconData, 0, sizeof(group->iconData));
-                    GdipCreateBitmapFromScan0(bi.bmWidth, bi.bmHeight, 4 * bi.bmWidth, PixelFormat32bppARGB, (void*)&group->iconData[0], &group->_IconBitmap);
-
-                    GpRect r = { 0, 0, bi.bmWidth, bi.bmHeight };
-
-                    BitmapData dstData;
-                    MEM_INIT(dstData);
-                    GdipBitmapLockBits(group->_IconBitmap,&r, 0, PixelFormat32bppARGB, &dstData);
-                    GetBitmapBits(hbi, sizeof(uint32_t) * bi.bmWidth * bi.bmHeight, dstData.Scan0);
-                    GdipBitmapUnlockBits(group->_IconBitmap, &dstData);
-
-                    DeleteObject(hbi);
+                    DeleteObject(ii.hbmColor);
+                    DeleteObject(ii.hbmMask);
                 }
-                else if (isUWP)
                 {
-                    static wchar_t iconPath[MAX_PATH];
-                    iconPath[0] = L'\0';
-                    GetUWPIcon(process, iconPath, appData);
-                    GdipLoadImageFromFile(iconPath, &group->_IconBitmap);
+                    ICONINFO ii;
+                    GetIconInfo(outIcons[largestIcon], &ii);
+                    hbi = ii.hbmColor;
+                    DeleteObject(ii.hbmMask);
                 }
+*/
+                HMODULE exe = LoadLibrary(pathStr);
+
+                char name[256];
+                char* pName = name;
+                EnumResourceNames(exe, RT_GROUP_ICON, EnumResName, (LONG_PTR)&pName);
+                uint32_t toto = (uint64_t)pName;
+                (void)toto;
+                HRSRC iconGrp = FindResource(exe, pName, RT_GROUP_ICON);
+                HGLOBAL hGlobal = LoadResource(exe, iconGrp);
+                GRPICONDIR* iconGrpData = (GRPICONDIR*)LockResource(hGlobal);
+                uint32_t iconSize = 0;
+                uint32_t iconResID = 0xFFFFFFFF;
+                for (uint32_t i = 0; i < iconGrpData->idCount; i++)
+                {
+                    if (iconGrpData->idEntries[i].bWidth > iconSize)
+                    {
+                        iconResID = iconGrpData->idEntries[i].nId;
+                        iconSize = iconGrpData->idEntries[i].bWidth;
+                    }
+                }
+                UnlockResource(iconGrp);
+                HRSRC iconResInfo = FindResource(exe, MAKEINTRESOURCE(iconResID), RT_ICON);
+                HICON icon = LoadResource(exe, iconResInfo);
+                ICONINFO ii;
+                GetIconInfo(icon, &ii);
+                HBITMAP hbi = ii.hbmColor;
+                DeleteObject(ii.hbmMask);
+                UnlockResource(icon);
+
+                FreeLibrary(exe);
+
+                memset(group->iconData, 0, sizeof(group->iconData));
+                GdipCreateBitmapFromScan0(iconSize, iconSize, 4 * iconSize, PixelFormat32bppARGB, (void*)&group->iconData[0], &group->_IconBitmap);
+
+                GpRect r = { 0, 0, iconSize, iconSize };
+
+                BitmapData dstData;
+                MEM_INIT(dstData);
+                GdipBitmapLockBits(group->_IconBitmap,&r, 0, PixelFormat32bppARGB, &dstData);
+                GetBitmapBits(hbi, sizeof(uint32_t) * iconSize * iconSize, dstData.Scan0);
+                GdipBitmapUnlockBits(group->_IconBitmap, &dstData);
+
+                DeleteObject(hbi);
+            }
+            else if (isUWP)
+            {
+                static wchar_t iconPath[MAX_PATH];
+                iconPath[0] = L'\0';
+                GetUWPIcon(process, iconPath, appData);
+                GdipLoadImageFromFile(iconPath, &group->_IconBitmap);
             }
         }
     }
