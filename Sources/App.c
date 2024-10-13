@@ -827,26 +827,32 @@ static BOOL FillWinGroups(HWND hwnd, LPARAM lParam)
                 HRSRC iconGrp = FindResource(exe, pName, RT_GROUP_ICON);
                 HGLOBAL hGlobal = LoadResource(exe, iconGrp);
                 GRPICONDIR* iconGrpData = (GRPICONDIR*)LockResource(hGlobal);
-                uint32_t iconSize = 0;
                 uint32_t iconResID = 0xFFFFFFFF;
+                uint32_t resByteSize = 0;
                 for (uint32_t i = 0; i < iconGrpData->idCount; i++)
                 {
                     const GRPICONDIRENTRY* entry = &iconGrpData->idEntries[i];
-                    const uint32_t _size = 0;
-                    memcpy((void*)&_size, &entry->bWidth, sizeof(BYTE));
-                    if (_size > iconSize)
+                    if (entry->dwBytesInRes > resByteSize)
                     {
                         iconResID = entry->nID;
-                        iconSize = _size;
+                        resByteSize = entry->dwBytesInRes;
                     }
                 }
                 UnlockResource(iconGrp);
                 HRSRC iconResInfo = FindResource(exe, MAKEINTRESOURCE(iconResID), RT_ICON);
-                HICON icon = LoadResource(exe, iconResInfo);
+                HGLOBAL iconRes = LoadResource(exe, iconResInfo);
+                BYTE* data = (BYTE*)LockResource(iconRes);
+                HICON icon = CreateIconFromResourceEx(data, resByteSize, true, 0x00030000, 0, 0, 0);
+                UnlockResource(icon);
                 ICONINFO ii;
                 GetIconInfo(icon, &ii);
-                HBITMAP hbi = ii.hbmColor;
+                HBITMAP hbm = ii.hbmColor;
                 DeleteObject(ii.hbmMask);
+
+                BITMAP bm;
+                MEM_INIT(bm);
+                GetObject(hbm, sizeof(BITMAP), &bm);
+                const uint32_t iconSize = bm.bmWidth;
 
                 FreeLibrary(exe);
 
@@ -858,10 +864,10 @@ static BOOL FillWinGroups(HWND hwnd, LPARAM lParam)
                 BitmapData dstData;
                 MEM_INIT(dstData);
                 GdipBitmapLockBits(group->_IconBitmap,&r, 0, PixelFormat32bppARGB, &dstData);
-                GetBitmapBits(hbi, sizeof(uint32_t) * iconSize * iconSize, dstData.Scan0);
+                GetBitmapBits(hbm, sizeof(uint32_t) * iconSize * iconSize, dstData.Scan0);
                 GdipBitmapUnlockBits(group->_IconBitmap, &dstData);
 
-                DeleteObject(hbi);
+                DeleteObject(hbm);
             }
             else if (isUWP)
             {
