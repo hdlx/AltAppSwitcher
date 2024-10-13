@@ -682,41 +682,43 @@ static void GetUWPIcon(HANDLE process, wchar_t* outIconPath, SAppData* appData)
 
     CoUninitialize();
 }
+#pragma pack( push )
+#pragma pack( 2 )
 
-// https://devblogs.microsoft.com/oldnewthing/20120720-00/?p=7083
-typedef struct GRPICONDIRENTRY
-{
-    BYTE  bWidth;
-    BYTE  bHeight;
-    BYTE  bColorCount;
-    BYTE  bReserved;
-    WORD  wPlanes;
-    WORD  wBitCount;
-    DWORD dwBytesInRes;
-    WORD  nId;
-} GRPICONDIRENTRY;
+/* group icon directory entry in EXE file */
+typedef struct{
+    BYTE   bWidth;               // Width, in pixels, of the image
+    BYTE   bHeight;              // Height, in pixels, of the image
+    BYTE   bColorCount;          // Number of colors in image (0 if >=8bpp)
+    BYTE   bReserved;            // Reserved
+    WORD   wPlanes;              // Color Planes
+    WORD   wBitCount;            // Bits per pixel
+    DWORD  dwBytesInRes;         // how many bytes in this resource?
+    WORD   nID;                  // the ID
+} GRPICONDIRENTRY, *LPGRPICONDIRENTRY;
 
-typedef struct GRPICONDIR
-{
-    WORD idReserved;
-    WORD idType;
-    WORD idCount;
-    GRPICONDIRENTRY idEntries[];
-} GRPICONDIR;
+/* group icon directory header in EXE file */
+typedef struct {
+    WORD            idReserved;   // Reserved (must be 0)
+    WORD            idType;       // Resource type (1 for icons)
+    WORD            idCount;      // How many images?
+    GRPICONDIRENTRY idEntries[1]; // The entries for each image
+} GRPICONDIR, *LPGRPICONDIR;
 
-typedef struct
-{
-        BITMAPINFOHEADER   icHeader;   // DIB header
-        RGBQUAD         icColors[1];   // Color table
-        BYTE            icXOR[1];      // DIB bits for XOR mask
-        BYTE            icAND[1];      // DIB bits for AND mask
-} ICONIMAGE, *LPICONIMAGE;
+//typedef struct
+//{
+//    BITMAPINFOHEADER   icHeader;   // DIB header
+//    RGBQUAD         icColors[1];   // Color table
+//    BYTE            icXOR[1];      // DIB bits for XOR mask
+//    BYTE            icAND[1];      // DIB bits for AND mask
+//} ICONIMAGE, *LPICONIMAGE;
 
+#pragma pack( pop )    
 
 static BOOL EnumResName(HMODULE hModule, LPCSTR lpType, LPSTR lpName, LONG_PTR lParam)
 {
     (void)hModule; (void)lpType; (void)lpName; (void)lParam;
-    if (IS_INTRESOURCE(lpType))
+    if (IS_INTRESOURCE(lpName))
     {
         *(char**)lParam = lpName;
     }
@@ -724,7 +726,7 @@ static BOOL EnumResName(HMODULE hModule, LPCSTR lpType, LPSTR lpName, LONG_PTR l
     {
         strcpy(*(char**)lParam, lpName);
     }
-    return true;
+    return false;
 }
 
 static BOOL FillWinGroups(HWND hwnd, LPARAM lParam)
@@ -759,15 +761,15 @@ static BOOL FillWinGroups(HWND hwnd, LPARAM lParam)
         ASSERT(group->_WindowCount == 0);
         // Icon
         const HANDLE process = OpenProcess(PROCESS_QUERY_INFORMATION, FALSE, PID);
-        static char pathStr[512];
-        GetModuleFileNameEx(process, NULL, pathStr, 512);
+      // static char pathStr[512];
+      // GetModuleFileNameEx(process, NULL, pathStr, 512);
         if (process)
         {
             ASSERT(group->_IconBitmap == NULL);
             bool stdIcon = false;
 
             {
-                HICON icon = ExtractIcon(process, pathStr, 0);
+                HICON icon = ExtractIcon(process, group->_ModuleFileName, 0);
                 stdIcon = icon != NULL;
                 DestroyIcon(icon);
             }
@@ -812,13 +814,16 @@ static BOOL FillWinGroups(HWND hwnd, LPARAM lParam)
                     DeleteObject(ii.hbmMask);
                 }
 */
-                HMODULE exe = LoadLibrary(pathStr);
+                SetLastError(0);
+                HMODULE exe = LoadLibraryEx(group->_ModuleFileName, NULL, LOAD_LIBRARY_AS_DATAFILE);
+                ASSERT(exe != NULL);
 
                 char name[256];
                 char* pName = name;
+                //typedef struct args { HMODULE a; int b; } test = {0 , 0};
                 EnumResourceNames(exe, RT_GROUP_ICON, EnumResName, (LONG_PTR)&pName);
-                uint32_t toto = (uint64_t)pName;
-                (void)toto;
+                //uint32_t toto = (uint64_t)pName;
+                //(void)toto;
                 HRSRC iconGrp = FindResource(exe, pName, RT_GROUP_ICON);
                 HGLOBAL hGlobal = LoadResource(exe, iconGrp);
                 GRPICONDIR* iconGrpData = (GRPICONDIR*)LockResource(hGlobal);
@@ -826,10 +831,13 @@ static BOOL FillWinGroups(HWND hwnd, LPARAM lParam)
                 uint32_t iconResID = 0xFFFFFFFF;
                 for (uint32_t i = 0; i < iconGrpData->idCount; i++)
                 {
-                    if (iconGrpData->idEntries[i].bWidth > iconSize)
+                    const GRPICONDIRENTRY* entry = &iconGrpData->idEntries[i];
+                    const uint32_t _size = 0;
+                    memcpy((void*)&_size, &entry->bWidth, sizeof(BYTE));
+                    if (_size > iconSize)
                     {
-                        iconResID = iconGrpData->idEntries[i].nId;
-                        iconSize = iconGrpData->idEntries[i].bWidth;
+                        iconResID = entry->nID;
+                        iconSize = _size;
                     }
                 }
                 UnlockResource(iconGrp);
@@ -839,7 +847,6 @@ static BOOL FillWinGroups(HWND hwnd, LPARAM lParam)
                 GetIconInfo(icon, &ii);
                 HBITMAP hbi = ii.hbmColor;
                 DeleteObject(ii.hbmMask);
-                UnlockResource(icon);
 
                 FreeLibrary(exe);
 
@@ -864,6 +871,7 @@ static BOOL FillWinGroups(HWND hwnd, LPARAM lParam)
                 GdipLoadImageFromFile(iconPath, &group->_IconBitmap);
             }
         }
+        CloseHandle(process);
     }
     group->_Windows[group->_WindowCount++] = hwnd;
     return true;
