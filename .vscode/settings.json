@@ -26,5 +26,9 @@
 		"stdbool.h": "c",
 		"stdint.h": "c",
 		"system_error": "c"
-	}
+	},
+	"clangd.fallbackFlags": [
+		"-I${workspaceFolder}/SDK",
+		"-I${workspaceFolder}/Sources"
+	]
 }
