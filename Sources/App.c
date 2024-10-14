@@ -74,9 +74,11 @@ typedef struct SGraphicsResources
     uint32_t _FontSize;
     GpSolidFill* _pBrushText;
     GpSolidFill* _pBrushBg;
+    GpSolidFill* _pBrushBgHighlight;
     GpFont* _pFont;
     GpStringFormat* _pFormat;
     COLORREF _BackgroundColor;
+    COLORREF _HighlightBackgroundColor;
     COLORREF _TextColor;
     HBITMAP _Bitmap;
     HDC _DC;
@@ -147,6 +149,7 @@ typedef struct SAppData
     HINSTANCE _Instance;
     Mode _Mode;
     int _Selection;
+    int _MouseSelection;
     SGraphicsResources _GraphicsResources;
     SWinGroupArr _WinGroups;
     SWinGroup _CurrentWinGroup;
@@ -253,17 +256,20 @@ static void InitGraphicsResources(SGraphicsResources* pRes, const Config* config
         if (lightTheme)
         {
             pRes->_BackgroundColor = lightColor;
+            pRes->_HighlightBackgroundColor = lightColor - 0x00202020;
             pRes->_TextColor = darkColor;
         }
         else
         {
             pRes->_BackgroundColor = darkColor;
+            pRes->_HighlightBackgroundColor = darkColor + 0x00202020;
             pRes->_TextColor = lightColor;
         }
     }
     // Brushes
     {
         ASSERT(Ok == GdipCreateSolidFill(pRes->_BackgroundColor | 0xFF000000, &pRes->_pBrushBg));
+        ASSERT(Ok == GdipCreateSolidFill(pRes->_HighlightBackgroundColor | 0xFF000000, &pRes->_pBrushBgHighlight));
         ASSERT(Ok == GdipCreateSolidFill(pRes->_TextColor | 0xFF000000, &pRes->_pBrushText));
     }
 }
@@ -272,6 +278,7 @@ static void DeInitGraphicsResources(SGraphicsResources* pRes)
 {
     ASSERT(Ok == GdipDeleteBrush(pRes->_pBrushText));
     ASSERT(Ok == GdipDeleteBrush(pRes->_pBrushBg));
+    ASSERT(Ok == GdipDeleteBrush(pRes->_pBrushBgHighlight));
     ASSERT(Ok == GdipDeleteStringFormat(pRes->_pFormat));
     ASSERT(Ok == GdipDeleteFont(pRes->_pFont));
 }
@@ -964,6 +971,7 @@ static void InitializeSwitchApp(SAppData* appData)
     EnumDesktopWindows(NULL, FillWinGroups, (LPARAM)appData);
     appData->_Mode = ModeApp;
     appData->_Selection = 0;
+    appData->_MouseSelection = 0;
     CreateWin(appData);
 }
 
@@ -1403,7 +1411,7 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
         }
         const int iconContainerSize = (int)appData->_Metrics._IconContainer;
         const int posX = GET_X_LPARAM(lParam);
-        appData->_Selection = min(max(0, posX / iconContainerSize), (int)appData->_WinGroups._Size);
+        appData->_MouseSelection = min(max(0, posX / iconContainerSize), (int)appData->_WinGroups._Size);
         InvalidateRect(appData->_MainWin, 0, FALSE);
         UpdateWindow(appData->_MainWin);
         return 0;
@@ -1442,9 +1450,10 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
         }
         if (!appData->_Config._Mouse)
             return 0;
-        const int selection = appData->_Selection;
+        const int selection = appData->_MouseSelection;
         appData->_Mode = ModeNone;
         appData->_Selection = 0;
+        appData->_MouseSelection = 0;
         DestroyWin(appData->_MainWin);
         ApplySwitchApp(&appData->_WinGroups._Data[selection]);
         ClearWinGroupArr(&appData->_WinGroups);
@@ -1489,12 +1498,18 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
         GdipSetInterpolationMode(pGraphics, 7); // InterpolationModeHighQualityBicubic
 
         const uint32_t iconSize = appData->_Metrics._Icon;
-        const uint32_t iconContainerSize = 2.0 * iconSize;// GetSystemMetrics(SM_CXICONSPACING);
+        const uint32_t iconContainerSize = 2.0 * iconSize;
         const uint32_t padding = (iconContainerSize - iconSize) / 2;
         uint32_t x = padding;
         for (uint32_t i = 0; i < appData->_WinGroups._Size; i++)
         {
             const SWinGroup* pWinGroup = &appData->_WinGroups._Data[i];
+
+            if (i == (uint32_t)appData->_MouseSelection)
+            {
+                RECT rect = {x - padding / 2, padding / 2, x + iconSize + padding/2, padding + iconSize + padding/2 };
+                DrawRoundedRect(pGraphics, NULL, pGraphRes->_pBrushBgHighlight, rect.left, rect.top, rect.right, rect.bottom, 10);
+            }
 
             if (i == (uint32_t)appData->_Selection)
             {
