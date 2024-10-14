@@ -256,13 +256,13 @@ static void InitGraphicsResources(SGraphicsResources* pRes, const Config* config
         if (lightTheme)
         {
             pRes->_BackgroundColor = lightColor;
-            pRes->_HighlightBackgroundColor = lightColor - 0x00202020;
+            pRes->_HighlightBackgroundColor = lightColor - 0x00131313;
             pRes->_TextColor = darkColor;
         }
         else
         {
             pRes->_BackgroundColor = darkColor;
-            pRes->_HighlightBackgroundColor = darkColor + 0x00202020;
+            pRes->_HighlightBackgroundColor = darkColor + 0x00131313;
             pRes->_TextColor = lightColor;
         }
     }
