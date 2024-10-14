@@ -723,60 +723,75 @@ static GpBitmap* GetIconFromExe(const char* exePath)
     HMODULE module = LoadLibraryEx(exePath, NULL, LOAD_LIBRARY_AS_DATAFILE);
     ASSERT(module != NULL);
 
-    char name[256];
-    char* pName = name;
-    EnumResourceNames(module, RT_GROUP_ICON, GetIconGroupName, (LONG_PTR)&pName);
-    HRSRC iconGrp = FindResource(module, pName, RT_GROUP_ICON);
-    if (iconGrp == NULL)
-    {
-        FreeLibrary(module);
-        return NULL;
-    }
-    HGLOBAL hGlobal = LoadResource(module, iconGrp);
-    GRPICONDIR* iconGrpData = (GRPICONDIR*)LockResource(hGlobal);
+    // Finds icon resource in module
     uint32_t iconResID = 0xFFFFFFFF;
     uint32_t resByteSize = 0;
-    for (uint32_t i = 0; i < iconGrpData->idCount; i++)
     {
-        const GRPICONDIRENTRY* entry = &iconGrpData->idEntries[i];
-        if (entry->dwBytesInRes > resByteSize)
+        char name[256];
+        char* pName = name;
+        EnumResourceNames(module, RT_GROUP_ICON, GetIconGroupName, (LONG_PTR)&pName);
+        HRSRC iconGrp = FindResource(module, pName, RT_GROUP_ICON);
+        if (iconGrp == NULL)
         {
-            iconResID = entry->nID;
-            resByteSize = entry->dwBytesInRes;
+            FreeLibrary(module);
+            return NULL;
         }
+        HGLOBAL hGlobal = LoadResource(module, iconGrp);
+        GRPICONDIR* iconGrpData = (GRPICONDIR*)LockResource(hGlobal);
+        for (uint32_t i = 0; i < iconGrpData->idCount; i++)
+        {
+            const GRPICONDIRENTRY* entry = &iconGrpData->idEntries[i];
+            if (entry->dwBytesInRes > resByteSize)
+            {
+                iconResID = entry->nID;
+                resByteSize = entry->dwBytesInRes;
+            }
+        }
+        UnlockResource(iconGrp);
+        FreeResource(iconGrp);
     }
-    UnlockResource(iconGrp);
-    HRSRC iconResInfo = FindResource(module, MAKEINTRESOURCE(iconResID), RT_ICON);
-    HGLOBAL iconRes = LoadResource(module, iconResInfo);
-    BYTE* data = (BYTE*)LockResource(iconRes);
-    HICON icon = CreateIconFromResourceEx(data, resByteSize, true, 0x00030000, 0, 0, 0);
-    UnlockResource(icon);
-    ICONINFO ii;
-    GetIconInfo(icon, &ii);
-    HBITMAP hbm = ii.hbmColor;
-    DeleteObject(ii.hbmMask);
 
-    BITMAP bm;
-    MEM_INIT(bm);
-    GetObject(hbm, sizeof(BITMAP), &bm);
-    const uint32_t iconSize = bm.bmWidth;
+    // Loads a bitmap from icon resource (bitmap must be freed later)
+    HBITMAP hbm = NULL;
+    {
+        HRSRC iconResInfo = FindResource(module, MAKEINTRESOURCE(iconResID), RT_ICON);
+        HGLOBAL iconRes = LoadResource(module, iconResInfo);
+        BYTE* data = (BYTE*)LockResource(iconRes);
+        HICON icon = CreateIconFromResourceEx(data, resByteSize, true, 0x00030000, 0, 0, 0);
+        UnlockResource(icon);
+        FreeResource(iconRes);
+        ICONINFO ii;
+        GetIconInfo(icon, &ii);
+        hbm = ii.hbmColor;
+        DeleteObject(ii.hbmMask);
+    }
 
+    // Module not needed anymore
     FreeLibrary(module);
+    module = NULL;
 
+    // Creates a gdi bitmap from the win base api bitmap
     GpBitmap* out;
-    GdipCreateBitmapFromScan0(iconSize, iconSize, 4 * iconSize, PixelFormat32bppARGB, NULL, &out);
+    {
+        BITMAP bm;
+        MEM_INIT(bm);
+        GetObject(hbm, sizeof(BITMAP), &bm);
+        const uint32_t iconSize = bm.bmWidth;
+        GdipCreateBitmapFromScan0(iconSize, iconSize, 4 * iconSize, PixelFormat32bppARGB, NULL, &out);
+        GpRect r = { 0, 0, iconSize, iconSize };
+        BitmapData dstData;
+        MEM_INIT(dstData);
+        GdipBitmapLockBits(out, &r, 0, PixelFormat32bppARGB, &dstData);
+        GetBitmapBits(hbm, sizeof(uint32_t) * iconSize * iconSize, dstData.Scan0);
+        GdipBitmapUnlockBits(out, &dstData);
+    }
 
-    GpRect r = { 0, 0, iconSize, iconSize };
-
-    BitmapData dstData;
-    MEM_INIT(dstData);
-    GdipBitmapLockBits(out, &r, 0, PixelFormat32bppARGB, &dstData);
-    GetBitmapBits(hbm, sizeof(uint32_t) * iconSize * iconSize, dstData.Scan0);
-    GdipBitmapUnlockBits(out, &dstData);
-
+    // Bitmap not needed anymore
     DeleteObject(hbm);
+    hbm = NULL;
+
     return out;
-}   
+}
 
 static BOOL FillWinGroups(HWND hwnd, LPARAM lParam)
 {
