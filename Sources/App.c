@@ -1547,7 +1547,7 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
                 RectF rectf = { (float)rect[0], (float)rect[1], (float)rect[2], (float)rect[3] };
                 swprintf(count, 4, L"%i", winCount);
                 // Invert text / bg brushes
-                DrawRoundedRect(pGraphics, NULL, pGraphRes->_pBrushText, rectf.X, rectf.Y, rectf.X + rectf.Width, rectf.Y + rectf.Height, 5);
+                DrawRoundedRect(pGraphics, NULL, pGraphRes->_pBrushText, rect[0], rect[1], rect[0] + rect[2], rect[1] + rect[3], 5);
                 ASSERT(!GdipDrawString(pGraphics, count, digitsCount, pGraphRes->_pFont, &rectf, pGraphRes->_pFormat, pGraphRes->_pBrushBg));
             }
             x += iconContainerSize;
