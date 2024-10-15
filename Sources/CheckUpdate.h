@@ -1,0 +1,1 @@
+void GetVersionStr(char* outStr);

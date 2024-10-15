@@ -1,7 +1,10 @@
 #include "App.h"
+#include "CheckUpdate.h"
 
 int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR pCmdLine, int nCmdShow)
 {
     (void)hPrevInstance; (void)nCmdShow; (void)pCmdLine;
-   return StartAltAppSwitcher(hInstance);
+    char version[64];
+    GetVersionStr(version);
+    return StartAltAppSwitcher(hInstance);
 }
