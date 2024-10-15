@@ -601,8 +601,8 @@ static void GetUWPIcon(HANDLE process, wchar_t* outIconPath, SAppData* appData)
 
         IAppxManifestApplicationsEnumerator_Release(appEnum);
         IAppxManifestReader_Release(reader);
-        IStream_Release(inputStream);
         IAppxFactory_Release(appxfac);
+        IStream_Release(inputStream);
         ASSERT(logoProp != NULL);
     }
     for (uint32_t i = 0; logoProp[i] != L'\0'; i++)
