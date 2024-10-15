@@ -135,7 +135,7 @@ typedef struct SUWPIconMapElement
     wchar_t _Icon[MAX_PATH];
 } SUWPIconMapElement;
 
-#define UWPICONMAPSIZE 8
+#define UWPICONMAPSIZE 16
 typedef struct SUWPIconMap
 {
     SUWPIconMapElement _Data[UWPICONMAPSIZE];
