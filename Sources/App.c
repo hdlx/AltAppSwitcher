@@ -43,7 +43,6 @@ typedef struct SWinGroup
     HWND _Windows[64];
     uint32_t _WindowCount;
     GpBitmap* _IconBitmap;
-    uint32_t iconData[256 * 256];
 } SWinGroup;
 
 typedef struct SWinArr
