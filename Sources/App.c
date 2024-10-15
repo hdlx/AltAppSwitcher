@@ -570,7 +570,7 @@ static void GetUWPIcon(HANDLE process, wchar_t* outIconPath, SAppData* appData)
         res = CoCreateInstance(&clsid, NULL, CLSCTX_INPROC_SERVER, &iid, (void**)&appxfac);
         if (!SUCCEEDED(res))
             return;
-        
+
         // Manifest reader
         IAppxManifestReader* reader = NULL;
         res = IAppxFactory_CreateManifestReader(appxfac, inputStream, (IAppxManifestReader**)&reader);
@@ -637,7 +637,10 @@ static void GetUWPIcon(HANDLE process, wchar_t* outIconPath, SAppData* appData)
     hFind = FindFirstFileW(parentDirStar, &findData);
 
     if (hFind == INVALID_HANDLE_VALUE)
+    {
+        CoUninitialize();
         return;
+    }
 
     uint32_t maxSize = 0;
     bool foundAny = false;
