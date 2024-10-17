@@ -1,1 +1,1 @@
-void GetVersionStr(char* outStr);
+void GetAASVersion(int* major, int* minor);

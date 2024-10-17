@@ -4,7 +4,7 @@
 int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR pCmdLine, int nCmdShow)
 {
     (void)hPrevInstance; (void)nCmdShow; (void)pCmdLine;
-    char version[64];
-    GetVersionStr(version);
+    int major, minor;
+    GetAASVersion(&major, &minor);
     return StartAltAppSwitcher(hInstance);
 }

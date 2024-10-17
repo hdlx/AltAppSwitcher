@@ -6,7 +6,7 @@
 #include <winsock2.h>
 #include <ws2tcpip.h>
 
-void GetVersionStr(char* outStr)
+void GetAASVersion(int* major, int* minor)
 {
     WSADATA wsaData;
     ZeroMemory(&wsaData, sizeof(WSADATA));
@@ -51,47 +51,38 @@ void GetVersionStr(char* outStr)
             sizeOfSockAddr = sizeof(struct sockaddr_in6);
             break;
         }
-        // inet_ntop(res->ai_family, sockAddr, addressStr, 100);
-        // printf ("IPv%d address: %s (%s)\n", res->ai_family == PF_INET6 ? 6 : 4,
-        //         addressStr, res->ai_canonname);
         res = res->ai_next;
     }
 
-    struct sockaddr_in clientService; 
-    clientService.sin_family = AF_INET;
-    clientService.sin_addr.s_addr = inet_addr("87.98.154.146");
-    clientService.sin_port = htons(80);
-
-   // if (connect(sock, sockAddr, sizeOfSockAddr))
-   (void)sockAddr; (void)sizeOfSockAddr;
-    if (connect(sock, (SOCKADDR*) &clientService, sizeof(clientService)))
+    if (connect(sock, sockAddr, sizeOfSockAddr))
     {
-        int toto = WSAGetLastError();
-        (void)toto;
+        WSACleanup();
         return;
     }
 
-   //const char message[] =
-   //    "GET /aasversion HTTP/1.1\r\n"
-   //    "Host: www.hamtarodeluxe.com\r\n"
-   //    "Accept: text/html\r\n";
-   //    
-   const char message[] = "GET / HTTP/1.1\r\n";
-        
+   const char message[] =
+       "GET /aasversion HTTP/1.1\r\nHost: www.hamtarodeluxe.com\r\n\r\n";
+
     if (SOCKET_ERROR == send(sock, message, strlen(message), 0))
+    {
+        close(sock);
+        WSACleanup();
         return;
+    }
 
     char response[1024];
     memset(response, 0, sizeof(response));
-    if (SOCKET_ERROR == recv(sock, response, strlen(response), 0))
+    if (SOCKET_ERROR == recv(sock, response, sizeof(response), 0))
+    {
+        close(sock);
+        WSACleanup();
         return;
+    }
 
     close(sock);
-
-    printf("Response:\n%s\n",response);
-
-    strcpy(outStr, response);
-
     WSACleanup();
+
+    *major = 0;
+    *minor = 0;
     return;
 }
