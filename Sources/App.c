@@ -872,11 +872,11 @@ static BOOL FillWinGroups(HWND hwnd, LPARAM lParam)
                 HBITMAP hbm = NULL;
                 {
                     HICON hi;
-                    LoadIconMetric(NULL, (PCWSTR)IDI_APPLICATION, LIM_LARGE, &hi);
+                    LoadIconWithScaleDown(NULL, (PCWSTR)IDI_APPLICATION, 256, 256, &hi);
                     ICONINFO iconinfo;
                     GetIconInfo(hi, &iconinfo);
                     hbm = iconinfo.hbmColor;
-                    //hbm = LoadImage(NULL, IDI_APPLICATION, IMAGE_ICON, 0, 0, LR_SHARED);
+                    DestroyIcon(hi);
                 }
 
                 // Creates a gdi bitmap from the win base api bitmap
@@ -894,6 +894,8 @@ static BOOL FillWinGroups(HWND hwnd, LPARAM lParam)
                     GetBitmapBits(hbm, sizeof(uint32_t) * iconSize * iconSize, dstData.Scan0);
                     GdipBitmapUnlockBits(out, &dstData);
                 }
+
+                DeleteObject(hbm);
                 group->_IconBitmap = out; 
             }
         }

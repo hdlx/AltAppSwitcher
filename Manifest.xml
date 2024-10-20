@@ -2,9 +2,9 @@
 <assembly xmlns="urn:schemas-microsoft-com:asm.v1" manifestVersion="1.0">
 <trustInfo xmlns="urn:schemas-microsoft-com:asm.v3">
     <security>
-        <requestedPrivileges>
+        <!-- <requestedPrivileges>
             <requestedExecutionLevel level="requireAdministrator" uiAccess="false"/>
-        </requestedPrivileges>
+        </requestedPrivileges> -->
     </security>
 </trustInfo>
 <assemblyIdentity
