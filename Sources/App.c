@@ -865,6 +865,37 @@ static BOOL FillWinGroups(HWND hwnd, LPARAM lParam)
                 GetUWPIcon(process, iconPath, appData);
                 GdipLoadImageFromFile(iconPath, &group->_IconBitmap);
             }
+
+            if (group->_IconBitmap == NULL)
+            {
+                // Loads a bitmap from icon resource (bitmap must be freed later)
+                HBITMAP hbm = NULL;
+                {
+                    HICON hi;
+                    LoadIconMetric(NULL, (PCWSTR)IDI_APPLICATION, LIM_LARGE, &hi);
+                    ICONINFO iconinfo;
+                    GetIconInfo(hi, &iconinfo);
+                    hbm = iconinfo.hbmColor;
+                    //hbm = LoadImage(NULL, IDI_APPLICATION, IMAGE_ICON, 0, 0, LR_SHARED);
+                }
+
+                // Creates a gdi bitmap from the win base api bitmap
+                GpBitmap* out;
+                {
+                    BITMAP bm;
+                    MEM_INIT(bm);
+                    GetObject(hbm, sizeof(BITMAP), &bm);
+                    const uint32_t iconSize = bm.bmWidth;
+                    GdipCreateBitmapFromScan0(iconSize, iconSize, 4 * iconSize, PixelFormat32bppARGB, NULL, &out);
+                    GpRect r = { 0, 0, iconSize, iconSize };
+                    BitmapData dstData;
+                    MEM_INIT(dstData);
+                    GdipBitmapLockBits(out, &r, 0, PixelFormat32bppARGB, &dstData);
+                    GetBitmapBits(hbm, sizeof(uint32_t) * iconSize * iconSize, dstData.Scan0);
+                    GdipBitmapUnlockBits(out, &dstData);
+                }
+                group->_IconBitmap = out; 
+            }
         }
         CloseHandle(process);
     }
