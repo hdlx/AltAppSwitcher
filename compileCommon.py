@@ -1,9 +1,9 @@
 import os
 import shutil
 
-def CFiles():
+def CFiles(dir):
     cFiles = ""
-    for root, subdirs, files in os.walk("./Sources"):
+    for root, subdirs, files in os.walk(dir):
         for file in files:
             if file.endswith(".c"):
                 cFiles += (root + "/" + file + " ")
@@ -27,9 +27,9 @@ def CopyAssets(dir):
 
 def MakeStaticStr():
     fsrc = open("./Assets/AltAppSwitcherConfig.txt", "r")
-    if not os.path.exists("./Sources/_Generated"):
-        os.makedirs("./Sources/_Generated")
-    fdst = open("./Sources/_Generated/ConfigStr.h", "w")
+    if not os.path.exists("./Sources/AltAppSwitcher/_Generated"):
+        os.makedirs("./Sources/AltAppSwitcher/_Generated")
+    fdst = open("./Sources/AltAppSwitcher/_Generated/ConfigStr.h", "w")
     fdst.write("static const char ConfigStr[] =\n" )
     for line in fsrc:
         fdst.write("\"")
@@ -45,18 +45,19 @@ def CompileCommon(dir):
         os.makedirs(dir)
     CopyAssets(dir)
 
-def CompileDbg(arch = "x86_64"):
-    dir = "./Output/Debug"
-    CompileCommon(dir)
-    file = f"{dir}/AltAppSwitcher.exe"
-    cmd = f"clang {CFiles()} {Includes()} {LinkArgs()} -o {file} {WarningOptions()} {Common()} -g -glldb -target x86_64-mingw64 -D DEBUG=1"
+def CompileDbg(prj, arch):
+    outputDir = "./Output/Debug"
+    CompileCommon(outputDir)
+    file = f"{outputDir}/{prj}.exe"
+    cFiles = CFiles(f"Sources/{prj}")
+    cmd = f"clang {cFiles} {Includes()} {LinkArgs()} -o {file} {WarningOptions()} {Common()} -g -glldb -target {arch}-mingw64 -D DEBUG=1"
     os.system(cmd)
-    return file
 
-def CompileRel(arch = "x86_64"):
-    dir = f"./Output/Release/{arch}"
-    CompileCommon(dir)
-    file = f"{dir}/AltAppSwitcher.exe"
-    cmd = f"clang {CFiles()} {Includes()} {LinkArgs()} -o {file} -mwindows {WarningOptions()} {Common()} -s -Os -Oz -target {arch}-mingw64"
+def CompileRel(prj, arch):
+    outputDir = f"./Output/Release/{arch}"
+    CompileCommon(outputDir)
+    file = f"{outputDir}/{prj}.exe"
+    cFiles = CFiles(f"Sources/{prj}")
+    cmd = f"clang {cFiles} {Includes()} {LinkArgs()} -o {file} -mwindows {WarningOptions()} {Common()} -s -Os -Oz -target {arch}-mingw64"
     os.system(cmd)
-    return file
+

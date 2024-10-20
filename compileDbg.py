@@ -1,2 +1,3 @@
 import compileCommon
-compileCommon.CompileDbg()
+compileCommon.CompileDbg("CheckUpdate")
+compileCommon.CompileDbg("AltAppSwitcher")

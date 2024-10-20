@@ -1,3 +1,5 @@
 import compileCommon
-compileCommon.CompileDbg()
-compileCommon.CompileRel()
+compileCommon.CompileDbg("CheckUpdate")
+compileCommon.CompileDbg("AltAppSwitcher")
+compileCommon.CompileRel("CheckUpdate")
+compileCommon.CompileRel("AltAppSwitcher")

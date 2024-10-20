@@ -95,3 +95,17 @@ void GetAASVersion(int* major, int* minor)
 
     return;
 }
+
+#define MAJOR 0
+#define MINOR 17
+int main()
+{
+    int major, minor;
+    GetAASVersion(&major, &minor);
+    if ((major > MAJOR) ||
+        (major == MAJOR && minor > MINOR))
+    {
+        system("msg * \"A new version of AltAppSwitcher is available. Please check https://github.com/hdlx/AltAppSwitcher/releases");
+    }
+    return 0;
+}

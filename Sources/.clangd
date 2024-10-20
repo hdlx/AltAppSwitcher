@@ -1,6 +1,0 @@
-CompileFlags:
-  Add:
-    - "-I/SDK"
-    - "-I/Sources"
-    - "--include-directory=./SDK"
-    - "--include-directory=./Sources"
