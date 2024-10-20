@@ -1717,7 +1717,6 @@ int StartAltAppSwitcher(HINSTANCE hInstance)
             _AppData._Selection = Modulo(_AppData._Selection, _AppData._CurrentWinGroup._WindowCount);
 
             HWND win = _AppData._CurrentWinGroup._Windows[_AppData._Selection];
-            //PostThreadMessage(_AppData._WorkerThread, MSG_SET_WIN, 0, (LPARAM)win);
             ApplySwitchWin(win);
 
             break;
