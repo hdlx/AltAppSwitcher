@@ -871,8 +871,9 @@ static BOOL FillWinGroups(HWND hwnd, LPARAM lParam)
                 // Loads a bitmap from icon resource (bitmap must be freed later)
                 HBITMAP hbm = NULL;
                 {
-                    HICON hi;
-                    LoadIconWithScaleDown(NULL, (PCWSTR)IDI_APPLICATION, 256, 256, &hi);
+                    HICON hi = NULL;
+                    (void)hi;
+                    //LoadIconWithScaleDown(NULL, (PCWSTR)IDI_APPLICATION, 256, 256, &hi);
                     ICONINFO iconinfo;
                     GetIconInfo(hi, &iconinfo);
                     hbm = iconinfo.hbmColor;

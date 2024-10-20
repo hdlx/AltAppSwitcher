@@ -8,6 +8,9 @@
 
 void GetAASVersion(int* major, int* minor)
 {
+    *major = 0;
+    *minor = 0;
+
     WSADATA wsaData;
     ZeroMemory(&wsaData, sizeof(WSADATA));
     if (WSAStartup(MAKEWORD(2, 2), &wsaData) != 0)
@@ -82,7 +85,13 @@ void GetAASVersion(int* major, int* minor)
     close(sock);
     WSACleanup();
 
-    *major = 0;
-    *minor = 0;
+    const char version[] = "\"Version\": ";
+    char* at = strstr(response, version);
+
+    if (at == NULL)
+        return;
+
+    sscanf(at, "\"Version\": %i.%i", major, minor);
+
     return;
 }
