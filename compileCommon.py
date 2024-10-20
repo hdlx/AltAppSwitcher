@@ -39,23 +39,23 @@ def MakeStaticStr():
         fdst.write("\n")
     fdst.write(";")
 
-def CompileDbg(arch = "x86_64"):
+def CompileCommon(dir):
     MakeStaticStr()
-    dir = "./Output/Debug"
     if not os.path.exists(dir):
         os.makedirs(dir)
     CopyAssets(dir)
+
+def CompileDbg(arch = "x86_64"):
+    dir = "./Output/Debug"
+    CompileCommon(dir)
     file = f"{dir}/AltAppSwitcher.exe"
     cmd = f"clang {CFiles()} {Includes()} {LinkArgs()} -o {file} {WarningOptions()} {Common()} -g -glldb -target x86_64-mingw64 -D DEBUG=1"
     os.system(cmd)
     return file
 
 def CompileRel(arch = "x86_64"):
-    MakeStaticStr()
     dir = f"./Output/Release/{arch}"
-    if not os.path.exists(dir):
-        os.makedirs(dir)
-    CopyAssets(dir)
+    CompileCommon(dir)
     file = f"{dir}/AltAppSwitcher.exe"
     cmd = f"clang {CFiles()} {Includes()} {LinkArgs()} -o {file} -mwindows {WarningOptions()} {Common()} -s -Os -Oz -target {arch}-mingw64"
     os.system(cmd)
