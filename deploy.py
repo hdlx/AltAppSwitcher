@@ -13,5 +13,8 @@ def deploy(arch, writeManifest = False):
     zipFile = f"{dir}/AltAppSwitcher_{arch}"
     shutil.make_archive(zipFile, "zip", srcDir)
 
+# If we want embed manifest (breaks debug)
+# os.system(f"mt.exe -manifest \"./Manifest.xml\" -outputresource:\"{file}\"")
+
 deploy("x86_64")
 deploy("aarch64")

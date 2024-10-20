@@ -46,9 +46,8 @@ def CompileDbg(arch = "x86_64"):
         os.makedirs(dir)
     CopyAssets(dir)
     file = f"{dir}/AltAppSwitcher.exe"
-    cmd = f"clang {CFiles()} {Includes()} {LinkArgs()} -o {file} {WarningOptions()} {Common()} -g -glldb -target x86_64-mingw64 -D DEBUG=1 -O0"
+    cmd = f"clang {CFiles()} {Includes()} {LinkArgs()} -o {file} {WarningOptions()} {Common()} -g -glldb -target x86_64-mingw64 -D DEBUG=1"
     os.system(cmd)
-    os.system(f"mt.exe -manifest \"./Manifest.xml\" -outputresource:\"{file}\"")
     return file
 
 def CompileRel(arch = "x86_64"):
@@ -60,5 +59,4 @@ def CompileRel(arch = "x86_64"):
     file = f"{dir}/AltAppSwitcher.exe"
     cmd = f"clang {CFiles()} {Includes()} {LinkArgs()} -o {file} -mwindows {WarningOptions()} {Common()} -s -Os -Oz -target {arch}-mingw64"
     os.system(cmd)
-    os.system(f"mt.exe -manifest \"./Manifest.xml\" -outputresource:\"{file}\"")
     return file

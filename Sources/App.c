@@ -873,7 +873,7 @@ static BOOL FillWinGroups(HWND hwnd, LPARAM lParam)
                 {
                     HICON hi = NULL;
                     (void)hi;
-                    //LoadIconWithScaleDown(NULL, (PCWSTR)IDI_APPLICATION, 256, 256, &hi);
+                    LoadIconWithScaleDown(NULL, (PCWSTR)IDI_APPLICATION, 256, 256, &hi);
                     ICONINFO iconinfo;
                     GetIconInfo(hi, &iconinfo);
                     hbm = iconinfo.hbmColor;
