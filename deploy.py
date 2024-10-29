@@ -13,7 +13,7 @@ def deploy(arch):
     if os.path.exists(tempDir):
         shutil.rmtree(tempDir)
 
-    compileCommon.CompileRel("CheckUpdate", arch)
+    compileCommon.CompileRel("CheckForUpdates", arch)
     compileCommon.CompileRel("AltAppSwitcher", arch)
 
     shutil.copytree(srcDir, tempDir)

@@ -4,6 +4,7 @@
 #include <stdbool.h>
 #include <stdio.h>
 #include <Winuser.h>
+#include <stdlib.h>
 
 static bool TryGetKey(const char* lineBuf, const char* token, DWORD* keyToSet)
 {
