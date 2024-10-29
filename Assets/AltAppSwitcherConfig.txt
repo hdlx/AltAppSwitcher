@@ -28,3 +28,4 @@ scale: 2.5
 
 // Other options:
 allow mouse: true
+check for updates: true

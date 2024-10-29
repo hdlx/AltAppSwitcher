@@ -29,4 +29,5 @@ static const char ConfigStr[] =
 "\n"
 "// Other options:\n"
 "allow mouse: true\n"
+"check for updates: true\n"
 ;

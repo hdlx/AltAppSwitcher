@@ -1,5 +1,4 @@
 #define COBJMACROS
-#include <minwindef.h>
 #include <stdio.h>
 #include <string.h>
 #include <time.h>
@@ -29,10 +28,12 @@
 #include <Shobjidl.h>
 #include <objidl.h>
 #include <Unknwn.h>
+#include <unistd.h>
 #include "AppxPackaging.h"
 #undef COBJMACROS
 #include "AltAppSwitcherHelpers.h"
 #include "KeyCodeFromConfigName.h"
+#include "Config.h"
 LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam);
 
 #define MEM_INIT(ARG) memset(&ARG, 0,  sizeof(ARG))
@@ -94,32 +95,6 @@ typedef struct Metrics
     uint32_t _Icon;
     uint32_t _IconContainer;
 } Metrics;
-
-typedef struct KeyConfig
-{
-    DWORD _AppHold;
-    DWORD _AppSwitch;
-    DWORD _WinHold;
-    DWORD _WinSwitch;
-    DWORD _Invert;
-    DWORD _PrevApp;
-} KeyConfig;
-
-
-typedef enum ThemeMode
-{
-    ThemeModeAuto,
-    ThemeModeLight,
-    ThemeModeDark
-} ThemeMode;
-
-typedef struct Config
-{
-    KeyConfig _Key;
-    bool _Mouse;
-    ThemeMode _ThemeMode;
-    float _Scale;
-} Config;
 
 typedef enum Mode
 {
@@ -1308,121 +1283,6 @@ static void DrawRoundedRect(GpGraphics* pGraphics, GpPen* pPen, GpBrush* pBrush,
     GdipDeletePath(pPath);
 }
 
-static bool TryGetKey(const char* lineBuf, const char* token, DWORD* keyToSet)
-{
-    const char* pValue = strstr(lineBuf, token);
-    if (pValue != NULL)
-    {
-        *keyToSet = KeyCodeFromConfigName(pValue + strlen(token) - 1);
-        return true;
-    }
-    return false;
-}
-
-static bool TryGetBool(const char* lineBuf, const char* token, bool* boolToSet)
-{
-    const char* pValue = strstr(lineBuf, token);
-    if (pValue != NULL)
-    {
-        if (strstr(pValue + strlen(token) - 1, "true") != NULL)
-        {
-            *boolToSet = true;
-            return true;
-        }
-        else if (strstr(pValue + strlen(token) - 1, "false") != NULL)
-        {
-            *boolToSet = false;
-            return true;
-        }
-    }
-    return false;
-}
-
-static bool TryGetFloat(const char* lineBuf, const char* token, float* floatToSet)
-{
-    const char* pValue = strstr(lineBuf, token);
-    if (pValue != NULL)
-    {
-        *floatToSet = strtof(pValue + strlen(token)  - 1, NULL);
-        return true;
-    }
-    return false;
-}
-
-static bool TryGetTheme(const char* lineBuf, const char* token, ThemeMode* theme)
-{
-    const char* pValue = strstr(lineBuf, token);
-    if (pValue != NULL)
-    {
-        if (strstr(pValue + strlen(token) - 1, "auto") != NULL)
-        {
-            *theme = ThemeModeAuto;
-            return true;
-        }
-        else if (strstr(pValue + strlen(token) - 1, "light") != NULL)
-        {
-            *theme = ThemeModeLight;
-            return true;
-        }
-        else if (strstr(pValue + strlen(token) - 1, "dark") != NULL)
-        {
-            *theme = ThemeModeDark;
-            return true;
-        }
-    }
-    return false;
-}
-#include "_Generated/ConfigStr.h"
-static void LoadConfig(Config* config)
-{
-    config->_Key._AppHold = VK_LMENU;
-    config->_Key._AppSwitch = VK_TAB;
-    config->_Key._WinHold = VK_LMENU;
-    config->_Key._WinSwitch = VK_OEM_3;
-    config->_Key._Invert = VK_LSHIFT;
-    config->_Key._PrevApp = 0xFFFFFFFF;
-    config->_Mouse = true;
-    config->_ThemeMode = ThemeModeAuto;
-    config->_Scale = 1.5;
-
-    const char* configFile = "AltAppSwitcherConfig.txt";
-    FILE* file = fopen(configFile ,"rb");
-    if (file == NULL)
-    {
-        file = fopen(configFile ,"a");
-        fprintf(file, ConfigStr);
-        fclose(file);
-        fopen(configFile ,"rb");
-    }
-
-    static char lineBuf[1024];
-    while (fgets(lineBuf, 1024, file))
-    {
-        if (!strncmp(lineBuf, "//", 2))
-            continue;
-        if (TryGetKey(lineBuf, "app hold key: ", &config->_Key._AppHold))
-            continue;
-        if (TryGetKey(lineBuf, "next app key: ", &config->_Key._AppSwitch))
-            continue;
-        if (TryGetKey(lineBuf, "previous app key: ", &config->_Key._PrevApp))
-            continue;
-        if (TryGetKey(lineBuf, "window hold key: ", &config->_Key._WinHold))
-            continue;
-        if (TryGetKey(lineBuf, "next window key: ", &config->_Key._WinSwitch))
-            continue;
-        if (TryGetKey(lineBuf, "invert order key: ", &config->_Key._Invert))
-            continue;
-        if (TryGetBool(lineBuf, "allow mouse: ", &config->_Mouse))
-            continue;
-        if (TryGetTheme(lineBuf, "theme: ", &config->_ThemeMode))
-            continue;
-        if (TryGetFloat(lineBuf, "scale: ", &config->_Scale))
-            continue;
-    }
-    fclose(file);
-}
-
-
 LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 {
     static bool mouseInside = false;
@@ -1653,6 +1513,11 @@ int StartAltAppSwitcher(HINSTANCE hInstance)
         _MainThread = GetCurrentThreadId();
         _KeyConfig = &_AppData._Config._Key;
         LoadConfig(&_AppData._Config);
+
+        if (_AppData._Config._CheckForUpdates && access(".\\CheckForUpdates.exe", F_OK) == 0)
+        {
+            system(".\\CheckForUpdates.exe &");
+        }
         InitGraphicsResources(&_AppData._GraphicsResources, &_AppData._Config);
     }
 
