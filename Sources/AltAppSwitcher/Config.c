@@ -1,7 +1,6 @@
 #include "AltAppSwitcher/Config.h"
 #include "AltAppSwitcher/_Generated/ConfigStr.h"
 #include "AltAppSwitcher/KeyCodeFromConfigName.h"
-#include "AltAppSwitcher/KeyCodeFromConfigName.h"
 #include <stdbool.h>
 #include <stdio.h>
 #include <Winuser.h>
