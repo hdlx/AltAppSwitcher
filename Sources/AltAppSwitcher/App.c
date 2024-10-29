@@ -731,7 +731,7 @@ static GpBitmap* GetIconFromExe(const char* exePath)
                 resByteSize = entry->dwBytesInRes;
             }
         }
-        UnlockResource(iconGrp);
+        UnlockResource(hGlobal);
         FreeResource(iconGrp);
     }
 
@@ -742,12 +742,13 @@ static GpBitmap* GetIconFromExe(const char* exePath)
         HGLOBAL iconRes = LoadResource(module, iconResInfo);
         BYTE* data = (BYTE*)LockResource(iconRes);
         HICON icon = CreateIconFromResourceEx(data, resByteSize, true, 0x00030000, 0, 0, 0);
-        UnlockResource(icon);
+        UnlockResource(iconRes);
         FreeResource(iconRes);
         ICONINFO ii;
         GetIconInfo(icon, &ii);
         hbm = ii.hbmColor;
         DeleteObject(ii.hbmMask);
+        DestroyIcon(icon);
     }
 
     // Module not needed anymore
