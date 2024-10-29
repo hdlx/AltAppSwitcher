@@ -25,7 +25,7 @@ schtasks /create /sc ONEVENT /ec Application /tn AltAppSwitcher /tr "'%fullPath%
 reg add "HKEY_CURRENT_USER\SOFTWARE\Microsoft\Windows\CurrentVersion\Run" /v "AltAppSwitcher" /t REG_SZ /d "schtasks /run /tn AltAppSwitcher" /f
 
 if %errorlevel% equ 0 (
-    msg * "AltAppSwitcher has been added to startup apps. Please re-run this utility if you move the application executable."
+    msg * "AltAppSwitcher has been added to startup apps. Please re-run this utility if you move the application files."
     exit
 )
 

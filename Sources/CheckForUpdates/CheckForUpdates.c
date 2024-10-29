@@ -107,9 +107,9 @@ int main()
     {
         char msg[256];
         sprintf(msg,
-            "msg * \"A new version of AltAppSwitcher is available (%d.%d). Please check https://github.com/hdlx/AltAppSwitcher/releases\" &",
+            "msg * \"A new version of AltAppSwitcher is available (%u.%u). Please check https://github.com/hdlx/AltAppSwitcher/releases\" &",
             major, minor);
-        system("msg * \"A new version of AltAppSwitcher is available (). Please check https://github.com/hdlx/AltAppSwitcher/releases\" &");
+        system(msg);
     }
     return 0;
 }
