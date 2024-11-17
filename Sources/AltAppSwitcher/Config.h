@@ -18,6 +18,12 @@ typedef enum ThemeMode
     ThemeModeDark
 } ThemeMode;
 
+typedef enum AppSwitcherMode
+{
+    AppSwitcherModeApp,
+    AppSwitcherModeWindow,
+} AppSwitcherMode;
+
 typedef struct Config
 {
     KeyConfig _Key;
@@ -25,6 +31,7 @@ typedef struct Config
     bool _CheckForUpdates;
     ThemeMode _ThemeMode;
     float _Scale;
+    AppSwitcherMode _AppSwitcherMode;
 } Config;
 
 void LoadConfig(Config* config);

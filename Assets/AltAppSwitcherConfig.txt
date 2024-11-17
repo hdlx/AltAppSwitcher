@@ -29,3 +29,8 @@ scale: 2.5
 // Other options:
 allow mouse: true
 check for updates: true
+
+// Switch app behavior:
+// "app": MacOS-like, one entry per application.
+// "window": Windows-like, one entry per window (each window is considered an independent application)
+switch app behavior: app

@@ -47,24 +47,17 @@ static bool TryGetFloat(const char* lineBuf, const char* token, float* floatToSe
     return false;
 }
 
-static bool TryGetTheme(const char* lineBuf, const char* token, ThemeMode* theme)
+static bool TryGetEnum(const char* lineBuf, const char* token,
+    unsigned int* outValue, const char** enumStrings, unsigned int enumCount)
 {
     const char* pValue = strstr(lineBuf, token);
-    if (pValue != NULL)
+    if (pValue == NULL)
+        return false;
+    for (unsigned int i = 0; i < enumCount; i++)
     {
-        if (strstr(pValue + strlen(token) - 1, "auto") != NULL)
+        if (strstr(pValue + strlen(token) - 1, enumStrings[i]) != NULL)
         {
-            *theme = ThemeModeAuto;
-            return true;
-        }
-        else if (strstr(pValue + strlen(token) - 1, "light") != NULL)
-        {
-            *theme = ThemeModeLight;
-            return true;
-        }
-        else if (strstr(pValue + strlen(token) - 1, "dark") != NULL)
-        {
-            *theme = ThemeModeDark;
+            *outValue = i;
             return true;
         }
     }
@@ -94,6 +87,21 @@ void LoadConfig(Config* config)
         fopen(configFile ,"rb");
     }
 
+    static const char* themeModeStrings[] =
+    {
+        "auto",
+        "light",
+        "dark"
+    };
+
+    static const char* appSwitcherModeStrings[] =
+    {
+        "app",
+        "window"
+    };
+
+#define ARRAY_SIZE(x) (sizeof(x) / sizeof(x[0]))
+
     static char lineBuf[1024];
     while (fgets(lineBuf, 1024, file))
     {
@@ -113,7 +121,9 @@ void LoadConfig(Config* config)
             continue;
         if (TryGetBool(lineBuf, "allow mouse: ", &config->_Mouse))
             continue;
-        if (TryGetTheme(lineBuf, "theme: ", &config->_ThemeMode))
+        if (TryGetEnum(lineBuf, "theme: ", &config->_ThemeMode, themeModeStrings, ARRAY_SIZE(themeModeStrings)))
+            continue;
+        if (TryGetEnum(lineBuf, "theme: ", &config->_AppSwitcherMode, appSwitcherModeStrings, ARRAY_SIZE(appSwitcherModeStrings)))
             continue;
         if (TryGetFloat(lineBuf, "scale: ", &config->_Scale))
             continue;
@@ -121,4 +131,6 @@ void LoadConfig(Config* config)
             continue;
     }
     fclose(file);
+
+#undef ARRAY_SIZE
 }

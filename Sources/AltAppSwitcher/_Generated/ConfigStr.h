@@ -30,4 +30,9 @@ static const char ConfigStr[] =
 "// Other options:\n"
 "allow mouse: true\n"
 "check for updates: true\n"
+"\n"
+"// Switch app behavior:\n"
+"// \"app\": MacOS-like, one entry per application.\n"
+"// \"window\": Windows-like, one entry per window (each window is considered an independent application)\n"
+"switch app behavior: app\n"
 ;
