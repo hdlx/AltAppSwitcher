@@ -75,6 +75,7 @@ void LoadConfig(Config* config)
     config->_Mouse = true;
     config->_CheckForUpdates = true;
     config->_ThemeMode = ThemeModeAuto;
+    config->_AppSwitcherMode = AppSwitcherModeApp;
     config->_Scale = 1.5;
 
     const char* configFile = "AltAppSwitcherConfig.txt";
