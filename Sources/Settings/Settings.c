@@ -21,6 +21,15 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 
 int StartSettings(HINSTANCE hInstance)
 {
+    SystemParametersInfo(SPI_SETFONTSMOOTHING,
+                     TRUE,
+                     0,
+                     SPIF_UPDATEINIFILE | SPIF_SENDCHANGE);
+    SystemParametersInfo(SPI_SETFONTSMOOTHINGTYPE,
+                        0,
+                        (PVOID)FE_FONTSMOOTHINGCLEARTYPE,
+                        SPIF_UPDATEINIFILE | SPIF_SENDCHANGE); 
+
     {
         WNDCLASS wc = { };
         wc.lpfnWndProc = WindowProc;
@@ -43,22 +52,19 @@ int StartSettings(HINSTANCE hInstance)
         hInstance, // Instance handle
         NULL); // Additional application data
 
-    HWND button = CreateWindow( 
-        "BUTTON",
-        "OK",
-        WS_VISIBLE | WS_CHILD | BS_PUSHBUTTON,
-        10,
-        10,
-        100,
-        100,
-        mainWin,
-        NULL,
-        hInstance, 
-        NULL);
-    SIZE size = { 0, 0 };
-    Button_GetIdealSize(button, &size);
-    SetWindowPos(button, NULL, 0, 0, size.cx, size.cy, SWP_NOREPOSITION);
+    HWND button = CreateWindow(WC_BUTTON, "Apply",
+        WS_VISIBLE | WS_CHILD | BS_PUSHBUTTON | BS_FLAT,
+        10, 10, 100, 20, mainWin, NULL, hInstance, NULL);
     (void)button;
+
+    HWND combobox = CreateWindow(WC_COMBOBOX, "Combobox", 
+        CBS_DROPDOWN | CBS_HASSTRINGS | WS_CHILD | WS_OVERLAPPED | WS_VISIBLE,
+        10, 50, 200, 200, mainWin, NULL, hInstance, NULL);
+    //SendMessage(combobox,(UINT)WM_SETFONT,(WPARAM)0,(LPARAM)"Test0");
+    SendMessage(combobox,(UINT)CB_ADDSTRING,(WPARAM)0,(LPARAM)"Test0");
+    SendMessage(combobox,(UINT)CB_ADDSTRING,(WPARAM)0,(LPARAM)"Test1");
+    SendMessage(combobox,(UINT)CB_SETCURSEL,(WPARAM)0,(LPARAM)0);
+    (void)combobox;
 
     MSG msg = { };
     while (GetMessage(&msg, NULL, 0, 0))
