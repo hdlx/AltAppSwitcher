@@ -60,3 +60,17 @@ def CompileRel(prj, arch):
     cFiles = CFiles(f"Sources/{prj}")
     cmd = f"clang {cFiles} {Includes()} {LinkArgs()} -o {file} -mwindows {WarningOptions()} {Common()} -s -Os -Oz -target {arch}-mingw64"
     os.system(cmd)
+
+import sys
+
+def main(args):
+    prj = args[0]
+    conf = args[1]
+    arch = args[2]
+    if conf == "release":
+        CompileRel(prj, arch)
+    elif conf == "debug":
+        CompileDbg(prj, arch)
+
+if __name__ == "__main__":
+    main(sys.argv[1:])

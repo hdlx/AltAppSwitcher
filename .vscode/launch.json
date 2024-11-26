@@ -7,7 +7,7 @@
 			"program": "${workspaceFolder}/Output/Debug/AltAppSwitcher.exe",
 			"args": [],
 			"cwd": "${workspaceFolder}/Output/Debug",
-			"preLaunchTask": "Build debug",
+			"preLaunchTask": "Build AAS",
 			"console": "integratedTerminal"
 		},
 		{
@@ -25,7 +25,7 @@
 			"name": "Build and debug Settings",
 			"program": "${workspaceFolder}/Output/Debug/Settings.exe",
 			"args": [],
-			"preLaunchTask": "Build debug",
+			"preLaunchTask": "Build Settings",
 			"cwd": "${workspaceFolder}/Output/Debug",
 			"console": "integratedTerminal"
 		}

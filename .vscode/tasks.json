@@ -4,9 +4,14 @@
     "version": "2.0.0",
     "tasks": [
         {
-            "label": "Build debug",
+            "label": "Build Settings",
             "type": "shell",
-            "command": "python.exe ./compileDbg.py"
+            "command": "python.exe ./compile.py Settings debug x86_64"
+        },
+        {
+            "label": "Build AAS",
+            "type": "shell",
+            "command": "python.exe ./compile.py AltAppSwitcher debug x86_64"
         }
     ]
 }
