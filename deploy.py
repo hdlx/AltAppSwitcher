@@ -15,6 +15,7 @@ def deploy(arch):
 
     compileCommon.CompileRel("CheckForUpdates", arch)
     compileCommon.CompileRel("AltAppSwitcher", arch)
+    compileCommon.CompileRel("Settings", arch)
 
     shutil.copytree(srcDir, tempDir)
 

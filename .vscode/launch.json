@@ -3,7 +3,7 @@
 		{
 			"type": "lldb",
 			"request": "launch",
-			"name": "Build and debug",
+			"name": "Build and debug AAS",
 			"program": "${workspaceFolder}/Output/Debug/AltAppSwitcher.exe",
 			"args": [],
 			"cwd": "${workspaceFolder}/Output/Debug",
@@ -13,9 +13,19 @@
 		{
 			"type": "lldb",
 			"request": "launch",
-			"name": "Debug",
+			"name": "Debug AAS",
 			"program": "${workspaceFolder}/Output/Debug/AltAppSwitcher.exe",
 			"args": [],
+			"cwd": "${workspaceFolder}/Output/Debug",
+			"console": "integratedTerminal"
+		},
+		{
+			"type": "lldb",
+			"request": "launch",
+			"name": "Build and debug Settings",
+			"program": "${workspaceFolder}/Output/Debug/Settings.exe",
+			"args": [],
+			"preLaunchTask": "Build debug",
 			"cwd": "${workspaceFolder}/Output/Debug",
 			"console": "integratedTerminal"
 		}

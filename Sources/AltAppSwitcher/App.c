@@ -937,7 +937,7 @@ static DWORD GetParentPID(DWORD PID)
     return parentPID;
 }
 
-static const char CLASS_NAME[]  = "MacStyleSwitch";
+static const char CLASS_NAME[] = "AltAppSwitcher";
 
 static void DestroyWin(HWND win)
 {

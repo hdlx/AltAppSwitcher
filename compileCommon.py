@@ -60,4 +60,3 @@ def CompileRel(prj, arch):
     cFiles = CFiles(f"Sources/{prj}")
     cmd = f"clang {cFiles} {Includes()} {LinkArgs()} -o {file} -mwindows {WarningOptions()} {Common()} -s -Os -Oz -target {arch}-mingw64"
     os.system(cmd)
-
