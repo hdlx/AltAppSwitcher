@@ -1,15 +1,6 @@
-#include "KeyCodeFromConfigName.h"
-#include <stdint.h>
-#include <string.h>
+#pragma once
 
-typedef struct Pair
-{
-    char* Name;
-    unsigned long KeyCode;
-} Pair;
-
-// https://learn.microsoft.com/en-us/windows/win32/inputdev/virtual-key-codes
-
+// From https://learn.microsoft.com/en-us/windows/win32/inputdev/virtual-key-codes
 #define VK_LBUTTON 0x01
 #define VK_RBUTTON 0x02
 #define VK_CANCEL 0x03
@@ -180,32 +171,3 @@ typedef struct Pair
 #define VK_NONAME 0xFC
 #define VK_PA1 0xFD
 #define VK_OEM_CLEAR 0xFE
-
-static Pair Pairs[] = {
-    { "left alt", VK_LMENU },
-    { "right alt", VK_RMENU },
-    { "alt", VK_MENU },
-    { "tilde", VK_OEM_3 },
-    { "left windows", VK_LWIN },
-    { "right windows", VK_RWIN },
-    { "right super", VK_RWIN },
-    { "left super", VK_LWIN },
-    { "left control", VK_LCONTROL },
-    { "right control", VK_RCONTROL },
-    { "left shift", VK_LSHIFT },
-    { "right shift", VK_RSHIFT },
-    { "tab", VK_TAB },
-    { "none", 0xFFFFFFFF },
-};
-
-static const uint32_t count = sizeof(Pairs) / sizeof(Pairs[0]);
-
-unsigned long KeyCodeFromConfigName(const char* p)
-{
-    for (uint32_t i = 0; i < count; i++)
-    {
-        if (strstr(p, Pairs[i].Name) != NULL)
-            return Pairs[i].KeyCode;
-    }
-    return 0;
-}

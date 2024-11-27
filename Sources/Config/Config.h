@@ -1,14 +1,15 @@
+#pragma once
 #include <windef.h>
 #include <stdbool.h>
 
 typedef struct KeyConfig
 {
-    DWORD _AppHold;
-    DWORD _AppSwitch;
-    DWORD _WinHold;
-    DWORD _WinSwitch;
-    DWORD _Invert;
-    DWORD _PrevApp;
+    unsigned int _AppHold;
+    unsigned int _AppSwitch;
+    unsigned int _WinHold;
+    unsigned int _WinSwitch;
+    unsigned int _Invert;
+    unsigned int _PrevApp;
 } KeyConfig;
 
 typedef enum ThemeMode

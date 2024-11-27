@@ -1,33 +1,25 @@
 #include "Config.h"
 #include "_Generated/ConfigStr.h"
-#include "KeyCodeFromConfigName.h"
+#include "WinKeyCodes.h"
 #include <stdbool.h>
 #include <stdio.h>
 #include <Winuser.h>
 #include <stdlib.h>
 
-static bool TryGetKey(const char* lineBuf, const char* token, DWORD* keyToSet)
-{
-    const char* pValue = strstr(lineBuf, token);
-    if (pValue != NULL)
-    {
-        *keyToSet = KeyCodeFromConfigName(pValue + strlen(token) - 1);
-        return true;
-    }
-    return false;
-}
-
 static bool TryGetBool(const char* lineBuf, const char* token, bool* boolToSet)
 {
-    const char* pValue = strstr(lineBuf, token);
+    char fullToken[256];
+    strcpy(fullToken, token);
+    strcat(fullToken, ": ");
+    const char* pValue = strstr(lineBuf, fullToken);
     if (pValue != NULL)
     {
-        if (strstr(pValue + strlen(token) - 1, "true") != NULL)
+        if (strstr(pValue + strlen(fullToken) - 1, "true") != NULL)
         {
             *boolToSet = true;
             return true;
         }
-        else if (strstr(pValue + strlen(token) - 1, "false") != NULL)
+        else if (strstr(pValue + strlen(fullToken) - 1, "false") != NULL)
         {
             *boolToSet = false;
             return true;
@@ -38,24 +30,36 @@ static bool TryGetBool(const char* lineBuf, const char* token, bool* boolToSet)
 
 static bool TryGetFloat(const char* lineBuf, const char* token, float* floatToSet)
 {
-    const char* pValue = strstr(lineBuf, token);
+    char fullToken[256];
+    strcpy(fullToken, token);
+    strcat(fullToken, ": ");
+    const char* pValue = strstr(lineBuf, fullToken);
     if (pValue != NULL)
     {
-        *floatToSet = strtof(pValue + strlen(token)  - 1, NULL);
+        *floatToSet = strtof(pValue + strlen(fullToken)  - 1, NULL);
         return true;
     }
     return false;
 }
 
-static bool TryGetEnum(const char* lineBuf, const char* token,
-    unsigned int* outValue, const char** enumStrings, unsigned int enumCount)
+typedef struct EnumString
 {
-    const char* pValue = strstr(lineBuf, token);
+    char* Name;
+    unsigned int KeyCode;
+} EnumString;
+
+static bool TryGetEnum(const char* lineBuf, const char* token,
+    unsigned int* outValue, const EnumString* enumStrings, unsigned int enumCount)
+{
+    char fullToken[256];
+    strcpy(fullToken, token);
+    strcat(fullToken, ": ");
+    const char* pValue = strstr(lineBuf, fullToken);
     if (pValue == NULL)
         return false;
     for (unsigned int i = 0; i < enumCount; i++)
     {
-        if (strstr(pValue + strlen(token) - 1, enumStrings[i]) != NULL)
+        if (strstr(pValue + strlen(fullToken) - 1, enumStrings[i].Name) != NULL)
         {
             *outValue = i;
             return true;
@@ -88,50 +92,70 @@ void LoadConfig(Config* config)
         fopen(configFile ,"rb");
     }
 
-    static const char* themeModeStrings[] =
-    {
-        "auto",
-        "light",
-        "dark"
+    static const EnumString keyEnum[] = {
+        { "left alt", VK_LMENU },
+        { "right alt", VK_RMENU },
+        { "alt", VK_MENU },
+        { "tilde", VK_OEM_3 },
+        { "left windows", VK_LWIN },
+        { "right windows", VK_RWIN },
+        { "right super", VK_RWIN },
+        { "left super", VK_LWIN },
+        { "left control", VK_LCONTROL },
+        { "right control", VK_RCONTROL },
+        { "left shift", VK_LSHIFT },
+        { "right shift", VK_RSHIFT },
+        { "tab", VK_TAB },
+        { "none", 0xFFFFFFFF },
     };
 
-    static const char* appSwitcherModeStrings[] =
-    {
-        "app",
-        "window"
+    static const EnumString themeEnum[] = {
+        { "auto", ThemeModeAuto },
+        { "light", ThemeModeLight },
+        { "dark", ThemeModeDark }
     };
 
-#define ARRAY_SIZE(x) (sizeof(x) / sizeof(x[0]))
+    static const EnumString appSwitcherModeEnum[] =
+    {
+        { "app", AppSwitcherModeApp },
+        { "window", AppSwitcherModeApp }
+    };
+
+#define GET_ENUM(ENTRY, DST, ENUM_STRING) \
+if (TryGetEnum(lineBuf, #ENTRY, &DST, ENUM_STRING, sizeof(ENUM_STRING) / sizeof(ENUM_STRING[0])))\
+    continue;
+
+#define GET_BOOL(ENTRY, DST) \
+if (TryGetBool(lineBuf,  #ENTRY, &DST))\
+    continue;
+
+#define GET_FLOAT(ENTRY, DST) \
+if (TryGetFloat(lineBuf,  #ENTRY, &DST))\
+    continue;
 
     static char lineBuf[1024];
     while (fgets(lineBuf, 1024, file))
     {
         if (!strncmp(lineBuf, "//", 2))
             continue;
-        if (TryGetKey(lineBuf, "app hold key: ", &config->_Key._AppHold))
-            continue;
-        if (TryGetKey(lineBuf, "next app key: ", &config->_Key._AppSwitch))
-            continue;
-        if (TryGetKey(lineBuf, "previous app key: ", &config->_Key._PrevApp))
-            continue;
-        if (TryGetKey(lineBuf, "window hold key: ", &config->_Key._WinHold))
-            continue;
-        if (TryGetKey(lineBuf, "next window key: ", &config->_Key._WinSwitch))
-            continue;
-        if (TryGetKey(lineBuf, "invert order key: ", &config->_Key._Invert))
-            continue;
-        if (TryGetBool(lineBuf, "allow mouse: ", &config->_Mouse))
-            continue;
-        if (TryGetEnum(lineBuf, "theme: ", &config->_ThemeMode, themeModeStrings, ARRAY_SIZE(themeModeStrings)))
-            continue;
-        if (TryGetEnum(lineBuf, "theme: ", &config->_AppSwitcherMode, appSwitcherModeStrings, ARRAY_SIZE(appSwitcherModeStrings)))
-            continue;
-        if (TryGetFloat(lineBuf, "scale: ", &config->_Scale))
-            continue;
-        if (TryGetBool(lineBuf, "check for updates: ", &config->_CheckForUpdates))
-            continue;
+        GET_ENUM("app hold key", config->_Key._AppHold, keyEnum)
+        GET_ENUM("next app key", config->_Key._AppSwitch, keyEnum)
+        GET_ENUM("previous app key", config->_Key._PrevApp, keyEnum)
+        GET_ENUM("window hold key", config->_Key._WinHold, keyEnum)
+        GET_ENUM("next window key", config->_Key._WinSwitch, keyEnum)
+        GET_ENUM("next window key", config->_Key._WinSwitch, keyEnum)
+        GET_ENUM("invert order key", config->_Key._Invert, keyEnum)
+        GET_ENUM("theme", config->_ThemeMode, themeEnum)
+        GET_ENUM("app switcher mode", config->_ThemeMode, appSwitcherModeEnum)
+
+        GET_BOOL("allow mouse", config->_Mouse)
+        GET_BOOL("check for updates", config->_CheckForUpdates)
+
+        GET_FLOAT("scale", config->_Scale)
     }
     fclose(file);
 
-#undef ARRAY_SIZE
+#undef GET_ENUM
+#undef GET_BOOL
+#undef GET_FLOAT
 }
