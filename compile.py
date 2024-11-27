@@ -27,9 +27,9 @@ def CopyAssets(dir):
 
 def MakeStaticStr():
     fsrc = open("./Assets/AltAppSwitcherConfig.txt", "r")
-    if not os.path.exists("./Sources/AltAppSwitcher/_Generated"):
-        os.makedirs("./Sources/AltAppSwitcher/_Generated")
-    fdst = open("./Sources/AltAppSwitcher/_Generated/ConfigStr.h", "w")
+    if not os.path.exists("./Sources/Config/_Generated"):
+        os.makedirs("./Sources/Config/_Generated")
+    fdst = open("./Sources/Config/_Generated/ConfigStr.h", "w")
     fdst.write("static const char ConfigStr[] =\n" )
     for line in fsrc:
         fdst.write("\"")
