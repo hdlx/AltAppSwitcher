@@ -1512,6 +1512,18 @@ int StartAltAppSwitcher(HINSTANCE hInstance)
         // Hook needs globals
         _MainThread = GetCurrentThreadId();
         _KeyConfig = &_AppData._Config._Key;
+        // Init. and loads config
+        _AppData._Config._Key._AppHold = VK_LMENU;
+        _AppData._Config._Key._AppSwitch = VK_TAB;
+        _AppData._Config._Key._WinHold = VK_LMENU;
+        _AppData._Config._Key._WinSwitch = VK_OEM_3;
+        _AppData._Config._Key._Invert = VK_LSHIFT;
+        _AppData._Config._Key._PrevApp = 0xFFFFFFFF;
+        _AppData._Config._Mouse = true;
+        _AppData._Config._CheckForUpdates = true;
+        _AppData._Config._ThemeMode = ThemeModeAuto;
+        _AppData._Config._AppSwitcherMode = AppSwitcherModeApp;
+        _AppData._Config._Scale = 1.5;
         LoadConfig(&_AppData._Config);
 
         if (_AppData._Config._CheckForUpdates && access(".\\CheckForUpdates.exe", F_OK) == 0)

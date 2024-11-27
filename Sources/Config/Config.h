@@ -36,3 +36,4 @@ typedef struct Config
 } Config;
 
 void LoadConfig(Config* config);
+void WriteConfig(const Config* config);

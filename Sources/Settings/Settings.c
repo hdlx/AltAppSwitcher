@@ -4,6 +4,8 @@
 #include <windows.h>
 #include <winuser.h>
 #include <commctrl.h>
+#include "Config/Config.h"
+
 static const char CLASS_NAME[] = "AltAppSwitcherSettings";
 
 LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
@@ -73,5 +75,8 @@ int StartSettings(HINSTANCE hInstance)
         DispatchMessage(&msg);
     }
     UnregisterClass(CLASS_NAME, hInstance);
+    Config cfg;
+    LoadConfig(&cfg);
+    WriteConfig(&cfg);
     return 0;
 }
