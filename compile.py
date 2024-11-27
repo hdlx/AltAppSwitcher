@@ -49,7 +49,7 @@ def CompileDbg(prj, arch):
     outputDir = "./Output/Debug"
     CompileCommon(outputDir)
     file = f"{outputDir}/{prj}.exe"
-    cFiles = CFiles(f"Sources/{prj}")
+    cFiles = CFiles(f"Sources/{prj}") + CFiles("Sources/Config")
     cmd = f"clang {cFiles} {Includes()} {LinkArgs()} -o {file} {WarningOptions()} {Common()} -g -glldb -target {arch}-mingw64 -D DEBUG=1"
     os.system(cmd)
 
@@ -57,7 +57,7 @@ def CompileRel(prj, arch):
     outputDir = f"./Output/Release/{arch}"
     CompileCommon(outputDir)
     file = f"{outputDir}/{prj}.exe"
-    cFiles = CFiles(f"Sources/{prj}")
+    cFiles = CFiles(f"Sources/{prj}") + CFiles("Sources/Config")
     cmd = f"clang {cFiles} {Includes()} {LinkArgs()} -o {file} -mwindows {WarningOptions()} {Common()} -s -Os -Oz -target {arch}-mingw64"
     os.system(cmd)
 

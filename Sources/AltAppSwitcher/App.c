@@ -32,8 +32,7 @@
 #include "AppxPackaging.h"
 #undef COBJMACROS
 #include "AltAppSwitcherHelpers.h"
-#include "KeyCodeFromConfigName.h"
-#include "Config.h"
+#include "Config/Config.h"
 LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam);
 
 #define MEM_INIT(ARG) memset(&ARG, 0,  sizeof(ARG))
