@@ -53,9 +53,9 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 
 static void CreateComboBox(int x, int y, HWND parent, HINSTANCE instance, const char* name, unsigned int* value, const EnumString* enumStrings, EnumBindings* bindings)
 {
-    CreateWindow(WC_STATIC, name,
+    HWND label = CreateWindow(WC_STATIC, name,
         WS_CHILD | WS_VISIBLE | SS_CENTER | SS_CENTERIMAGE,
-        x, y, 100, 40, parent, NULL, instance, NULL);
+        x, y, 100, 20, parent, NULL, instance, NULL);
     HWND combobox = CreateWindow(WC_COMBOBOX, "Combobox", 
         CBS_DROPDOWNLIST | CBS_HASSTRINGS | WS_CHILD | WS_VISIBLE | SS_CENTER,
         x + 100, y, 100, 40, parent, NULL, instance, NULL);
@@ -67,8 +67,20 @@ static void CreateComboBox(int x, int y, HWND parent, HINSTANCE instance, const 
     }
 
 
-    //SendMessage(hwndCommandLink, WM_SETTEXT, 0, (LPARAM)L"Command link");
-    //SendMessage(hwndCommandLink, BCM_SETNOTE, 0, (LPARAM)L"with note");
+    SendMessage(combobox, WM_SETTEXT, 0, (LPARAM)L"Some text");
+    SendMessage(combobox, BCM_SETNOTE, 0, (LPARAM)L"with note");
+
+    NONCLIENTMETRICS metrics = {};
+    metrics.cbSize = sizeof(metrics);
+    SystemParametersInfo(SPI_GETNONCLIENTMETRICS, metrics.cbSize, &metrics, 0);
+    metrics.lfCaptionFont.lfHeight *= 1.2;
+    metrics.lfCaptionFont.lfWidth *= 1.2;
+    HFONT guiFont = CreateFontIndirect(&metrics.lfCaptionFont);
+    //GetStockObject(DEFAULT_GUI_FONT);
+    SendMessage(combobox, WM_SETFONT, (LPARAM)guiFont, true);
+    SendMessage(label, WM_SETFONT, (LPARAM)guiFont, true);
+    //SendMessage(label, WM_SETFONT, (LPARAM)GetStockObject(DEFAULT_GUI_FONT), true);
+
 
     bindings->Data[bindings->Count].ComboBox = combobox;
     bindings->Data[bindings->Count].EnumStrings = enumStrings;
@@ -78,8 +90,7 @@ static void CreateComboBox(int x, int y, HWND parent, HINSTANCE instance, const 
 
 int StartSettings(HINSTANCE hInstance)
 {
-    EnumBindings bindings;
-    memset(&bindings, 0, sizeof(bindings));
+    EnumBindings bindings = {};
 
     // Main window
     HWND mainWin = NULL;
@@ -123,7 +134,7 @@ int StartSettings(HINSTANCE hInstance)
     HWND button = CreateWindow(WC_BUTTON, "Apply",
         WS_VISIBLE | WS_CHILD | BS_PUSHBUTTON | BS_FLAT,
         posX, posY, 100, 20, mainWin, (HMENU)666, hInstance, NULL);
-    (void)button;
+    SendMessage(button, WM_SETFONT, (LPARAM)GetStockObject(DEFAULT_GUI_FONT), true);
 
     MSG msg = { };
     while (GetMessage(&msg, NULL, 0, 0))
