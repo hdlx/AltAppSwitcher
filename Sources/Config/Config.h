@@ -1,6 +1,7 @@
 #pragma once
 #include <windef.h>
 #include <stdbool.h>
+#include "WinKeyCodes.h"
 
 typedef struct KeyConfig
 {
@@ -34,6 +35,16 @@ typedef struct Config
     float _Scale;
     AppSwitcherMode _AppSwitcherMode;
 } Config;
+
+typedef struct EnumString
+{
+    const char* Name;
+    unsigned int Value;
+} EnumString;
+
+extern const EnumString keyEnum[14];
+extern const EnumString themeEnum[3];
+extern const EnumString appSwitcherModeEnum[2];
 
 void LoadConfig(Config* config);
 void WriteConfig(const Config* config);

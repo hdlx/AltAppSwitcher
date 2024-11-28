@@ -1,10 +1,38 @@
 #include "Config.h"
 #include "_Generated/ConfigStr.h"
-#include "WinKeyCodes.h"
 #include <stdbool.h>
 #include <stdio.h>
 #include <Winuser.h>
 #include <stdlib.h>
+
+const EnumString keyEnum[14] = {
+    { "left alt", VK_LMENU },
+    { "right alt", VK_RMENU },
+    { "alt", VK_MENU },
+    { "tilde", VK_OEM_3 },
+    { "left windows", VK_LWIN },
+    { "right windows", VK_RWIN },
+    { "right super", VK_RWIN },
+    { "left super", VK_LWIN },
+    { "left control", VK_LCONTROL },
+    { "right control", VK_RCONTROL },
+    { "left shift", VK_LSHIFT },
+    { "right shift", VK_RSHIFT },
+    { "tab", VK_TAB },
+    { "none", 0xFFFFFFFF },
+};
+
+const EnumString themeEnum[3] = {
+    { "auto", ThemeModeAuto },
+    { "light", ThemeModeLight },
+    { "dark", ThemeModeDark }
+};
+
+const EnumString appSwitcherModeEnum[2] =
+{
+    { "app", AppSwitcherModeApp },
+    { "window", AppSwitcherModeApp }
+};
 
 static bool TryGetBool(const char* lineBuf, const char* token, bool* boolToSet)
 {
@@ -42,12 +70,6 @@ static bool TryGetFloat(const char* lineBuf, const char* token, float* floatToSe
     return false;
 }
 
-typedef struct EnumString
-{
-    char* Name;
-    unsigned int Value;
-} EnumString;
-
 static bool TryGetEnum(const char* lineBuf, const char* token,
     unsigned int* outValue, const EnumString* enumStrings, unsigned int enumCount)
 {
@@ -68,34 +90,6 @@ static bool TryGetEnum(const char* lineBuf, const char* token,
     return false;
 }
 
-static const EnumString keyEnum[] = {
-    { "left alt", VK_LMENU },
-    { "right alt", VK_RMENU },
-    { "alt", VK_MENU },
-    { "tilde", VK_OEM_3 },
-    { "left windows", VK_LWIN },
-    { "right windows", VK_RWIN },
-    { "right super", VK_RWIN },
-    { "left super", VK_LWIN },
-    { "left control", VK_LCONTROL },
-    { "right control", VK_RCONTROL },
-    { "left shift", VK_LSHIFT },
-    { "right shift", VK_RSHIFT },
-    { "tab", VK_TAB },
-    { "none", 0xFFFFFFFF },
-};
-
-static const EnumString themeEnum[] = {
-    { "auto", ThemeModeAuto },
-    { "light", ThemeModeLight },
-    { "dark", ThemeModeDark }
-};
-
-static const EnumString appSwitcherModeEnum[] =
-{
-    { "app", AppSwitcherModeApp },
-    { "window", AppSwitcherModeApp }
-};
 
 void LoadConfig(Config* config)
 {
