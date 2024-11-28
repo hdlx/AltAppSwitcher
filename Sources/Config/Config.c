@@ -5,7 +5,7 @@
 #include <Winuser.h>
 #include <stdlib.h>
 
-const EnumString keyEnum[14] = {
+const EnumString keyES[14] = {
     { "left alt", VK_LMENU },
     { "right alt", VK_RMENU },
     { "alt", VK_MENU },
@@ -19,19 +19,21 @@ const EnumString keyEnum[14] = {
     { "left shift", VK_LSHIFT },
     { "right shift", VK_RSHIFT },
     { "tab", VK_TAB },
-    { "none", 0xFFFFFFFF },
+    { "end", 0xFFFFFFFF }
 };
 
-const EnumString themeEnum[3] = {
+const EnumString themeES[4] = {
     { "auto", ThemeModeAuto },
     { "light", ThemeModeLight },
-    { "dark", ThemeModeDark }
+    { "dark", ThemeModeDark },
+    { "end", 0xFFFFFFFF }
 };
 
-const EnumString appSwitcherModeEnum[2] =
+const EnumString appSwitcherModeES[3] =
 {
     { "app", AppSwitcherModeApp },
-    { "window", AppSwitcherModeApp }
+    { "window", AppSwitcherModeApp },
+    { "end", 0xFFFFFFFF }
 };
 
 static bool TryGetBool(const char* lineBuf, const char* token, bool* boolToSet)
@@ -71,7 +73,7 @@ static bool TryGetFloat(const char* lineBuf, const char* token, float* floatToSe
 }
 
 static bool TryGetEnum(const char* lineBuf, const char* token,
-    unsigned int* outValue, const EnumString* enumStrings, unsigned int enumCount)
+    unsigned int* outValue, const EnumString* enumStrings)
 {
     char fullToken[256];
     strcpy(fullToken, token);
@@ -79,7 +81,7 @@ static bool TryGetEnum(const char* lineBuf, const char* token,
     const char* pValue = strstr(lineBuf, fullToken);
     if (pValue == NULL)
         return false;
-    for (unsigned int i = 0; i < enumCount; i++)
+    for (unsigned int i = 0; enumStrings[i].Value != 0xFFFFFFFF; i++)
     {
         if (strstr(pValue + strlen(fullToken) - 1, enumStrings[i].Name) != NULL)
         {
@@ -104,7 +106,7 @@ void LoadConfig(Config* config)
     }
 
 #define GET_ENUM(ENTRY, DST, ENUM_STRING)\
-if (TryGetEnum(lineBuf, ENTRY, &DST, ENUM_STRING, sizeof(ENUM_STRING) / sizeof(ENUM_STRING[0])))\
+if (TryGetEnum(lineBuf, ENTRY, &DST, ENUM_STRING))\
     continue;
 
 #define GET_BOOL(ENTRY, DST)\
@@ -120,14 +122,14 @@ if (TryGetFloat(lineBuf, ENTRY, &DST))\
     {
         if (!strncmp(lineBuf, "//", 2))
             continue;
-        GET_ENUM("app hold key", config->_Key._AppHold, keyEnum)
-        GET_ENUM("next app key", config->_Key._AppSwitch, keyEnum)
-        GET_ENUM("window hold key", config->_Key._WinHold, keyEnum)
-        GET_ENUM("next window key", config->_Key._WinSwitch, keyEnum)
-        GET_ENUM("invert order key", config->_Key._Invert, keyEnum)
-        GET_ENUM("previous app key", config->_Key._PrevApp, keyEnum)
-        GET_ENUM("theme", config->_ThemeMode, themeEnum)
-        GET_ENUM("app switcher mode", config->_AppSwitcherMode, appSwitcherModeEnum)
+        GET_ENUM("app hold key", config->_Key._AppHold, keyES)
+        GET_ENUM("next app key", config->_Key._AppSwitch, keyES)
+        GET_ENUM("window hold key", config->_Key._WinHold, keyES)
+        GET_ENUM("next window key", config->_Key._WinSwitch, keyES)
+        GET_ENUM("invert order key", config->_Key._Invert, keyES)
+        GET_ENUM("previous app key", config->_Key._PrevApp, keyES)
+        GET_ENUM("theme", config->_ThemeMode, themeES)
+        GET_ENUM("app switcher mode", config->_AppSwitcherMode, appSwitcherModeES)
 
         GET_BOOL("allow mouse", config->_Mouse)
         GET_BOOL("check for updates", config->_CheckForUpdates)
@@ -142,10 +144,9 @@ if (TryGetFloat(lineBuf, ENTRY, &DST))\
 }
 
 static void WriteEnum(FILE* file, const char* entry,
-    unsigned int value, const EnumString* enumStrings, unsigned int enumCount)
+    unsigned int value, const EnumString* enumStrings)
 {
-    unsigned int i = 0;
-    for (; i < enumCount; i++)
+    for (unsigned int i = 0; enumStrings[i].Value != 0xFFFFFFFF; i++)
     {
         if (enumStrings[i].Value == value)
         {
@@ -171,7 +172,7 @@ void WriteConfig(const Config* config)
     FILE* file = fopen(configFile ,"w");
 
 #define WRITE_ENUM(ENTRY, VALUE, ENUM_STRING)\
-WriteEnum(file, ENTRY, VALUE, ENUM_STRING, sizeof(ENUM_STRING) / sizeof(ENUM_STRING[0]))
+WriteEnum(file, ENTRY, VALUE, ENUM_STRING)
 
 #define WRITE_BOOL(ENTRY, VALUE)\
 WriteBool(file, ENTRY, VALUE)
@@ -179,14 +180,14 @@ WriteBool(file, ENTRY, VALUE)
 #define WRITE_FLOAT(ENTRY, VALUE)\
 WriteFloat(file, ENTRY, VALUE)
 
-    WRITE_ENUM("app hold key", config->_Key._AppHold, keyEnum);
-    WRITE_ENUM("next app key", config->_Key._AppSwitch, keyEnum);
-    WRITE_ENUM("window hold key", config->_Key._WinHold, keyEnum);
-    WRITE_ENUM("next window key", config->_Key._WinSwitch, keyEnum);
-    WRITE_ENUM("previous app key", config->_Key._PrevApp, keyEnum);
-    WRITE_ENUM("invert order key", config->_Key._Invert, keyEnum);
-    WRITE_ENUM("theme", config->_ThemeMode, themeEnum);
-    WRITE_ENUM("app switcher mode", config->_AppSwitcherMode, appSwitcherModeEnum);
+    WRITE_ENUM("app hold key", config->_Key._AppHold, keyES);
+    WRITE_ENUM("next app key", config->_Key._AppSwitch, keyES);
+    WRITE_ENUM("window hold key", config->_Key._WinHold, keyES);
+    WRITE_ENUM("next window key", config->_Key._WinSwitch, keyES);
+    WRITE_ENUM("previous app key", config->_Key._PrevApp, keyES);
+    WRITE_ENUM("invert order key", config->_Key._Invert, keyES);
+    WRITE_ENUM("theme", config->_ThemeMode, themeES);
+    WRITE_ENUM("app switcher mode", config->_AppSwitcherMode, appSwitcherModeES);
 
     WRITE_BOOL("allow mouse", config->_Mouse);
     WRITE_BOOL("check for updates", config->_CheckForUpdates);

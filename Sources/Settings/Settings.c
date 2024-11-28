@@ -21,6 +21,26 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
     return DefWindowProc(hwnd, uMsg, wParam, lParam);
 }
 
+typedef struct EnumBinding
+{
+    unsigned int* TargetValue;
+    HWND ComboBox;
+    EnumString* EnumStrings;
+} EnumBinding;
+
+static HWND CreateComboBox(int x, int y, HWND parent, HINSTANCE instance, const EnumString* enumStrings)
+{
+    HWND combobox = CreateWindow(WC_COMBOBOX, "Combobox", 
+        CBS_DROPDOWN | CBS_HASSTRINGS | WS_CHILD | WS_OVERLAPPED | WS_VISIBLE,
+        x, y, 200, 200, parent, NULL, instance, NULL);
+    for (unsigned int i = 0; enumStrings[i].Value != 0xFFFFFFFF; i++)
+    {
+        SendMessage(combobox,(UINT)CB_ADDSTRING,(WPARAM)0,(LPARAM)enumStrings[i].Name);
+    }
+    SendMessage(combobox,(UINT)CB_SETCURSEL,(WPARAM)0,(LPARAM)0);
+    return combobox;
+}
+
 int StartSettings(HINSTANCE hInstance)
 {
     SystemParametersInfo(SPI_SETFONTSMOOTHING,
@@ -54,19 +74,22 @@ int StartSettings(HINSTANCE hInstance)
         hInstance, // Instance handle
         NULL); // Additional application data
 
+    int posX = 0;
+    int posY = 0;
+
+    CreateComboBox(posX, posY, mainWin, hInstance, appSwitcherModeES);
+    posY += 30;
+    CreateComboBox(posX, posY, mainWin, hInstance, appSwitcherModeES);
+    posY += 30;
+    CreateComboBox(posX, posY, mainWin, hInstance, keyES);
+    posY += 30;
+    CreateComboBox(posX, posY, mainWin, hInstance, themeES);
+    posY += 30;
+
     HWND button = CreateWindow(WC_BUTTON, "Apply",
         WS_VISIBLE | WS_CHILD | BS_PUSHBUTTON | BS_FLAT,
-        10, 10, 100, 20, mainWin, NULL, hInstance, NULL);
+        posX, posY, 100, 20, mainWin, NULL, hInstance, NULL);
     (void)button;
-
-    HWND combobox = CreateWindow(WC_COMBOBOX, "Combobox", 
-        CBS_DROPDOWN | CBS_HASSTRINGS | WS_CHILD | WS_OVERLAPPED | WS_VISIBLE,
-        10, 50, 200, 200, mainWin, NULL, hInstance, NULL);
-    //SendMessage(combobox,(UINT)WM_SETFONT,(WPARAM)0,(LPARAM)"Test0");
-    SendMessage(combobox,(UINT)CB_ADDSTRING,(WPARAM)0,(LPARAM)"Test0");
-    SendMessage(combobox,(UINT)CB_ADDSTRING,(WPARAM)0,(LPARAM)"Test1");
-    SendMessage(combobox,(UINT)CB_SETCURSEL,(WPARAM)0,(LPARAM)0);
-    (void)combobox;
 
     MSG msg = { };
     while (GetMessage(&msg, NULL, 0, 0))
@@ -75,6 +98,7 @@ int StartSettings(HINSTANCE hInstance)
         DispatchMessage(&msg);
     }
     UnregisterClass(CLASS_NAME, hInstance);
+    
     Config cfg;
     LoadConfig(&cfg);
     WriteConfig(&cfg);

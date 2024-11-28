@@ -42,9 +42,9 @@ typedef struct EnumString
     unsigned int Value;
 } EnumString;
 
-extern const EnumString keyEnum[14];
-extern const EnumString themeEnum[3];
-extern const EnumString appSwitcherModeEnum[2];
+extern const EnumString keyES[14];
+extern const EnumString themeES[4];
+extern const EnumString appSwitcherModeES[3];
 
 void LoadConfig(Config* config);
 void WriteConfig(const Config* config);
