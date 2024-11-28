@@ -1,64 +1,41 @@
-
 #include "Settings.h"
+#include <minwindef.h>
 #include <windef.h>
 #include <windows.h>
+#include <windowsx.h>
 #include <winuser.h>
 #include <commctrl.h>
 #include <debugapi.h>
 #include "Config/Config.h"
+#include "Error/Error.h"
 
 static const char CLASS_NAME[] = "AltAppSwitcherSettings";
 
 typedef struct EnumBinding
 {
-    unsigned int* TargetValue;
-    HWND ComboBox;
-    const EnumString* EnumStrings;
+    unsigned int* _TargetValue;
+    HWND _ComboBox;
+    const EnumString* _EnumStrings;
 } EnumBinding;
 
-typedef struct EnumBindings
+typedef struct AppData
 {
-    unsigned int Count;
-    EnumBinding Data[64];
-} EnumBindings;
+    EnumBinding _Bindings[64];
+    unsigned int _BindingCount;
+    Config _Config;
+    HFONT _Font;
+} AppData;
 
-LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
+static void CreateComboBox(int x, int y, HWND parent, const char* name, unsigned int* value, const EnumString* enumStrings, AppData* appData)
 {
-    static EnumBindings* bindings = NULL; 
-    switch (uMsg)
-    {
-    case WM_DESTROY:
-    {
-        PostQuitMessage(0);
-        return 0;
-    }
-    case WM_CREATE:
-    {
-        bindings = (EnumBindings*)((CREATESTRUCTA*)lParam)->lpCreateParams;
-        return 0;
-    }
-    case WM_COMMAND:
-    {
-        if (LOWORD(wParam == 666) && HIWORD(wParam) == BN_CLICKED)
-        {
-            HWND button = (HWND)lParam;
-            (void)button;
-            (void)bindings;
-        }
-        return 0;
-    }
-    }
-    return DefWindowProc(hwnd, uMsg, wParam, lParam);
-}
+    HINSTANCE inst = (HINSTANCE)GetWindowLongPtrA(parent, GWLP_HINSTANCE);
 
-static void CreateComboBox(int x, int y, HWND parent, HINSTANCE instance, const char* name, unsigned int* value, const EnumString* enumStrings, EnumBindings* bindings)
-{
     HWND label = CreateWindow(WC_STATIC, name,
         WS_CHILD | WS_VISIBLE | SS_CENTER | SS_CENTERIMAGE,
-        x, y, 100, 20, parent, NULL, instance, NULL);
+        x, y, 100, 20, parent, NULL, inst, NULL);
     HWND combobox = CreateWindow(WC_COMBOBOX, "Combobox", 
         CBS_DROPDOWNLIST | CBS_HASSTRINGS | WS_CHILD | WS_VISIBLE | SS_CENTER,
-        x + 100, y, 100, 40, parent, NULL, instance, NULL);
+        x + 100, y, 100, 40, parent, NULL, inst, NULL);
     for (unsigned int i = 0; enumStrings[i].Value != 0xFFFFFFFF; i++)
     {
         SendMessage(combobox,(UINT)CB_ADDSTRING,(WPARAM)0,(LPARAM)enumStrings[i].Name);
@@ -66,34 +43,99 @@ static void CreateComboBox(int x, int y, HWND parent, HINSTANCE instance, const 
             SendMessage(combobox,(UINT)CB_SETCURSEL,(WPARAM)0, (LPARAM)0);
     }
 
-
     SendMessage(combobox, WM_SETTEXT, 0, (LPARAM)L"Some text");
     SendMessage(combobox, BCM_SETNOTE, 0, (LPARAM)L"with note");
 
-    NONCLIENTMETRICS metrics = {};
-    metrics.cbSize = sizeof(metrics);
-    SystemParametersInfo(SPI_GETNONCLIENTMETRICS, metrics.cbSize, &metrics, 0);
-    metrics.lfCaptionFont.lfHeight *= 1.2;
-    metrics.lfCaptionFont.lfWidth *= 1.2;
-    HFONT guiFont = CreateFontIndirect(&metrics.lfCaptionFont);
-    //GetStockObject(DEFAULT_GUI_FONT);
-    SendMessage(combobox, WM_SETFONT, (LPARAM)guiFont, true);
-    SendMessage(label, WM_SETFONT, (LPARAM)guiFont, true);
-    //SendMessage(label, WM_SETFONT, (LPARAM)GetStockObject(DEFAULT_GUI_FONT), true);
+    SendMessage(combobox, WM_SETFONT, (LPARAM)appData->_Font, true);
+    SendMessage(label, WM_SETFONT, (LPARAM)appData->_Font, true);
 
+    appData->_Bindings[appData->_BindingCount]._ComboBox = combobox;
+    appData->_Bindings[appData->_BindingCount]._EnumStrings = enumStrings;
+    appData->_Bindings[appData->_BindingCount]._TargetValue = value;
+    appData->_BindingCount++;
+}
 
-    bindings->Data[bindings->Count].ComboBox = combobox;
-    bindings->Data[bindings->Count].EnumStrings = enumStrings;
-    bindings->Data[bindings->Count].TargetValue = value;
-    bindings->Count++;
+void CreateButton(int x, int y, HWND parent, const char* name, HMENU ID, AppData* appData)
+{
+    HINSTANCE inst = (HINSTANCE)GetWindowLongPtrA(parent, GWLP_HINSTANCE);
+    HWND button = CreateWindow(WC_BUTTON, name,
+        WS_VISIBLE | WS_CHILD | BS_PUSHBUTTON | BS_FLAT,
+        x, y, 0, 0, parent, (HMENU)ID, inst, NULL);
+    SendMessage(button, WM_SETFONT, (LPARAM)appData->_Font, true);
+    SIZE size = {};
+    Button_GetIdealSize(button, &size);
+    SetWindowPos(button, NULL, 0, 0, size.cx, size.cy, SWP_NOMOVE);
+}
+
+LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
+{
+    static AppData appData = {};
+#define APPLY_BUTTON_ID 1993
+    switch (uMsg)
+    {
+    case WM_DESTROY:
+    {
+        PostQuitMessage(0);
+        DeleteFont(appData._Font);
+        appData._Font = NULL;
+        return 0;
+    }
+    case WM_CREATE:
+    {
+        LoadConfig(&appData._Config);
+
+        NONCLIENTMETRICS metrics = {};
+        metrics.cbSize = sizeof(metrics);
+        SystemParametersInfo(SPI_GETNONCLIENTMETRICS, metrics.cbSize, &metrics, 0);
+        metrics.lfCaptionFont.lfHeight *= 1.2;
+        metrics.lfCaptionFont.lfWidth *= 1.2;
+        appData._Font = CreateFontIndirect(&metrics.lfCaptionFont);
+
+        int posX = 0;
+        int posY = 0;
+        CreateComboBox(posX, posY, hwnd, "Theme", &appData._Config._ThemeMode, themeES, &appData);
+        posY += 40;
+        CreateComboBox(posX, posY, hwnd, "App hold key", &appData._Config._Key._AppHold, keyES, &appData);
+        posY += 40;
+        CreateComboBox(posX, posY, hwnd, "Switcher mode", &appData._Config._AppSwitcherMode, appSwitcherModeES, &appData);
+        posY += 40;
+        CreateButton(posX, posY, hwnd, "Apply", (HMENU)APPLY_BUTTON_ID, &appData);
+        return 0;
+    }
+    case WM_COMMAND:
+    {
+        if (LOWORD(wParam == APPLY_BUTTON_ID) && HIWORD(wParam) == BN_CLICKED)
+        {
+            for (unsigned int i = 0; i < appData._BindingCount; i++)
+            {
+                const EnumBinding* bd = &appData._Bindings[i];
+
+                const unsigned int iValue = SendMessage(bd->_ComboBox,(UINT)CB_GETCURSEL,(WPARAM)0, (LPARAM)0);
+                char sValue[64] = {};
+                SendMessage(bd->_ComboBox,(UINT)CB_GETLBTEXT,(WPARAM)iValue, (LPARAM)sValue);
+                bool found = false;
+                for (unsigned int j = 0; bd->_EnumStrings[j].Value != 0xFFFFFFFF; j++)
+                {
+                    if (!strcmp(bd->_EnumStrings[j].Name, sValue))
+                    {
+                        *bd->_TargetValue = bd->_EnumStrings[j].Value;
+                        found = true;
+                        break;
+                    }
+                }
+                ASSERT(found);
+            }
+            WriteConfig(&appData._Config);
+        }
+        return 0;
+    }
+    }
+    return DefWindowProc(hwnd, uMsg, wParam, lParam);
 }
 
 int StartSettings(HINSTANCE hInstance)
 {
-    EnumBindings bindings = {};
-
     // Main window
-    HWND mainWin = NULL;
     {
         // Class
         WNDCLASS wc = { };
@@ -106,35 +148,11 @@ int StartSettings(HINSTANCE hInstance)
         RegisterClass(&wc);
         // Window
         const int center[2] = { GetSystemMetrics(SM_CXSCREEN) / 2, GetSystemMetrics(SM_CYSCREEN) / 2 };
-        mainWin = CreateWindow(
-            CLASS_NAME, // Window class
-            "", // Window text
-            WS_CAPTION | WS_SYSMENU | WS_THICKFRAME | WS_BORDER | WS_VISIBLE | WS_MINIMIZEBOX, // Window style
-            center[0] - 150, center[1] - 150, // Pos
-            300, 300, // Size
-            NULL, // Parent window
-            NULL, // Menu
-            hInstance, // Instance handle
-            &bindings); // Additional application data
+        CreateWindow(CLASS_NAME, "Alt App Switcher settings",
+            WS_CAPTION | WS_SYSMENU | WS_THICKFRAME | WS_BORDER | WS_VISIBLE | WS_MINIMIZEBOX,
+            center[0] - 150, center[1] - 150, 300, 300,
+            NULL, NULL, hInstance, NULL);
     }
-
-    Config cfg;
-    LoadConfig(&cfg);
-
-    int posX = 0;
-    int posY = 0;
-
-    CreateComboBox(posX, posY, mainWin, hInstance, "Theme", &cfg._ThemeMode, themeES, &bindings);
-    posY += 40;
-    CreateComboBox(posX, posY, mainWin, hInstance, "App hold key", &cfg._Key._AppHold, keyES, &bindings);
-    posY += 40;
-    CreateComboBox(posX, posY, mainWin, hInstance, "Switcher mode", &cfg._AppSwitcherMode, appSwitcherModeES, &bindings);
-    posY += 40;
-
-    HWND button = CreateWindow(WC_BUTTON, "Apply",
-        WS_VISIBLE | WS_CHILD | BS_PUSHBUTTON | BS_FLAT,
-        posX, posY, 100, 20, mainWin, (HMENU)666, hInstance, NULL);
-    SendMessage(button, WM_SETFONT, (LPARAM)GetStockObject(DEFAULT_GUI_FONT), true);
 
     MSG msg = { };
     while (GetMessage(&msg, NULL, 0, 0))
@@ -144,6 +162,5 @@ int StartSettings(HINSTANCE hInstance)
     }
     UnregisterClass(CLASS_NAME, hInstance);
 
-    WriteConfig(&cfg);
     return 0;
 }

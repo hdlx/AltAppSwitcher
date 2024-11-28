@@ -5,6 +5,7 @@
 #include <Winuser.h>
 #include <stdlib.h>
 #include <debugapi.h>
+#include <Error/Error.h>
 
 const EnumString keyES[14] = {
     { "left alt", VK_LMENU },
@@ -91,11 +92,7 @@ static bool TryGetEnum(const StrPair* keyValues, const char* token,
     unsigned int* outValue, const EnumString* enumStrings)
 {
     unsigned int entry = Find(keyValues, token);
-    if (entry == 0xFFFFFFFF)
-    {
-        DebugBreak();
-        return false;
-    }
+    ASSERT(entry != 0xFFFFFFFF)
     for (unsigned int i = 0; enumStrings[i].Value != 0xFFFFFFFF; i++)
     {
         if (!strcmp(keyValues[entry].Value, enumStrings[i].Name))
@@ -104,7 +101,7 @@ static bool TryGetEnum(const StrPair* keyValues, const char* token,
             return true;
         }
     }
-    DebugBreak();
+    ASSERT(false)
     return false;
 }
 
@@ -180,6 +177,7 @@ static void WriteEnum(FILE* file, const char* entry,
             return;
         }
     }
+    ASSERT(false)
 }
 
 static void WriteBool(FILE* file, const char* entry, bool value)
