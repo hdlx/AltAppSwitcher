@@ -26,27 +26,47 @@ typedef struct AppData
     HFONT _Font;
 } AppData;
 
+static void CreateTooltip(HWND parent, char* string)
+{
+    HWND tt = CreateWindowEx(WS_EX_TOPMOST, TOOLTIPS_CLASS,
+        "", WS_POPUP | TTS_NOPREFIX | TTS_ALWAYSTIP,
+        10, 10, 10, 10,
+        parent, NULL,
+        (HINSTANCE)GetWindowLongPtr(parent, GWLP_HINSTANCE), NULL);
+
+    SetWindowPos(tt, HWND_TOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
+    TOOLINFO ti = {};
+    ti.cbSize = sizeof(TOOLINFO);
+    ti.uFlags = TTF_IDISHWND | TTF_SUBCLASS;
+    ti.uId = (UINT_PTR)NULL;
+    ti.lpszText = string;
+    ti.hwnd = parent;
+    
+    SendMessage(tt, TTM_ADDTOOL, 0, (LPARAM)&ti);
+    SendMessage(tt, TTM_ACTIVATE, true, (LPARAM)NULL);
+ }
+
 static void CreateComboBox(int x, int y, HWND parent, const char* name, unsigned int* value, const EnumString* enumStrings, AppData* appData)
 {
+    (void)x;
     HINSTANCE inst = (HINSTANCE)GetWindowLongPtrA(parent, GWLP_HINSTANCE);
 
-    HWND label = CreateWindow(WC_STATIC, name,
-        WS_CHILD | WS_VISIBLE | SS_CENTER | SS_CENTERIMAGE,
-        x, y, 100, 20, parent, NULL, inst, NULL);
-    HWND combobox = CreateWindow(WC_COMBOBOX, "Combobox", 
-        CBS_DROPDOWNLIST | CBS_HASSTRINGS | WS_CHILD | WS_VISIBLE | SS_CENTER,
-        x + 100, y, 100, 40, parent, NULL, inst, NULL);
+    HWND combobox = CreateWindow(WC_COMBOBOX, "Combobox",
+        CBS_DROPDOWNLIST | CBS_HASSTRINGS | WS_CHILD | WS_VISIBLE,
+        200, y, 200, 0, parent, NULL, inst, NULL);
     for (unsigned int i = 0; enumStrings[i].Value != 0xFFFFFFFF; i++)
     {
         SendMessage(combobox,(UINT)CB_ADDSTRING,(WPARAM)0,(LPARAM)enumStrings[i].Name);
         if (*value == enumStrings[i].Value)
             SendMessage(combobox,(UINT)CB_SETCURSEL,(WPARAM)0, (LPARAM)0);
     }
-
-    SendMessage(combobox, WM_SETTEXT, 0, (LPARAM)L"Some text");
-    SendMessage(combobox, BCM_SETNOTE, 0, (LPARAM)L"with note");
-
     SendMessage(combobox, WM_SETFONT, (LPARAM)appData->_Font, true);
+
+    RECT rect = {};
+    GetWindowRect(combobox, &rect);
+    HWND label = CreateWindow(WC_STATIC, name,
+        WS_CHILD | WS_VISIBLE | SS_CENTER | SS_CENTERIMAGE,
+        0, y, 200, rect.bottom -  rect.top, parent, NULL, inst, NULL);
     SendMessage(label, WM_SETFONT, (LPARAM)appData->_Font, true);
 
     appData->_Bindings[appData->_BindingCount]._ComboBox = combobox;
@@ -70,6 +90,8 @@ void CreateButton(int x, int y, HWND parent, const char* name, HMENU ID, AppData
 LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 {
     static AppData appData = {};
+    static HWND anchor = NULL;
+
 #define APPLY_BUTTON_ID 1993
     switch (uMsg)
     {
@@ -80,26 +102,54 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
         appData._Font = NULL;
         return 0;
     }
+    case WM_SIZE:
+    {
+       RECT rect = {};
+       GetWindowRect(hwnd, &rect);
+       MoveWindow(anchor,
+           ((rect.right - rect.left) / 2) - 200,
+           50,
+           400,
+           rect.bottom - rect.top - 200, TRUE);
+        return 0;
+    }
     case WM_CREATE:
     {
         LoadConfig(&appData._Config);
 
-        NONCLIENTMETRICS metrics = {};
-        metrics.cbSize = sizeof(metrics);
-        SystemParametersInfo(SPI_GETNONCLIENTMETRICS, metrics.cbSize, &metrics, 0);
-        metrics.lfCaptionFont.lfHeight *= 1.2;
-        metrics.lfCaptionFont.lfWidth *= 1.2;
-        appData._Font = CreateFontIndirect(&metrics.lfCaptionFont);
+        {
+            NONCLIENTMETRICS metrics = {};
+            metrics.cbSize = sizeof(metrics);
+            SystemParametersInfo(SPI_GETNONCLIENTMETRICS, metrics.cbSize, &metrics, 0);
+            metrics.lfCaptionFont.lfHeight *= 1.2;
+            metrics.lfCaptionFont.lfWidth *= 1.2;
+            appData._Font = CreateFontIndirect(&metrics.lfCaptionFont);
+        }
+
+
+        anchor = CreateWindow(WC_STATIC, "",
+            WS_VISIBLE | WS_CHILD,
+            0, 0, 0, 0,
+            hwnd, NULL, (HINSTANCE)GetWindowLongPtr(hwnd, GWLP_HINSTANCE), NULL);
+        {
+            RECT rect = {};
+            GetWindowRect(hwnd, &rect);
+            MoveWindow(anchor,
+                ((rect.right - rect.left) / 2) - 200,
+                50,
+                400,
+                rect.bottom - rect.top - 200, TRUE);
+        }
 
         int posX = 0;
         int posY = 0;
-        CreateComboBox(posX, posY, hwnd, "Theme", &appData._Config._ThemeMode, themeES, &appData);
+        CreateComboBox(posX, posY, anchor, "Theme", &appData._Config._ThemeMode, themeES, &appData);
         posY += 40;
-        CreateComboBox(posX, posY, hwnd, "App hold key", &appData._Config._Key._AppHold, keyES, &appData);
+        CreateComboBox(posX, posY, anchor, "App hold key", &appData._Config._Key._AppHold, keyES, &appData);
         posY += 40;
-        CreateComboBox(posX, posY, hwnd, "Switcher mode", &appData._Config._AppSwitcherMode, appSwitcherModeES, &appData);
+        CreateComboBox(posX, posY, anchor, "Switcher mode", &appData._Config._AppSwitcherMode, appSwitcherModeES, &appData);
         posY += 40;
-        CreateButton(posX, posY, hwnd, "Apply", (HMENU)APPLY_BUTTON_ID, &appData);
+        CreateButton(posX, posY, anchor, "Apply", (HMENU)APPLY_BUTTON_ID, &appData);
         return 0;
     }
     case WM_COMMAND:
@@ -135,6 +185,11 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 
 int StartSettings(HINSTANCE hInstance)
 {
+    INITCOMMONCONTROLSEX ic;
+    ic.dwSize = sizeof(INITCOMMONCONTROLSEX);
+    ic.dwICC = ICC_TAB_CLASSES;
+    InitCommonControlsEx(&ic);
+
     // Main window
     {
         // Class
@@ -144,13 +199,13 @@ int StartSettings(HINSTANCE hInstance)
         wc.lpszClassName = CLASS_NAME;
         wc.cbWndExtra = 0;
         wc.style = CS_HREDRAW | CS_VREDRAW;
-        wc.hbrBackground = GetSysColorBrush(COLOR_WINDOW);
+        wc.hbrBackground = GetSysColorBrush(COLOR_HIGHLIGHT);
         RegisterClass(&wc);
         // Window
         const int center[2] = { GetSystemMetrics(SM_CXSCREEN) / 2, GetSystemMetrics(SM_CYSCREEN) / 2 };
         CreateWindow(CLASS_NAME, "Alt App Switcher settings",
             WS_CAPTION | WS_SYSMENU | WS_THICKFRAME | WS_BORDER | WS_VISIBLE | WS_MINIMIZEBOX,
-            center[0] - 150, center[1] - 150, 300, 300,
+            center[0] - 200, center[1] - 300, 400, 600,
             NULL, NULL, hInstance, NULL);
     }
 
