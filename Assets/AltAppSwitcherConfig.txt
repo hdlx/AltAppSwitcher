@@ -30,7 +30,7 @@ scale: 2.5
 allow mouse: true
 check for updates: true
 
-// Switch app behavior:
+// App switcher mode:
 // "app": MacOS-like, one entry per application.
 // "window": Windows-like, one entry per window (each window is considered an independent application)
-switch app behavior: app
+app switcher mode: app

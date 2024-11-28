@@ -4,6 +4,7 @@
 #include <stdio.h>
 #include <Winuser.h>
 #include <stdlib.h>
+#include <debugapi.h>
 
 const EnumString keyES[14] = {
     { "left alt", VK_LMENU },
@@ -32,66 +33,80 @@ const EnumString themeES[4] = {
 const EnumString appSwitcherModeES[3] =
 {
     { "app", AppSwitcherModeApp },
-    { "window", AppSwitcherModeApp },
+    { "window", AppSwitcherModeWindow },
     { "end", 0xFFFFFFFF }
 };
 
-static bool TryGetBool(const char* lineBuf, const char* token, bool* boolToSet)
+typedef struct StrPair
 {
-    char fullToken[256];
-    strcpy(fullToken, token);
-    strcat(fullToken, ": ");
-    const char* pValue = strstr(lineBuf, fullToken);
-    if (pValue != NULL)
+    char Key[64];
+    char Value[64];
+} StrPair;
+
+static unsigned int Find(const StrPair* keyValues, const char* key)
+{
+    for (unsigned int i = 0; i < 32; i++)
     {
-        if (strstr(pValue + strlen(fullToken) - 1, "true") != NULL)
-        {
-            *boolToSet = true;
-            return true;
-        }
-        else if (strstr(pValue + strlen(fullToken) - 1, "false") != NULL)
-        {
-            *boolToSet = false;
-            return true;
-        }
+        if (!strcmp(keyValues[i].Key, key))
+            return i;
     }
-    return false;
+    return 0xFFFFFFFF;
 }
 
-static bool TryGetFloat(const char* lineBuf, const char* token, float* floatToSet)
+static bool TryGetBool(const StrPair* keyValues, const char* token, bool* boolToSet)
 {
-    char fullToken[256];
-    strcpy(fullToken, token);
-    strcat(fullToken, ": ");
-    const char* pValue = strstr(lineBuf, fullToken);
-    if (pValue != NULL)
+    unsigned int entry = Find(keyValues, token);
+    if (entry == 0xFFFFFFFF)
     {
-        *floatToSet = strtof(pValue + strlen(fullToken)  - 1, NULL);
+        DebugBreak();
+        return false;
+    }
+    if (strstr(keyValues[entry].Value, "true") != NULL)
+    {
+        *boolToSet = true;
         return true;
     }
+    else if (strstr(keyValues[entry].Value, "false") != NULL)
+    {
+        *boolToSet = false;
+        return true;
+    }
+    DebugBreak();
     return false;
 }
 
-static bool TryGetEnum(const char* lineBuf, const char* token,
+static bool TryGetFloat(const StrPair* keyValues, const char* token, float* floatToSet)
+{
+    unsigned int entry = Find(keyValues, token);
+    if (entry == 0xFFFFFFFF)
+    {
+        DebugBreak();
+        return false;
+    }
+    *floatToSet = strtof(keyValues[entry].Value, NULL);
+    return true;
+}
+
+static bool TryGetEnum(const StrPair* keyValues, const char* token,
     unsigned int* outValue, const EnumString* enumStrings)
 {
-    char fullToken[256];
-    strcpy(fullToken, token);
-    strcat(fullToken, ": ");
-    const char* pValue = strstr(lineBuf, fullToken);
-    if (pValue == NULL)
+    unsigned int entry = Find(keyValues, token);
+    if (entry == 0xFFFFFFFF)
+    {
+        DebugBreak();
         return false;
+    }
     for (unsigned int i = 0; enumStrings[i].Value != 0xFFFFFFFF; i++)
     {
-        if (strstr(pValue + strlen(fullToken) - 1, enumStrings[i].Name) != NULL)
+        if (!strcmp(keyValues[entry].Value, enumStrings[i].Name))
         {
             *outValue = enumStrings[i].Value;
             return true;
         }
     }
+    DebugBreak();
     return false;
 }
-
 
 void LoadConfig(Config* config)
 {
@@ -106,37 +121,48 @@ void LoadConfig(Config* config)
     }
 
 #define GET_ENUM(ENTRY, DST, ENUM_STRING)\
-if (TryGetEnum(lineBuf, ENTRY, &DST, ENUM_STRING))\
-    continue;
+TryGetEnum(keyValues, ENTRY, &DST, ENUM_STRING)
 
 #define GET_BOOL(ENTRY, DST)\
-if (TryGetBool(lineBuf,  ENTRY, &DST))\
-    continue;
+TryGetBool(keyValues, ENTRY, &DST)
 
 #define GET_FLOAT(ENTRY, DST)\
-if (TryGetFloat(lineBuf, ENTRY, &DST))\
-    continue;
+TryGetFloat(keyValues, ENTRY, &DST)
+
+    static StrPair keyValues[32];
+    memset(keyValues, 0x0, sizeof(keyValues));
 
     static char lineBuf[1024];
+    unsigned int i = 0;
     while (fgets(lineBuf, 1024, file))
     {
         if (!strncmp(lineBuf, "//", 2))
             continue;
-        GET_ENUM("app hold key", config->_Key._AppHold, keyES)
-        GET_ENUM("next app key", config->_Key._AppSwitch, keyES)
-        GET_ENUM("window hold key", config->_Key._WinHold, keyES)
-        GET_ENUM("next window key", config->_Key._WinSwitch, keyES)
-        GET_ENUM("invert order key", config->_Key._Invert, keyES)
-        GET_ENUM("previous app key", config->_Key._PrevApp, keyES)
-        GET_ENUM("theme", config->_ThemeMode, themeES)
-        GET_ENUM("app switcher mode", config->_AppSwitcherMode, appSwitcherModeES)
-
-        GET_BOOL("allow mouse", config->_Mouse)
-        GET_BOOL("check for updates", config->_CheckForUpdates)
-
-        GET_FLOAT("scale", config->_Scale)
+        const char* sep = strstr(lineBuf, ": ");
+        if (sep == NULL)
+            continue;
+        const char* end = strstr(lineBuf, "\r\n");
+        if (end == NULL)
+            continue;
+        strncpy(keyValues[i].Key, lineBuf, sizeof(char) * (sep - lineBuf));
+        strncpy(keyValues[i].Value, sep + 2, sizeof(char) * (end - (sep + 2)));
+        i++;
     }
     fclose(file);
+
+    GET_ENUM("app hold key", config->_Key._AppHold, keyES);
+    GET_ENUM("next app key", config->_Key._AppSwitch, keyES);
+    GET_ENUM("window hold key", config->_Key._WinHold, keyES);
+    GET_ENUM("next window key", config->_Key._WinSwitch, keyES);
+    GET_ENUM("invert order key", config->_Key._Invert, keyES);
+    GET_ENUM("previous app key", config->_Key._PrevApp, keyES);
+    GET_ENUM("theme", config->_ThemeMode, themeES);
+    GET_ENUM("app switcher mode", config->_AppSwitcherMode, appSwitcherModeES);
+
+    GET_BOOL("allow mouse", config->_Mouse);
+    GET_BOOL("check for updates", config->_CheckForUpdates);
+
+    GET_FLOAT("scale", config->_Scale);
 
 #undef GET_ENUM
 #undef GET_BOOL

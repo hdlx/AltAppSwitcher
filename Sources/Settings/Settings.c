@@ -4,6 +4,7 @@
 #include <windows.h>
 #include <winuser.h>
 #include <commctrl.h>
+#include <debugapi.h>
 #include "Config/Config.h"
 
 static const char CLASS_NAME[] = "AltAppSwitcherSettings";
@@ -28,16 +29,20 @@ typedef struct EnumBinding
     EnumString* EnumStrings;
 } EnumBinding;
 
-static HWND CreateComboBox(int x, int y, HWND parent, HINSTANCE instance, const EnumString* enumStrings)
+static HWND CreateComboBox(int x, int y, HWND parent, HINSTANCE instance, const char* name, unsigned int value, const EnumString* enumStrings)
 {
+    CreateWindow(WC_STATIC, name,
+        WS_CHILD | WS_VISIBLE | SS_CENTER | SS_CENTERIMAGE,
+        x, y, 100, 40, parent, NULL, instance, NULL);
     HWND combobox = CreateWindow(WC_COMBOBOX, "Combobox", 
-        CBS_DROPDOWN | CBS_HASSTRINGS | WS_CHILD | WS_OVERLAPPED | WS_VISIBLE,
-        x, y, 200, 200, parent, NULL, instance, NULL);
+        CBS_DROPDOWNLIST | CBS_HASSTRINGS | WS_CHILD | WS_VISIBLE | SS_CENTER,
+        x + 100, y, 100, 40, parent, NULL, instance, NULL);
     for (unsigned int i = 0; enumStrings[i].Value != 0xFFFFFFFF; i++)
     {
         SendMessage(combobox,(UINT)CB_ADDSTRING,(WPARAM)0,(LPARAM)enumStrings[i].Name);
+        if (value == enumStrings[i].Value)
+            SendMessage(combobox,(UINT)CB_SETCURSEL,(WPARAM)0,(LPARAM)0);
     }
-    SendMessage(combobox,(UINT)CB_SETCURSEL,(WPARAM)0,(LPARAM)0);
     return combobox;
 }
 
@@ -74,17 +79,18 @@ int StartSettings(HINSTANCE hInstance)
         hInstance, // Instance handle
         NULL); // Additional application data
 
+    Config cfg;
+    LoadConfig(&cfg);
+
     int posX = 0;
     int posY = 0;
 
-    CreateComboBox(posX, posY, mainWin, hInstance, appSwitcherModeES);
-    posY += 30;
-    CreateComboBox(posX, posY, mainWin, hInstance, appSwitcherModeES);
-    posY += 30;
-    CreateComboBox(posX, posY, mainWin, hInstance, keyES);
-    posY += 30;
-    CreateComboBox(posX, posY, mainWin, hInstance, themeES);
-    posY += 30;
+    CreateComboBox(posX, posY, mainWin, hInstance, "Theme", cfg._ThemeMode, themeES);
+    posY += 40;
+    CreateComboBox(posX, posY, mainWin, hInstance, "App hold key", cfg._Key._AppHold, keyES);
+    posY += 40;
+    CreateComboBox(posX, posY, mainWin, hInstance, "Switcher mode", cfg._AppSwitcherMode, appSwitcherModeES);
+    posY += 40;
 
     HWND button = CreateWindow(WC_BUTTON, "Apply",
         WS_VISIBLE | WS_CHILD | BS_PUSHBUTTON | BS_FLAT,
@@ -99,8 +105,7 @@ int StartSettings(HINSTANCE hInstance)
     }
     UnregisterClass(CLASS_NAME, hInstance);
     
-    Config cfg;
-    LoadConfig(&cfg);
+
     WriteConfig(&cfg);
     return 0;
 }

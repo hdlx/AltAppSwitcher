@@ -31,8 +31,8 @@ static const char ConfigStr[] =
 "allow mouse: true\n"
 "check for updates: true\n"
 "\n"
-"// Switch app behavior:\n"
+"// App switcher mode:\n"
 "// \"app\": MacOS-like, one entry per application.\n"
 "// \"window\": Windows-like, one entry per window (each window is considered an independent application)\n"
-"switch app behavior: app\n"
+"app switcher mode: app\n"
 ;
