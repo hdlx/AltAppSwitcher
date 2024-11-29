@@ -26,34 +26,32 @@ typedef struct AppData
     HFONT _Font;
 } AppData;
 
-static void CreateTooltip(HWND parent, char* string)
+static void CreateTooltip(HWND parent, HWND tool, char* string)
 {
-    HWND tt = CreateWindowEx(WS_EX_TOPMOST, TOOLTIPS_CLASS,
-        "", WS_POPUP | TTS_NOPREFIX | TTS_ALWAYSTIP,
-        10, 10, 10, 10,
-        parent, NULL,
-        (HINSTANCE)GetWindowLongPtr(parent, GWLP_HINSTANCE), NULL);
+    HWND tt = CreateWindowEx(WS_EX_TOPMOST, TOOLTIPS_CLASS, NULL,
+        WS_POPUP | TTS_NOPREFIX | TTS_ALWAYSTIP,
+        0, 0, 100, 100,
+        parent, NULL, (HINSTANCE)GetWindowLongPtr(parent, GWLP_HINSTANCE), NULL);
 
-    SetWindowPos(tt, HWND_TOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
+    SetWindowPos(tt, HWND_TOPMOST, CW_USEDEFAULT, CW_USEDEFAULT, CW_USEDEFAULT, CW_USEDEFAULT, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
     TOOLINFO ti = {};
     ti.cbSize = sizeof(TOOLINFO);
     ti.uFlags = TTF_IDISHWND | TTF_SUBCLASS;
-    ti.uId = (UINT_PTR)NULL;
+    ti.uId = (UINT_PTR)tool;
     ti.lpszText = string;
     ti.hwnd = parent;
-    
+
     SendMessage(tt, TTM_ADDTOOL, 0, (LPARAM)&ti);
     SendMessage(tt, TTM_ACTIVATE, true, (LPARAM)NULL);
  }
 
-static void CreateComboBox(int x, int y, HWND parent, const char* name, unsigned int* value, const EnumString* enumStrings, AppData* appData)
+static void CreateComboBox(int* y, HWND parent, const char* name, const char* tooltip, unsigned int* value, const EnumString* enumStrings, AppData* appData)
 {
-    (void)x;
     HINSTANCE inst = (HINSTANCE)GetWindowLongPtrA(parent, GWLP_HINSTANCE);
 
     HWND combobox = CreateWindow(WC_COMBOBOX, "Combobox",
         CBS_DROPDOWNLIST | CBS_HASSTRINGS | WS_CHILD | WS_VISIBLE,
-        200, y, 200, 0, parent, NULL, inst, NULL);
+        200, *y, 200, 0, parent, NULL, inst, NULL);
     for (unsigned int i = 0; enumStrings[i].Value != 0xFFFFFFFF; i++)
     {
         SendMessage(combobox,(UINT)CB_ADDSTRING,(WPARAM)0,(LPARAM)enumStrings[i].Name);
@@ -65,9 +63,12 @@ static void CreateComboBox(int x, int y, HWND parent, const char* name, unsigned
     RECT rect = {};
     GetWindowRect(combobox, &rect);
     HWND label = CreateWindow(WC_STATIC, name,
-        WS_CHILD | WS_VISIBLE | SS_CENTER | SS_CENTERIMAGE,
-        0, y, 200, rect.bottom -  rect.top, parent, NULL, inst, NULL);
+        WS_CHILD | WS_VISIBLE | SS_CENTER | SS_CENTERIMAGE | SS_NOTIFY, // notify needed to tooltip
+        0, *y, 200, rect.bottom -  rect.top, parent, NULL, inst, NULL);
     SendMessage(label, WM_SETFONT, (LPARAM)appData->_Font, true);
+
+    CreateTooltip(parent, label, (char*)tooltip);
+    CreateTooltip(parent, combobox, (char*)tooltip);
 
     appData->_Bindings[appData->_BindingCount]._ComboBox = combobox;
     appData->_Bindings[appData->_BindingCount]._EnumStrings = enumStrings;
@@ -75,12 +76,12 @@ static void CreateComboBox(int x, int y, HWND parent, const char* name, unsigned
     appData->_BindingCount++;
 }
 
-void CreateButton(int x, int y, HWND parent, const char* name, HMENU ID, AppData* appData)
+void CreateButton(int* y, HWND parent, const char* name, HMENU ID, AppData* appData)
 {
     HINSTANCE inst = (HINSTANCE)GetWindowLongPtrA(parent, GWLP_HINSTANCE);
     HWND button = CreateWindow(WC_BUTTON, name,
         WS_VISIBLE | WS_CHILD | BS_PUSHBUTTON | BS_FLAT,
-        x, y, 0, 0, parent, (HMENU)ID, inst, NULL);
+        0, *y, 0, 0, parent, (HMENU)ID, inst, NULL);
     SendMessage(button, WM_SETFONT, (LPARAM)appData->_Font, true);
     SIZE size = {};
     Button_GetIdealSize(button, &size);
@@ -141,15 +142,16 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
                 rect.bottom - rect.top - 200, TRUE);
         }
 
-        int posX = 0;
         int posY = 0;
-        CreateComboBox(posX, posY, anchor, "Theme", &appData._Config._ThemeMode, themeES, &appData);
+        CreateComboBox(&posY, anchor, "Theme", "Color scheme. \"Auto\" to match system's.", &appData._Config._ThemeMode, themeES, &appData);
         posY += 40;
-        CreateComboBox(posX, posY, anchor, "App hold key", &appData._Config._Key._AppHold, keyES, &appData);
+        CreateComboBox(&posY, anchor, "App hold key", "App hold key", &appData._Config._Key._AppHold, keyES, &appData);
         posY += 40;
-        CreateComboBox(posX, posY, anchor, "Switcher mode", &appData._Config._AppSwitcherMode, appSwitcherModeES, &appData);
+        CreateComboBox(&posY, anchor, "Switcher mode",
+            "App: MacOS-like, one entry per application. Window: Windows-like, one entry per window (each window is considered an independent application)",
+            &appData._Config._AppSwitcherMode, appSwitcherModeES, &appData);
         posY += 40;
-        CreateButton(posX, posY, anchor, "Apply", (HMENU)APPLY_BUTTON_ID, &appData);
+        CreateButton(&posY, anchor, "Apply", (HMENU)APPLY_BUTTON_ID, &appData);
         return 0;
     }
     case WM_COMMAND:
