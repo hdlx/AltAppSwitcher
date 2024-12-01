@@ -6,6 +6,9 @@
 #include <winuser.h>
 #include <commctrl.h>
 #include <debugapi.h>
+#include <process.h>
+#include <Tlhelp32.h>
+
 #include "Config/Config.h"
 #include "Error/Error.h"
 
@@ -88,6 +91,32 @@ void CreateButton(int* y, HWND parent, const char* name, HMENU ID, AppData* appD
     SetWindowPos(button, NULL, 0, 0, size.cx, size.cy, SWP_NOMOVE);
 }
 
+static bool KillAAS()
+{
+    HANDLE hSnapShot = CreateToolhelp32Snapshot((DWORD)TH32CS_SNAPALL, (DWORD)0);
+    PROCESSENTRY32 pEntry;
+    pEntry.dwSize = sizeof (pEntry);
+    BOOL hRes = Process32First(hSnapShot, &pEntry);
+    BOOL killed = false;
+    while (hRes)
+    {
+        if (strcmp(pEntry.szExeFile, "AltAppSwitcher.exe") == 0)
+        {
+            HANDLE hProcess = OpenProcess(PROCESS_TERMINATE, 0,
+                (DWORD) pEntry.th32ProcessID);
+            if (hProcess != NULL)
+            {
+                TerminateProcess(hProcess, 9);
+                CloseHandle(hProcess);
+                killed |= true;
+            }
+        }
+        hRes = Process32Next(hSnapShot, &pEntry);
+    }
+    CloseHandle(hSnapShot);
+    return killed;
+}
+
 LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 {
     static AppData appData = {};
@@ -127,9 +156,8 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
             appData._Font = CreateFontIndirect(&metrics.lfCaptionFont);
         }
 
-
         anchor = CreateWindow(WC_STATIC, "",
-            WS_VISIBLE | WS_CHILD,
+            WS_VISIBLE | WS_CHILD | SS_NOTIFY,
             0, 0, 0, 0,
             hwnd, NULL, (HINSTANCE)GetWindowLongPtr(hwnd, GWLP_HINSTANCE), NULL);
         {
@@ -151,7 +179,7 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
             "App: MacOS-like, one entry per application. Window: Windows-like, one entry per window (each window is considered an independent application)",
             &appData._Config._AppSwitcherMode, appSwitcherModeES, &appData);
         posY += 40;
-        CreateButton(&posY, anchor, "Apply", (HMENU)APPLY_BUTTON_ID, &appData);
+        CreateButton(&posY, hwnd, "Apply", (HMENU)APPLY_BUTTON_ID, &appData);
         return 0;
     }
     case WM_COMMAND:
@@ -178,6 +206,8 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
                 ASSERT(found);
             }
             WriteConfig(&appData._Config);
+            if (KillAAS())
+                system(".\\AltAppSwitcher.exe &");
         }
         return 0;
     }

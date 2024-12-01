@@ -192,7 +192,7 @@ static void WriteFloat(FILE* file, const char* entry, float value)
 
 void WriteConfig(const Config* config)
 {
-    const char* configFile = "AltAppSwitcherConfig0.txt";
+    const char* configFile = "AltAppSwitcherConfig.txt";
     FILE* file = fopen(configFile ,"w");
 
 #define WRITE_ENUM(ENTRY, VALUE, ENUM_STRING)\
