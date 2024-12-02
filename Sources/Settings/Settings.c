@@ -59,7 +59,7 @@ static void CreateComboBox(int* y, HWND parent, const char* name, const char* to
     {
         SendMessage(combobox,(UINT)CB_ADDSTRING,(WPARAM)0,(LPARAM)enumStrings[i].Name);
         if (*value == enumStrings[i].Value)
-            SendMessage(combobox,(UINT)CB_SETCURSEL,(WPARAM)0, (LPARAM)0);
+            SendMessage(combobox,(UINT)CB_SETCURSEL,(WPARAM)i, (LPARAM)0);
     }
     SendMessage(combobox, WM_SETFONT, (LPARAM)appData->_Font, true);
 
@@ -207,7 +207,7 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
             }
             WriteConfig(&appData._Config);
             if (KillAAS())
-                system(".\\AltAppSwitcher.exe &");
+                system("start .\\AltAppSwitcher.exe");
         }
         return 0;
     }

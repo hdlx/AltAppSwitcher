@@ -22,10 +22,19 @@
 		{
 			"type": "lldb",
 			"request": "launch",
+			"name": "Debug Settings",
+			"program": "${workspaceFolder}/Output/Debug/Settings.exe",
+			"args": [],
+			"cwd": "${workspaceFolder}/Output/Debug",
+			"console": "integratedTerminal"
+		},
+		{
+			"type": "lldb",
+			"request": "launch",
 			"name": "Build and debug Settings",
 			"program": "${workspaceFolder}/Output/Debug/Settings.exe",
 			"args": [],
-		"preLaunchTask": "Build Settings",
+			"preLaunchTask": "Build Settings",
 			"cwd": "${workspaceFolder}/Output/Debug",
 			"console": "integratedTerminal"
 		}
