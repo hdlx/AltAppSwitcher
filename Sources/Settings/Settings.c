@@ -29,6 +29,8 @@ typedef struct AppData
     HFONT _Font;
 } AppData;
 
+#define WIN_PAD 10
+
 static void CreateTooltip(HWND parent, HWND tool, char* string)
 {
     HWND tt = CreateWindowEx(WS_EX_TOPMOST, TOOLTIPS_CLASS, NULL,
@@ -52,9 +54,13 @@ static void CreateComboBox(int* y, HWND parent, const char* name, const char* to
 {
     HINSTANCE inst = (HINSTANCE)GetWindowLongPtrA(parent, GWLP_HINSTANCE);
 
+    RECT parentRect = {};
+    GetClientRect(parent, &parentRect);
+    const int width = (parentRect.right - parentRect.left - WIN_PAD - WIN_PAD) / 2;
     HWND combobox = CreateWindow(WC_COMBOBOX, "Combobox",
         CBS_DROPDOWNLIST | CBS_HASSTRINGS | WS_CHILD | WS_VISIBLE,
-        200, *y, 200, 0, parent, NULL, inst, NULL);
+        WIN_PAD + width, *y, width, 0,
+        parent, NULL, inst, NULL);
     for (unsigned int i = 0; enumStrings[i].Value != 0xFFFFFFFF; i++)
     {
         SendMessage(combobox,(UINT)CB_ADDSTRING,(WPARAM)0,(LPARAM)enumStrings[i].Name);
@@ -65,13 +71,16 @@ static void CreateComboBox(int* y, HWND parent, const char* name, const char* to
 
     RECT rect = {};
     GetWindowRect(combobox, &rect);
+    const int height = rect.bottom -  rect.top;
     HWND label = CreateWindow(WC_STATIC, name,
         WS_CHILD | WS_VISIBLE | SS_CENTER | SS_CENTERIMAGE | SS_NOTIFY, // notify needed to tooltip
-        0, *y, 200, rect.bottom -  rect.top, parent, NULL, inst, NULL);
+        WIN_PAD, *y, width, height,
+        parent, NULL, inst, NULL);
     SendMessage(label, WM_SETFONT, (LPARAM)appData->_Font, true);
-
     CreateTooltip(parent, label, (char*)tooltip);
     CreateTooltip(parent, combobox, (char*)tooltip);
+
+    *y += height;
 
     appData->_Bindings[appData->_BindingCount]._ComboBox = combobox;
     appData->_Bindings[appData->_BindingCount]._EnumStrings = enumStrings;
@@ -120,7 +129,6 @@ static bool KillAAS()
 LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 {
     static AppData appData = {};
-    static HWND anchor = NULL;
 
 #define APPLY_BUTTON_ID 1993
     switch (uMsg)
@@ -130,17 +138,6 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
         PostQuitMessage(0);
         DeleteFont(appData._Font);
         appData._Font = NULL;
-        return 0;
-    }
-    case WM_SIZE:
-    {
-       RECT rect = {};
-       GetWindowRect(hwnd, &rect);
-       MoveWindow(anchor,
-           ((rect.right - rect.left) / 2) - 200,
-           50,
-           400,
-           rect.bottom - rect.top - 200, TRUE);
         return 0;
     }
     case WM_CREATE:
@@ -156,29 +153,12 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
             appData._Font = CreateFontIndirect(&metrics.lfCaptionFont);
         }
 
-        anchor = CreateWindow(WC_STATIC, "",
-            WS_VISIBLE | WS_CHILD | SS_NOTIFY,
-            0, 0, 0, 0,
-            hwnd, NULL, (HINSTANCE)GetWindowLongPtr(hwnd, GWLP_HINSTANCE), NULL);
-        {
-            RECT rect = {};
-            GetWindowRect(hwnd, &rect);
-            MoveWindow(anchor,
-                ((rect.right - rect.left) / 2) - 200,
-                50,
-                400,
-                rect.bottom - rect.top - 200, TRUE);
-        }
-
         int posY = 0;
-        CreateComboBox(&posY, anchor, "Theme", "Color scheme. \"Auto\" to match system's.", &appData._Config._ThemeMode, themeES, &appData);
-        posY += 40;
-        CreateComboBox(&posY, anchor, "App hold key", "App hold key", &appData._Config._Key._AppHold, keyES, &appData);
-        posY += 40;
-        CreateComboBox(&posY, anchor, "Switcher mode",
+        CreateComboBox(&posY, hwnd, "Theme", "Color scheme. \"Auto\" to match system's.", &appData._Config._ThemeMode, themeES, &appData);
+        CreateComboBox(&posY, hwnd, "App hold key", "App hold key", &appData._Config._Key._AppHold, keyES, &appData);
+        CreateComboBox(&posY, hwnd, "Switcher mode",
             "App: MacOS-like, one entry per application. Window: Windows-like, one entry per window (each window is considered an independent application)",
             &appData._Config._AppSwitcherMode, appSwitcherModeES, &appData);
-        posY += 40;
         CreateButton(&posY, hwnd, "Apply", (HMENU)APPLY_BUTTON_ID, &appData);
         return 0;
     }
@@ -235,9 +215,12 @@ int StartSettings(HINSTANCE hInstance)
         RegisterClass(&wc);
         // Window
         const int center[2] = { GetSystemMetrics(SM_CXSCREEN) / 2, GetSystemMetrics(SM_CYSCREEN) / 2 };
+        DWORD winStyle = WS_CAPTION | WS_SYSMENU | WS_BORDER | WS_VISIBLE | WS_MINIMIZEBOX;
+        RECT winRect = { center[0] - 200, center[1] - 300, center[0] + 200, center[1] + 300 };
+        AdjustWindowRect(&winRect, winStyle, false);
         CreateWindow(CLASS_NAME, "Alt App Switcher settings",
-            WS_CAPTION | WS_SYSMENU | WS_THICKFRAME | WS_BORDER | WS_VISIBLE | WS_MINIMIZEBOX,
-            center[0] - 200, center[1] - 300, 400, 600,
+            winStyle,
+            winRect.left, winRect.top, winRect.right - winRect.left, winRect.bottom - winRect.top,
             NULL, NULL, hInstance, NULL);
     }
 
