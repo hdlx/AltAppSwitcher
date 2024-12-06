@@ -28,17 +28,27 @@ typedef struct FloatBinding
     HWND _Field;
 } FloatBinding;
 
+typedef struct BoolBinding
+{
+    bool* _TargetValue;
+    HWND _CheckBox;
+} BoolBinding;
+
 typedef struct AppData
 {
     EnumBinding _EBindings[64];
     unsigned int _EBindingCount;
     FloatBinding _FBindings[64];
     unsigned int _FBindingCount;
+    BoolBinding _BBindings[64];
+    unsigned int _BBindingCount;
     Config _Config;
     HFONT _Font;
+    HFONT _FontTitle;
 } AppData;
 
 #define WIN_PAD 10
+#define LINE_PAD 4
 
 static void CreateTooltip(HWND parent, HWND tool, char* string)
 {
@@ -59,6 +69,16 @@ static void CreateTooltip(HWND parent, HWND tool, char* string)
     SendMessage(tt, TTM_ACTIVATE, true, (LPARAM)NULL);
 }
 
+static void CreateText(int x, int y, int width, int height, HWND parent, const char* text, AppData* appData)
+{
+    HINSTANCE inst = (HINSTANCE)GetWindowLongPtrA(parent, GWLP_HINSTANCE);
+    HWND label = CreateWindow(WC_STATIC, text,
+        WS_CHILD | WS_VISIBLE | SS_LEFT | SS_CENTERIMAGE, // notify needed to tooltip
+        x, y, width, height,
+        parent, NULL, inst, NULL);
+    SendMessage(label, WM_SETFONT, (WPARAM)appData->_FontTitle, true);
+}
+
 static void CreateLabel(int x, int y, int width, int height, HWND parent, const char* name, const char* tooltip, AppData* appData)
 {
     HINSTANCE inst = (HINSTANCE)GetWindowLongPtrA(parent, GWLP_HINSTANCE);
@@ -77,7 +97,7 @@ static void CreateFloatField(int x, int y, int w, int h, HWND parent, const char
     char sval[4] = "000";
     sprintf(sval, "%3d", (int)(*value * 100));
     HWND field = CreateWindow(WC_EDIT, sval,
-        WS_CHILD | WS_VISIBLE | ES_LEFT | ES_CENTER | ES_NUMBER,
+        WS_CHILD | WS_VISIBLE | ES_LEFT | ES_CENTER | ES_NUMBER | WS_BORDER,
         x + w / 2, y, w / 2, h,
         parent, NULL, inst, NULL);
     SendMessage(field, WM_SETFONT, (WPARAM)appData->_Font, true);
@@ -87,6 +107,7 @@ static void CreateFloatField(int x, int y, int w, int h, HWND parent, const char
     appData->_FBindings[appData->_FBindingCount]._TargetValue = value;
     appData->_FBindingCount++;
 }
+
 static void CreateComboBox(int x, int y, int w, int h, HWND parent, const char* name, const char* tooltip, unsigned int* value, const EnumString* enumStrings, AppData* appData)
 {
     CreateLabel(x, y, w / 2, h, parent, name, tooltip, appData);
@@ -122,6 +143,23 @@ void CreateButton(int x, int y, int w, int h, HWND parent, const char* name, HME
     SIZE size = {};
     Button_GetIdealSize(button, &size);
     SetWindowPos(button, NULL, 0, 0, size.cx, h, SWP_NOMOVE);
+}
+
+void CreateBoolControl(int x, int y, int w, int h, HWND parent, const char* name, const char* tooltip, bool* value, AppData* appData)
+{
+    (void)w; (void)h;
+    CreateLabel(x, y, w / 2, h, parent, name, tooltip, appData);
+    HINSTANCE inst = (HINSTANCE)GetWindowLongPtrA(parent, GWLP_HINSTANCE);
+    HWND button = CreateWindow(WC_BUTTON, "",
+        WS_VISIBLE | WS_CHILD | BS_AUTOCHECKBOX | BS_FLAT | BS_NOTIFY | BS_CENTER,
+        0, 0, w, h, parent, (HMENU)0, inst, NULL);
+    SendMessage(button, BM_SETCHECK, (WPARAM)*value ? BST_CHECKED : BST_UNCHECKED, true);
+    SIZE size = {};
+    Button_GetIdealSize(button, &size);
+    SetWindowPos(button, NULL, x + w / 2 + w / 4 - size.cx / 2, y, size.cx, size.cy, 0);
+    appData->_BBindings[appData->_BBindingCount]._CheckBox = button;
+    appData->_BBindings[appData->_BBindingCount]._TargetValue = value;
+    appData->_BBindingCount++;
 }
 
 static bool KillAAS()
@@ -161,7 +199,9 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
     {
         PostQuitMessage(0);
         DeleteFont(appData._Font);
+        DeleteFont(appData._FontTitle);
         appData._Font = NULL;
+        appData._FontTitle = NULL;
         return 0;
     }
     case WM_CREATE:
@@ -175,6 +215,9 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
             metrics.lfCaptionFont.lfHeight *= 1.2;
             metrics.lfCaptionFont.lfWidth *= 1.2;
             appData._Font = CreateFontIndirect(&metrics.lfCaptionFont);
+            LOGFONT title = metrics.lfCaptionFont;
+            title.lfWeight = FW_SEMIBOLD;
+            appData._FontTitle = CreateFontIndirect(&title);
         }
 
         int x = WIN_PAD;
@@ -198,18 +241,27 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
             w = (parentRect.right - parentRect.left - WIN_PAD - WIN_PAD);
         }
 
-        CreateComboBox(x, y, w, h, hwnd, "Theme", "Color scheme. \"Auto\" to match system's.", &appData._Config._ThemeMode, themeES, &appData);
-        y += h;
+        CreateText(x, y, w, h, hwnd, "Key bindings:", &appData);
+        y += h + LINE_PAD;
         CreateComboBox(x, y, w, h, hwnd, "App hold key", "App hold key", &appData._Config._Key._AppHold, keyES, &appData);
-        y += h;
-        CreateComboBox(x, y, w, h, hwnd, "Switcher mode",
-            "App: MacOS-like, one entry per application. Window: Windows-like, one entry per window (each window is considered an independent application)",
-            &appData._Config._AppSwitcherMode, appSwitcherModeES, &appData);
-        y += h;
+        y += h + LINE_PAD;
+        CreateText(x, y, w, h, hwnd, "Graphic options:", &appData);
+        y += h + LINE_PAD;
+        CreateComboBox(x, y, w, h, hwnd, "Theme", "Color scheme. \"Auto\" to match system's.", &appData._Config._ThemeMode, themeES, &appData);
+        y += h + LINE_PAD;
         CreateFloatField(x, y, w, h, hwnd, "Scale",
             " Scale controls icon size, expressed as percentage, 100 being Windows default icon size.",
             &appData._Config._Scale, &appData);
-        y += h;
+        y += h + LINE_PAD;
+        CreateText(x, y, w, h, hwnd, "Other:", &appData);
+        y += h + LINE_PAD;
+        CreateBoolControl(x, y, w, h, hwnd, "Allow mouse:", "", &appData._Config._Mouse, &appData);
+        y += h + LINE_PAD;
+        CreateComboBox(x, y, w, h, hwnd, "Switcher mode",
+            "App: MacOS-like, one entry per application. Window: Windows-like, one entry per window (each window is considered an independent application)",
+            &appData._Config._AppSwitcherMode, appSwitcherModeES, &appData);
+        y += h + LINE_PAD;
+
         CreateButton(x, y, w, h, hwnd, "Apply", (HMENU)APPLY_BUTTON_ID, &appData);
 
         return 0;
@@ -244,6 +296,11 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
                 *((DWORD*)text) = 3;
                 SendMessage(bd->_Field,(UINT)EM_GETLINE,(WPARAM)0, (LPARAM)text);
                 *bd->_TargetValue = (float)strtod(text, NULL) / 100.0f;
+            }
+            for (unsigned int i = 0; i < appData._BBindingCount; i++)
+            {
+                const BoolBinding* bd = &appData._BBindings[i];
+                *bd->_TargetValue = BST_CHECKED == SendMessage(bd->_CheckBox,(UINT)BM_GETCHECK, (WPARAM)0, (LPARAM)0);
             }
             WriteConfig(&appData._Config);
             if (KillAAS())
