@@ -151,12 +151,12 @@ void CreateBoolControl(int x, int y, int w, int h, HWND parent, const char* name
     CreateLabel(x, y, w / 2, h, parent, name, tooltip, appData);
     HINSTANCE inst = (HINSTANCE)GetWindowLongPtrA(parent, GWLP_HINSTANCE);
     HWND button = CreateWindow(WC_BUTTON, "",
-        WS_VISIBLE | WS_CHILD | BS_AUTOCHECKBOX | BS_FLAT | BS_NOTIFY | BS_CENTER,
-        0, 0, w, h, parent, (HMENU)0, inst, NULL);
+        WS_VISIBLE | WS_CHILD | BS_AUTOCHECKBOX | BS_FLAT | BS_CENTER,
+        x + w / 2, y, w / 2, h, parent, (HMENU)0, inst, NULL);
     SendMessage(button, BM_SETCHECK, (WPARAM)*value ? BST_CHECKED : BST_UNCHECKED, true);
     SIZE size = {};
     Button_GetIdealSize(button, &size);
-    SetWindowPos(button, NULL, x + w / 2 + w / 4 - size.cx / 2, y, size.cx, size.cy, 0);
+  //  SetWindowPos(button, NULL, x + w / 2 + w / 4 - size.cx / 2, y, size.cx, size.cy, 0);
     appData->_BBindings[appData->_BBindingCount]._CheckBox = button;
     appData->_BBindings[appData->_BBindingCount]._TargetValue = value;
     appData->_BBindingCount++;
@@ -249,13 +249,15 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
         y += h + LINE_PAD;
         CreateComboBox(x, y, w, h, hwnd, "Theme", "Color scheme. \"Auto\" to match system's.", &appData._Config._ThemeMode, themeES, &appData);
         y += h + LINE_PAD;
-        CreateFloatField(x, y, w, h, hwnd, "Scale",
+        CreateFloatField(x, y, w, h, hwnd, "Scale (\%)",
             " Scale controls icon size, expressed as percentage, 100 being Windows default icon size.",
             &appData._Config._Scale, &appData);
         y += h + LINE_PAD;
         CreateText(x, y, w, h, hwnd, "Other:", &appData);
         y += h + LINE_PAD;
         CreateBoolControl(x, y, w, h, hwnd, "Allow mouse:", "", &appData._Config._Mouse, &appData);
+        y += h + LINE_PAD;
+        CreateBoolControl(x, y, w, h, hwnd, "Check for updates:", "", &appData._Config._CheckForUpdates, &appData);
         y += h + LINE_PAD;
         CreateComboBox(x, y, w, h, hwnd, "Switcher mode",
             "App: MacOS-like, one entry per application. Window: Windows-like, one entry per window (each window is considered an independent application)",
