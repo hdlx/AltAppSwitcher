@@ -241,29 +241,41 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
             w = (parentRect.right - parentRect.left - WIN_PAD - WIN_PAD);
         }
 
-        CreateText(x, y, w, h, hwnd, "Key bindings:", &appData);
-        y += h + LINE_PAD;
-        CreateComboBox(x, y, w, h, hwnd, "App hold key", "App hold key", &appData._Config._Key._AppHold, keyES, &appData);
-        y += h + LINE_PAD;
-        CreateText(x, y, w, h, hwnd, "Graphic options:", &appData);
-        y += h + LINE_PAD;
-        CreateComboBox(x, y, w, h, hwnd, "Theme", "Color scheme. \"Auto\" to match system's.", &appData._Config._ThemeMode, themeES, &appData);
-        y += h + LINE_PAD;
-        CreateFloatField(x, y, w, h, hwnd, "Scale (\%)",
-            " Scale controls icon size, expressed as percentage, 100 being Windows default icon size.",
-            &appData._Config._Scale, &appData);
-        y += h + LINE_PAD;
-        CreateText(x, y, w, h, hwnd, "Other:", &appData);
-        y += h + LINE_PAD;
-        CreateBoolControl(x, y, w, h, hwnd, "Allow mouse:", "", &appData._Config._Mouse, &appData);
-        y += h + LINE_PAD;
-        CreateBoolControl(x, y, w, h, hwnd, "Check for updates:", "", &appData._Config._CheckForUpdates, &appData);
-        y += h + LINE_PAD;
-        CreateComboBox(x, y, w, h, hwnd, "Switcher mode",
-            "App: MacOS-like, one entry per application. Window: Windows-like, one entry per window (each window is considered an independent application)",
-            &appData._Config._AppSwitcherMode, appSwitcherModeES, &appData);
-        y += h + LINE_PAD;
+#define COMBO_BOX(NAME, TOOLTIP, VALUE, ES)\
+CreateComboBox(x, y, w, h, hwnd, NAME, TOOLTIP, &VALUE, ES, &appData);\
+y += h + LINE_PAD;
 
+#define TITLE(NAME)\
+CreateText(x, y, w, h, hwnd, NAME, &appData);\
+y += h + LINE_PAD;
+
+#define FLOAT_FIELD(NAME, TOOLTIP, VALUE)\
+CreateFloatField(x, y, w, h, hwnd, NAME, TOOLTIP, &VALUE, &appData);\
+y += h + LINE_PAD;
+
+#define BOOL_FIELD(NAME, TOOLTIP, VALUE)\
+CreateBoolControl(x, y, w, h, hwnd, NAME, TOOLTIP, &VALUE, &appData);\
+y += h + LINE_PAD;
+
+        Config* cfg = &appData._Config;
+        TITLE("Key bindings:")
+        COMBO_BOX("App hold key:", "", cfg->_Key._AppHold, keyES)
+        COMBO_BOX("Next app key:", "", cfg->_Key._AppSwitch, keyES)
+        COMBO_BOX("Window hold key:", "", cfg->_Key._WinHold, keyES)
+        COMBO_BOX("Next window key:", "", cfg->_Key._WinSwitch, keyES)
+        COMBO_BOX("Invert app key:", "", cfg->_Key._Invert, keyES)
+        COMBO_BOX("Previous app key key:", "", cfg->_Key._PrevApp, keyES)
+        TITLE("Graphic options:")
+        COMBO_BOX("Theme:", "Color scheme. \"Auto\" to match system's.", cfg->_ThemeMode, themeES)
+        FLOAT_FIELD("Scale (\%)",
+            "Scale controls icon size, expressed as percentage, 100 being Windows default icon size.",
+            cfg->_Scale)
+        TITLE("Other:")
+        BOOL_FIELD("Allow mouse:", " ", cfg->_Mouse)
+        BOOL_FIELD("Check for updates:", " ", cfg->_CheckForUpdates)
+        COMBO_BOX("Switcher mode:",
+            "App: MacOS-like, one entry per application. Window: Windows-like, one entry per window (each window is considered an independent application)",
+            cfg->_AppSwitcherMode, appSwitcherModeES)
         CreateButton(x, y, w, h, hwnd, "Apply", (HMENU)APPLY_BUTTON_ID, &appData);
 
         return 0;

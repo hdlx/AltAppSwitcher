@@ -208,8 +208,8 @@ WriteFloat(file, ENTRY, VALUE)
     WRITE_ENUM("next app key", config->_Key._AppSwitch, keyES);
     WRITE_ENUM("window hold key", config->_Key._WinHold, keyES);
     WRITE_ENUM("next window key", config->_Key._WinSwitch, keyES);
-    WRITE_ENUM("previous app key", config->_Key._PrevApp, keyES);
     WRITE_ENUM("invert order key", config->_Key._Invert, keyES);
+    WRITE_ENUM("previous app key", config->_Key._PrevApp, keyES);
     WRITE_ENUM("theme", config->_ThemeMode, themeES);
     WRITE_ENUM("app switcher mode", config->_AppSwitcherMode, appSwitcherModeES);
 
