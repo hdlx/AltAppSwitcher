@@ -7,7 +7,7 @@
 #include <ws2tcpip.h>
 
 #define MAJOR 0
-#define MINOR 19
+#define MINOR 20
 void GetAASVersion(int* major, int* minor)
 {
     *major = 0;
