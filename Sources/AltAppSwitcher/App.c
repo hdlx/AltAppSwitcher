@@ -1537,7 +1537,10 @@ int StartAltAppSwitcher(HINSTANCE hInstance)
 
         if (_AppData._Config._CheckForUpdates && access(".\\CheckForUpdates.exe", F_OK) == 0)
         {
-            system(".\\CheckForUpdates.exe &");
+            STARTUPINFO si = {};
+            PROCESS_INFORMATION pi = {};
+            CreateProcess(NULL, ".\\CheckForUpdates.exe", 0, 0, false, 0, 0, 0,
+            &si, &pi);
         }
         InitGraphicsResources(&_AppData._GraphicsResources, &_AppData._Config);
     }

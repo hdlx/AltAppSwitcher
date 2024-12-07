@@ -1,5 +1,6 @@
 #include "Settings.h"
 #include <minwindef.h>
+#include <processthreadsapi.h>
 #include <stdio.h>
 #include <windef.h>
 #include <windows.h>
@@ -343,7 +344,12 @@ y += LINE_PAD * 4;
             }
             WriteConfig(&appData._Config);
             if (KillAAS())
-                system("start .\\AltAppSwitcher.exe");
+            {
+                STARTUPINFO si = {};
+                PROCESS_INFORMATION pi = {};
+                CreateProcess(NULL, ".\\AltAppSwitcher.exe", 0, 0, false, 0, 0, 0,
+                &si, &pi);
+            }
         }
         return 0;
     }
