@@ -12,6 +12,11 @@
             "label": "Build AAS",
             "type": "shell",
             "command": "python.exe ./compile.py AltAppSwitcher debug x86_64"
+        },
+        {
+            "label": "Build CheckForUpdates",
+            "type": "shell",
+            "command": "python.exe ./compile.py CheckForUpdates debug x86_64"
         }
     ]
 }

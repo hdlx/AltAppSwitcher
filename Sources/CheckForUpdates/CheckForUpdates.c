@@ -6,6 +6,9 @@
 #include <winsock2.h>
 #include <ws2tcpip.h>
 
+#define MAJOR 0
+#define MINOR 18
+
 void GetAASVersion(int* major, int* minor)
 {
     *major = 0;
@@ -96,8 +99,6 @@ void GetAASVersion(int* major, int* minor)
     return;
 }
 
-#define MAJOR 0
-#define MINOR 19
 int main()
 {
     int major, minor;
