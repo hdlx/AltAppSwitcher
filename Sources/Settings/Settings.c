@@ -4,6 +4,8 @@
 #include <windef.h>
 #include <windows.h>
 #include <windowsx.h>
+#include <wingdi.h>
+#include <winnt.h>
 #include <winuser.h>
 #include <commctrl.h>
 #include <debugapi.h>
@@ -45,10 +47,24 @@ typedef struct AppData
     Config _Config;
     HFONT _Font;
     HFONT _FontTitle;
+    HBRUSH _Background;
 } AppData;
 
 #define WIN_PAD 10
 #define LINE_PAD 4
+#define DARK_COLOR 0x002C2C2C;
+#define LIGHT_COLOR 0x00FFFFFF;
+#define APPLY_BUTTON_ID 1993
+
+static void CreateText(int x, int y, int width, int height, HWND parent, const char* text, AppData* appData)
+{
+    HINSTANCE inst = (HINSTANCE)GetWindowLongPtrA(parent, GWLP_HINSTANCE);
+    HWND label = CreateWindow(WC_STATIC, text,
+        WS_CHILD | WS_VISIBLE | SS_LEFT | SS_CENTERIMAGE, // notify needed to tooltip
+        x, y, width, height,
+        parent, NULL, inst, NULL);
+    SendMessage(label, WM_SETFONT, (WPARAM)appData->_FontTitle, true);
+}
 
 static void CreateTooltip(HWND parent, HWND tool, char* string)
 {
@@ -67,16 +83,6 @@ static void CreateTooltip(HWND parent, HWND tool, char* string)
 
     SendMessage(tt, TTM_ADDTOOL, 0, (LPARAM)&ti);
     SendMessage(tt, TTM_ACTIVATE, true, (LPARAM)NULL);
-}
-
-static void CreateText(int x, int y, int width, int height, HWND parent, const char* text, AppData* appData)
-{
-    HINSTANCE inst = (HINSTANCE)GetWindowLongPtrA(parent, GWLP_HINSTANCE);
-    HWND label = CreateWindow(WC_STATIC, text,
-        WS_CHILD | WS_VISIBLE | SS_LEFT | SS_CENTERIMAGE, // notify needed to tooltip
-        x, y, width, height,
-        parent, NULL, inst, NULL);
-    SendMessage(label, WM_SETFONT, (WPARAM)appData->_FontTitle, true);
 }
 
 static void CreateLabel(int x, int y, int width, int height, HWND parent, const char* name, const char* tooltip, AppData* appData)
@@ -142,7 +148,7 @@ void CreateButton(int x, int y, int w, int h, HWND parent, const char* name, HME
     SendMessage(button, WM_SETFONT, (WPARAM)appData->_Font, true);
     SIZE size = {};
     Button_GetIdealSize(button, &size);
-    SetWindowPos(button, NULL, 0, 0, size.cx, h, SWP_NOMOVE);
+    SetWindowPos(button, NULL, x + w / 2 - size.cx / 2, y, size.cx, h, 0);
 }
 
 void CreateBoolControl(int x, int y, int w, int h, HWND parent, const char* name, const char* tooltip, bool* value, AppData* appData)
@@ -156,7 +162,6 @@ void CreateBoolControl(int x, int y, int w, int h, HWND parent, const char* name
     SendMessage(button, BM_SETCHECK, (WPARAM)*value ? BST_CHECKED : BST_UNCHECKED, true);
     SIZE size = {};
     Button_GetIdealSize(button, &size);
-  //  SetWindowPos(button, NULL, x + w / 2 + w / 4 - size.cx / 2, y, size.cx, size.cy, 0);
     appData->_BBindings[appData->_BBindingCount]._CheckBox = button;
     appData->_BBindings[appData->_BBindingCount]._TargetValue = value;
     appData->_BBindingCount++;
@@ -200,6 +205,7 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
         PostQuitMessage(0);
         DeleteFont(appData._Font);
         DeleteFont(appData._FontTitle);
+        DeleteBrush(appData._Background);
         appData._Font = NULL;
         appData._FontTitle = NULL;
         return 0;
@@ -218,6 +224,8 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
             LOGFONT title = metrics.lfCaptionFont;
             title.lfWeight = FW_SEMIBOLD;
             appData._FontTitle = CreateFontIndirect(&title);
+            COLORREF col = LIGHT_COLOR;
+            appData._Background = CreateSolidBrush(col);
         }
 
         int x = WIN_PAD;
@@ -229,7 +237,7 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
                 0, 0, 0, 0,
                 hwnd, NULL, NULL, NULL);
             SendMessage(combobox, WM_SETFONT, (LPARAM)appData._Font, true);
-             RECT rect = {};
+            RECT rect = {};
             GetWindowRect(combobox, &rect);
             h = rect.bottom -  rect.top;
             DestroyWindow(combobox);
@@ -257,6 +265,13 @@ y += h + LINE_PAD;
 CreateBoolControl(x, y, w, h, hwnd, NAME, TOOLTIP, &VALUE, &appData);\
 y += h + LINE_PAD;
 
+#define BUTTON(NAME, ID)\
+CreateButton(x, y, w, h, hwnd, NAME, (HMENU)ID, &appData);\
+y += h + LINE_PAD;
+
+#define SEPARATOR()\
+y += LINE_PAD * 4;
+
         Config* cfg = &appData._Config;
         TITLE("Key bindings:")
         COMBO_BOX("App hold key:", "", cfg->_Key._AppHold, keyES)
@@ -265,19 +280,28 @@ y += h + LINE_PAD;
         COMBO_BOX("Next window key:", "", cfg->_Key._WinSwitch, keyES)
         COMBO_BOX("Invert app key:", "", cfg->_Key._Invert, keyES)
         COMBO_BOX("Previous app key key:", "", cfg->_Key._PrevApp, keyES)
+        SEPARATOR()
         TITLE("Graphic options:")
         COMBO_BOX("Theme:", "Color scheme. \"Auto\" to match system's.", cfg->_ThemeMode, themeES)
         FLOAT_FIELD("Scale (\%)",
             "Scale controls icon size, expressed as percentage, 100 being Windows default icon size.",
             cfg->_Scale)
+        SEPARATOR()
         TITLE("Other:")
         BOOL_FIELD("Allow mouse:", " ", cfg->_Mouse)
         BOOL_FIELD("Check for updates:", " ", cfg->_CheckForUpdates)
         COMBO_BOX("Switcher mode:",
             "App: MacOS-like, one entry per application. Window: Windows-like, one entry per window (each window is considered an independent application)",
             cfg->_AppSwitcherMode, appSwitcherModeES)
-        CreateButton(x, y, w, h, hwnd, "Apply", (HMENU)APPLY_BUTTON_ID, &appData);
+        SEPARATOR()
+        BUTTON("Apply", (HMENU)APPLY_BUTTON_ID);
+        y += WIN_PAD;
 
+        RECT r = {};
+        GetClientRect(hwnd, &r);
+        r.bottom = y;
+        AdjustWindowRect(&r, (DWORD)GetWindowLong(hwnd, GWL_STYLE), false);
+        SetWindowPos(hwnd, 0, r.left, r.top, r.right - r.left, r.bottom - r.top, SWP_NOMOVE);
         return 0;
     }
     case WM_COMMAND:
@@ -322,6 +346,12 @@ y += h + LINE_PAD;
         }
         return 0;
     }
+    case WM_CTLCOLOREDIT:
+    case WM_CTLCOLORSTATIC:
+    {
+        SetBkMode((HDC)wParam, TRANSPARENT);
+        return (LRESULT)appData._Background;
+    }
     }
     return DefWindowProc(hwnd, uMsg, wParam, lParam);
 }
@@ -333,6 +363,9 @@ int StartSettings(HINSTANCE hInstance)
     ic.dwICC = ICC_TAB_CLASSES;
     InitCommonControlsEx(&ic);
 
+    COLORREF col = LIGHT_COLOR;
+    HBRUSH bkg = CreateSolidBrush(col);
+
     // Main window
     {
         // Class
@@ -342,7 +375,7 @@ int StartSettings(HINSTANCE hInstance)
         wc.lpszClassName = CLASS_NAME;
         wc.cbWndExtra = 0;
         wc.style = CS_HREDRAW | CS_VREDRAW;
-        wc.hbrBackground = GetSysColorBrush(COLOR_HIGHLIGHT);
+        wc.hbrBackground = bkg;
         RegisterClass(&wc);
         // Window
         const int center[2] = { GetSystemMetrics(SM_CXSCREEN) / 2, GetSystemMetrics(SM_CYSCREEN) / 2 };
@@ -362,6 +395,8 @@ int StartSettings(HINSTANCE hInstance)
         DispatchMessage(&msg);
     }
     UnregisterClass(CLASS_NAME, hInstance);
+
+    DeleteBrush(bkg);
 
     return 0;
 }
