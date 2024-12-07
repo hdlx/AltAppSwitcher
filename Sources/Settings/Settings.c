@@ -82,6 +82,7 @@ static void CreateTooltip(HWND parent, HWND tool, char* string)
     ti.hwnd = parent;
 
     SendMessage(tt, TTM_ADDTOOL, 0, (LPARAM)&ti);
+    SendMessage(tt, TTM_SETMAXTIPWIDTH, 0, (LPARAM)400);
     SendMessage(tt, TTM_ACTIVATE, true, (LPARAM)NULL);
 }
 
@@ -278,7 +279,7 @@ y += LINE_PAD * 4;
         COMBO_BOX("Next app key:", "", cfg->_Key._AppSwitch, keyES)
         COMBO_BOX("Window hold key:", "", cfg->_Key._WinHold, keyES)
         COMBO_BOX("Next window key:", "", cfg->_Key._WinSwitch, keyES)
-        COMBO_BOX("Invert app key:", "", cfg->_Key._Invert, keyES)
+        COMBO_BOX("Invert key:", "", cfg->_Key._Invert, keyES)
         COMBO_BOX("Previous app key key:", "", cfg->_Key._PrevApp, keyES)
         SEPARATOR()
         TITLE("Graphic options:")
@@ -291,7 +292,7 @@ y += LINE_PAD * 4;
         BOOL_FIELD("Allow mouse:", " ", cfg->_Mouse)
         BOOL_FIELD("Check for updates:", " ", cfg->_CheckForUpdates)
         COMBO_BOX("Switcher mode:",
-            "App: MacOS-like, one entry per application. Window: Windows-like, one entry per window (each window is considered an independent application)",
+            "App: MacOS-like, one entry per application.\r\nWindow: Windows-like, one entry per window (each window is considered an independent application)",
             cfg->_AppSwitcherMode, appSwitcherModeES)
         SEPARATOR()
         BUTTON("Apply", (HMENU)APPLY_BUTTON_ID);

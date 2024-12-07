@@ -792,14 +792,17 @@ static BOOL FillWinGroups(HWND hwnd, LPARAM lParam)
     SWinGroupArr* winAppGroupArr = &(appData->_WinGroups);
 
     SWinGroup* group = NULL;
-    
-    for (uint32_t i = 0; i < winAppGroupArr->_Size; i++)
+
+    if (appData->_Config._AppSwitcherMode == AppSwitcherModeApp)
     {
-        SWinGroup* const _group = &(winAppGroupArr->_Data[i]);
-        if (!strcmp(_group->_ModuleFileName, moduleFileName))
+        for (uint32_t i = 0; i < winAppGroupArr->_Size; i++)
         {
-            group = _group;
-            break;
+            SWinGroup* const _group = &(winAppGroupArr->_Data[i]);
+            if (!strcmp(_group->_ModuleFileName, moduleFileName))
+            {
+                group = _group;
+                break;
+            }
         }
     }
     if (group == NULL)
@@ -1009,7 +1012,13 @@ static void InitializeSwitchWin(SAppData* appData)
     SWinGroup* pWinGroup = &(appData->_CurrentWinGroup);
     GetProcessFileName(PID, pWinGroup->_ModuleFileName);
     pWinGroup->_WindowCount = 0;
-    EnumDesktopWindows(NULL, FillCurrentWinGroup, (LPARAM)pWinGroup);
+    if (appData->_Config._AppSwitcherMode == AppSwitcherModeApp)
+        EnumDesktopWindows(NULL, FillCurrentWinGroup, (LPARAM)pWinGroup);
+    else
+    {
+        pWinGroup->_Windows[0] = win;
+        pWinGroup->_WindowCount = 1;
+    }
     appData->_Selection = 0;
     appData->_Mode = ModeWin;
 }
