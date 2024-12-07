@@ -9,7 +9,7 @@ def deploy(arch):
     dstDir = "./Output/Deploy"
     if not os.path.exists(dstDir):
         os.makedirs(dstDir)
-    tempDir = "./Output/Deploy/Temp"
+    tempDir = f"./Output/Deploy/Temp_{arch}"
     if os.path.exists(tempDir):
         shutil.rmtree(tempDir)
 
@@ -21,6 +21,9 @@ def deploy(arch):
 
     os.system(f"mt.exe -manifest \"{tempDir}/AltAppSwitcher.exe.manifest\" -outputresource:\"{tempDir}/AltAppSwitcher.exe\"")
     os.remove(f"{tempDir}/AltAppSwitcher.exe.manifest")
+
+    os.system(f"mt.exe -manifest \"{tempDir}/Settings.exe.manifest\" -outputresource:\"{tempDir}/Settings.exe\"")
+    os.remove(f"{tempDir}/Settings.exe.manifest")
 
     zipFile = f"{dstDir}/AltAppSwitcher_{arch}"
     shutil.make_archive(zipFile, "zip", tempDir)
