@@ -169,7 +169,7 @@ void CreateBoolControl(int x, int y, int w, int h, HWND parent, const char* name
     appData->_BBindingCount++;
 }
 
-static bool KillAAS()
+static bool RestartAAS()
 {
     HANDLE hSnapShot = CreateToolhelp32Snapshot((DWORD)TH32CS_SNAPALL, (DWORD)0);
     PROCESSENTRY32 pEntry;
@@ -180,6 +180,18 @@ static bool KillAAS()
     {
         if (strcmp(pEntry.szExeFile, "AltAppSwitcher.exe") == 0)
         {
+            THREADENTRY32 tEntry;
+            tEntry.dwSize = sizeof(tEntry);
+            BOOL tRes = Thread32First(hSnapShot, &tEntry);
+            while (tRes)
+            {
+                if (tEntry.th32OwnerProcessID == pEntry.th32ProcessID)
+                {
+                    PostThreadMessage(tEntry.th32ThreadID, MSG_RESTART_ASS, 0, 0);
+                }
+                tRes = Thread32Next(hSnapShot, &tEntry);
+            }
+/*
             HANDLE hProcess = OpenProcess(PROCESS_TERMINATE, 0,
                 (DWORD) pEntry.th32ProcessID);
             if (hProcess != NULL)
@@ -187,7 +199,7 @@ static bool KillAAS()
                 TerminateProcess(hProcess, 9);
                 CloseHandle(hProcess);
                 killed |= true;
-            }
+            }*/
         }
         hRes = Process32Next(hSnapShot, &pEntry);
     }
@@ -343,13 +355,7 @@ y += LINE_PAD * 4;
                 *bd->_TargetValue = BST_CHECKED == SendMessage(bd->_CheckBox,(UINT)BM_GETCHECK, (WPARAM)0, (LPARAM)0);
             }
             WriteConfig(&appData._Config);
-            if (KillAAS())
-            {
-                STARTUPINFO si = {};
-                PROCESS_INFORMATION pi = {};
-                CreateProcess(NULL, ".\\AltAppSwitcher.exe", 0, 0, false, 0, 0, 0,
-                &si, &pi);
-            }
+            RestartAAS();
         }
         return 0;
     }

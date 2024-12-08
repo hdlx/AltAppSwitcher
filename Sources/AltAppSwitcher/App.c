@@ -1563,8 +1563,11 @@ int StartAltAppSwitcher(HINSTANCE hInstance)
     ASSERT(AdjustTokenPrivileges(token, false, &priv, sizeof(priv), 0, 0));
     CloseHandle(token);
 
+    ChangeWindowMessageFilter(MSG_RESTART_ASS, MSGFLT_ADD);
+
     MSG msg = { };
-    while (GetMessage(&msg, NULL, 0, 0) > 0)
+    bool restartAAS = false;
+    while (GetMessage(&msg, NULL, 0, 0) > 0 && !restartAAS)
     {
         switch (msg.message)
         {
@@ -1650,7 +1653,14 @@ int StartAltAppSwitcher(HINSTANCE hInstance)
             _AppData._Selection = 0;
             break;
         }
+        case MSG_RESTART_ASS:
+        {
+            restartAAS = true;
+            break;
         }
+        }
+        if (restartAAS)
+            break;
         TranslateMessage(&msg);
         DispatchMessage(&msg);
     }
@@ -1661,5 +1671,13 @@ int StartAltAppSwitcher(HINSTANCE hInstance)
 
     GdiplusShutdown(gdiplusToken);
     UnregisterClass(CLASS_NAME, hInstance);
+
+    if (restartAAS)
+    {
+        STARTUPINFO si = {};
+        PROCESS_INFORMATION pi = {};
+        CreateProcess(NULL, ".\\AltAppSwitcher.exe", 0, 0, false, 0, 0, 0,
+        &si, &pi);
+    }
     return 0;
 }

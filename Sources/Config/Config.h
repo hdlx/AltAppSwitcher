@@ -3,6 +3,8 @@
 #include <stdbool.h>
 #include "WinKeyCodes.h"
 
+#define MSG_RESTART_ASS (WM_USER + 10)
+
 typedef struct KeyConfig
 {
     unsigned int _AppHold;
