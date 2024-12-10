@@ -34,7 +34,7 @@ Here is my setup:
 - Download Python and install or add to `Path` env. var. so "python" can be called from a terminal.
 - Download Clang for Windows, unzip and add to `Path` so "clang" can be called from a terminal.\
   I'm using `llvm-mingw-20240619-msvcrt-x86_64` from [Clang (mingw)](https://github.com/mstorsjo/llvm-mingw) at the time of writing.
-- (Optional) To run the deploy script, we need Microsoft's `mt.exe`. This tool is used to embed manifest in exe. The application runs fine with external manifest (when building without call the deploy script). `mt.exe` is part of the Windows SDK.
+- *(Optional)* To run the deploy script, we need Microsoft's `mt.exe`. This tool is used to embed manifest in exe. The application runs fine with external manifest (when building without call the deploy script). `mt.exe` is part of the Windows SDK.
 ### Building:
 - Clone the repository.
 - Open a terminal at the root of the repository.
@@ -44,5 +44,6 @@ Here is my setup:
 I'm using VSCodium/VSCode to write and debug code, along those 2 extensions:
 - https://open-vsx.org/extension/vadimcn/vscode-lldb for debugging
 - https://open-vsx.org/extension/llvm-vs-code-extensions/vscode-clangd for language server integration (code completion, errors...)
-With those, you should be able to build and run inside VSCode using the configurations defined in `.vscode\launch.json` (atm configurations are for x86_64 is hardcoded but you can easily create arm64 equivalent)
+  
+With those, you should be able to build and run inside VSCode using the configurations defined in `.vscode\launch.json` (at the moment, configurations are written for x86_64 but you can easily create arm64 equivalent)
 Configurations refers to tasks defined in `D:\Dev\AltAppSwitcher\.vscode\tasks.json`
