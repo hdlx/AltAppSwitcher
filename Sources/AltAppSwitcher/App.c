@@ -1563,7 +1563,7 @@ int StartAltAppSwitcher(HINSTANCE hInstance)
     ASSERT(AdjustTokenPrivileges(token, false, &priv, sizeof(priv), 0, 0));
     CloseHandle(token);
 
-    ChangeWindowMessageFilter(MSG_RESTART_ASS, MSGFLT_ADD);
+    ChangeWindowMessageFilter(MSG_RESTART_AAS, MSGFLT_ADD);
 
     MSG msg = { };
     bool restartAAS = false;
@@ -1653,7 +1653,7 @@ int StartAltAppSwitcher(HINSTANCE hInstance)
             _AppData._Selection = 0;
             break;
         }
-        case MSG_RESTART_ASS:
+        case MSG_RESTART_AAS:
         {
             restartAAS = true;
             break;

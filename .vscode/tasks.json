@@ -6,17 +6,17 @@
         {
             "label": "Build Settings",
             "type": "shell",
-            "command": "python.exe ./compile.py Settings debug x86_64"
+            "command": "python.exe ./build.py Settings debug x86_64"
         },
         {
             "label": "Build AAS",
             "type": "shell",
-            "command": "python.exe ./compile.py AltAppSwitcher debug x86_64"
+            "command": "python.exe ./build.py AltAppSwitcher debug x86_64"
         },
         {
             "label": "Build CheckForUpdates",
             "type": "shell",
-            "command": "python.exe ./compile.py CheckForUpdates debug x86_64"
+            "command": "python.exe ./build.py CheckForUpdates debug x86_64"
         }
     ]
 }

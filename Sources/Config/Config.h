@@ -3,7 +3,7 @@
 #include <stdbool.h>
 #include "WinKeyCodes.h"
 
-#define MSG_RESTART_ASS (WM_USER + 10)
+#define MSG_RESTART_AAS (WM_USER + 10)
 
 typedef struct KeyConfig
 {

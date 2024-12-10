@@ -45,7 +45,9 @@ def CompileCommon(dir):
         os.makedirs(dir)
     CopyAssets(dir)
 
-def CompileDbg(prj, arch):
+import platform
+
+def BuildDbg(prj, arch):
     outputDir = "./Output/Debug"
     CompileCommon(outputDir)
     file = f"{outputDir}/{prj}.exe"
@@ -53,7 +55,7 @@ def CompileDbg(prj, arch):
     cmd = f"clang {cFiles} {Includes()} {LinkArgs()} -o {file} {WarningOptions()} {Common()} -g -glldb -target {arch}-mingw64 -D DEBUG=1"
     os.system(cmd)
 
-def CompileRel(prj, arch):
+def BuildRel(prj, arch):
     outputDir = f"./Output/Release/{arch}"
     CompileCommon(outputDir)
     file = f"{outputDir}/{prj}.exe"
@@ -68,9 +70,9 @@ def main(args):
     conf = args[1]
     arch = args[2]
     if conf == "release":
-        CompileRel(prj, arch)
+        BuildRel(prj, arch)
     elif conf == "debug":
-        CompileDbg(prj, arch)
+        BuildDbg(prj, arch)
 
 if __name__ == "__main__":
     main(sys.argv[1:])

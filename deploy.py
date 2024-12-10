@@ -1,6 +1,12 @@
 import os
-import compile
+import build
 import shutil
+
+def EmbedAndDeleteManifest(exePath):
+    if not os.path.exists(f"{exePath}.manifest"):
+        return
+    os.system(f"mt.exe -manifest \"{exePath}.manifest\" -outputresource:\"{exePath}\"")
+    os.remove(f"{exePath}.manifest")
 
 def deploy(arch):
     srcDir = f"./Output/Release/{arch}"
@@ -13,17 +19,15 @@ def deploy(arch):
     if os.path.exists(tempDir):
         shutil.rmtree(tempDir)
 
-    compile.CompileRel("CheckForUpdates", arch)
-    compile.CompileRel("AltAppSwitcher", arch)
-    compile.CompileRel("Settings", arch)
+    build.BuildRel("CheckForUpdates", arch)
+    build.BuildRel("AltAppSwitcher", arch)
+    build.BuildRel("Settings", arch)
 
     shutil.copytree(srcDir, tempDir)
 
-    os.system(f"mt.exe -manifest \"{tempDir}/AltAppSwitcher.exe.manifest\" -outputresource:\"{tempDir}/AltAppSwitcher.exe\"")
-    os.remove(f"{tempDir}/AltAppSwitcher.exe.manifest")
-
-    os.system(f"mt.exe -manifest \"{tempDir}/Settings.exe.manifest\" -outputresource:\"{tempDir}/Settings.exe\"")
-    os.remove(f"{tempDir}/Settings.exe.manifest")
+    EmbedAndDeleteManifest(f"{tempDir}/AltAppSwitcher.exe")
+    EmbedAndDeleteManifest(f"{tempDir}/CheckForUpdates.exe")
+    EmbedAndDeleteManifest(f"{tempDir}/Settings.exe")
 
     zipFile = f"{dstDir}/AltAppSwitcher_{arch}"
     shutil.make_archive(zipFile, "zip", tempDir)

@@ -187,7 +187,7 @@ static bool RestartAAS()
             {
                 if (tEntry.th32OwnerProcessID == pEntry.th32ProcessID)
                 {
-                    PostThreadMessage(tEntry.th32ThreadID, MSG_RESTART_ASS, 0, 0);
+                    PostThreadMessage(tEntry.th32ThreadID, MSG_RESTART_AAS, 0, 0);
                 }
                 tRes = Thread32Next(hSnapShot, &tEntry);
             }
