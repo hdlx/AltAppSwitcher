@@ -4,17 +4,17 @@
     "version": "2.0.0",
     "tasks": [
         {
-            "label": "Build Settings",
+            "label": "Build Settings x86_64",
             "type": "shell",
             "command": "python.exe ./build.py Settings debug x86_64"
         },
         {
-            "label": "Build AAS",
+            "label": "Build AAS x86_64",
             "type": "shell",
             "command": "python.exe ./build.py AltAppSwitcher debug x86_64"
         },
         {
-            "label": "Build CheckForUpdates",
+            "label": "Build CheckForUpdates x86_64",
             "type": "shell",
             "command": "python.exe ./build.py CheckForUpdates debug x86_64"
         }

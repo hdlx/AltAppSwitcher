@@ -3,39 +3,39 @@
 		{
 			"type": "lldb",
 			"request": "launch",
-			"name": "Build and debug AAS",
-			"program": "${workspaceFolder}/Output/Debug/AltAppSwitcher.exe",
+			"name": "Build and debug AAS x86_64",
+			"program": "${workspaceFolder}/Output/Debug/x86_64/AltAppSwitcher.exe",
 			"args": [],
 			"cwd": "${workspaceFolder}/Output/Debug",
-			"preLaunchTask": "Build AAS",
+			"preLaunchTask": "Build AAS x86_64",
 			"console": "integratedTerminal"
 		},
 		{
 			"type": "lldb",
 			"request": "launch",
-			"name": "Debug AAS",
-			"program": "${workspaceFolder}/Output/Debug/AltAppSwitcher.exe",
+			"name": "Debug AAS x86_64",
+			"program": "${workspaceFolder}/Output/Debug/x86_64/AltAppSwitcher.exe",
 			"args": [],
-			"cwd": "${workspaceFolder}/Output/Debug",
+			"cwd": "${workspaceFolder}/Output/Debug/x86_64",
 			"console": "integratedTerminal"
 		},
 		{
 			"type": "lldb",
 			"request": "launch",
-			"name": "Debug Settings",
-			"program": "${workspaceFolder}/Output/Debug/Settings.exe",
+			"name": "Debug Settings x86_64",
+			"program": "${workspaceFolder}/Output/Debug/x86_64/Settings.exe",
 			"args": [],
-			"cwd": "${workspaceFolder}/Output/Debug",
+			"cwd": "${workspaceFolder}/Output/Debug/x86_64",
 			"console": "integratedTerminal"
 		},
 		{
 			"type": "lldb",
 			"request": "launch",
-			"name": "Build and debug Settings",
-			"program": "${workspaceFolder}/Output/Debug/Settings.exe",
+			"name": "Build and debug Settings x86_64",
+			"program": "${workspaceFolder}/Output/Debug/x86_64/Settings.exe",
 			"args": [],
-			"preLaunchTask": "Build Settings",
-			"cwd": "${workspaceFolder}/Output/Debug",
+			"preLaunchTask": "Build Settings x86_64",
+			"cwd": "${workspaceFolder}/Output/Debug/x86_64",
 			"console": "integratedTerminal"
 		}
 	]

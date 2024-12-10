@@ -48,7 +48,7 @@ def CompileCommon(dir):
 import platform
 
 def BuildDbg(prj, arch):
-    outputDir = "./Output/Debug"
+    outputDir = f"./Output/Debug/{arch}"
     CompileCommon(outputDir)
     file = f"{outputDir}/{prj}.exe"
     cFiles = CFiles(f"Sources/{prj}") + CFiles("Sources/Config")
