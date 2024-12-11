@@ -38,12 +38,12 @@ Here is my setup:
 ### Building:
 - Clone the repository.
 - Open a terminal at the root of the repository.
-- run `python.exe .\build.py AltAppSwitcher release x86_64`
-- Binaries are found in `./Output/debug/x86_64`
+- run `python.exe ./build.py AltAppSwitcher release x86_64`
+- Binaries are found in `/Output/debug/x86_64`
 ### Debugging:
-I'm using VSCodium/VSCode to write and debug code, along those 2 extensions:
+I'm using VSCodium/VSCode to write and debug code, with 2 extensions:
 - https://open-vsx.org/extension/vadimcn/vscode-lldb for debugging
 - https://open-vsx.org/extension/llvm-vs-code-extensions/vscode-clangd for language server integration (code completion, errors...)
   
 With those, you should be able to build and run inside VSCode using the configurations defined in `.vscode\launch.json` (at the moment, configurations are written for x86_64 but you can easily create arm64 equivalent)
-Configurations refers to tasks defined in `D:\Dev\AltAppSwitcher\.vscode\tasks.json`
+Configurations refers to tasks defined in `/.vscode/tasks.json`
