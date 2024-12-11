@@ -1339,9 +1339,10 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
             ASSERT(appData->_GraphicsResources._Bitmap != NULL);
             ReleaseDC(hwnd, winDC);
         }
-
         mouseInside = false;
         SetCapture(hwnd);
+        // Otherwise cursor is busy on hover. I Don't understand why.
+        SetCursor(LoadCursor(NULL, IDC_ARROW));
         return 0;
     }
     case WM_LBUTTONUP:
