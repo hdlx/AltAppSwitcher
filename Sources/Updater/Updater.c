@@ -5,6 +5,9 @@
 #include <string.h>
 #include <winsock2.h>
 #include <ws2tcpip.h>
+#include <fileapi.h>
+#include <dirent.h>
+#include <ftw.h>
 
 #define MAJOR 0
 #define MINOR 19
@@ -35,7 +38,7 @@ static void GetAASVersion(int* major, int* minor, SOCKET sock)
     return;
 }
 
-static void DownloadLatest(SOCKET sock)
+static void DownloadLatest(SOCKET sock, const char* dstFile)
 {
     const char message[] =
 #if defined(ARCH_x86_64)
@@ -76,7 +79,7 @@ static void DownloadLatest(SOCKET sock)
     }
 
     int bytes = 0;
-    FILE* file = fopen("toto.zip","wb");
+    FILE* file = fopen(dstFile,"wb");
     while (1)
     {
         static char response[1024];
@@ -90,6 +93,25 @@ static void DownloadLatest(SOCKET sock)
             break;
     }
     fclose(file);
+}
+
+int DeleteForFtw(const char* path, const struct stat* data, int type, struct FTW* ftw)
+{
+    (void)data; (void)ftw;
+    if (type == FTW_DP)
+        rmdir(path);
+    else // if (type == FTW_F)
+        unlink(path);
+    return 0;
+}
+
+static void StrBToF(char* str)
+{
+    while (*str++ != '\0')
+    {
+        if (*str == '\\')
+            *str = '/';
+    }
 }
 
 int main()
@@ -163,9 +185,31 @@ int main()
         sprintf(msg,
             "msg * \"A new version of AltAppSwitcher is available (%u.%u). Please check https://github.com/hdlx/AltAppSwitcher/releases\" &",
             major, minor);
-        system(msg);
+        DWORD res = MessageBox(0, msg, "AltAppSwitcher updater", MB_YESNO);
+        if (res == IDNO)
+        {
+            close(sock);
+            WSACleanup();
+            return 0;
+        }
     }
-    DownloadLatest(sock);
+
+    // Make temp dir
+    char tempDir[256] = {};
+    {
+        GetTempPath(sizeof(tempDir), tempDir);
+        StrBToF(tempDir);
+        strcat(tempDir, "AltAppSwitcher");
+        DIR* dir = opendir(tempDir);
+        if (dir)
+        {
+            closedir(dir);
+            nftw(tempDir, DeleteForFtw, 0, FTW_DEPTH);
+        }
+        mkdir(tempDir);
+    }
+
+    DownloadLatest(sock, "");
 
     close(sock);
     WSACleanup();
