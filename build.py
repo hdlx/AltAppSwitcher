@@ -12,8 +12,8 @@ def CFiles(dir):
 def LinkArgs():
     return "-l dwmapi -l User32 -l Gdi32 -l Gdiplus -l shlwapi -l pthread -l Ole32 -l Comctl32 -l ws2_32"
 
-def Common():
-    return "-static -static-libgcc"
+def Common(arch):
+    return f"-static -static-libgcc -D ARCH_{arch}=1 -target {arch}-mingw64"
 
 def WarningOptions():
     return "-Werror -Wall -Wextra -Wno-unused-function -Wno-used-but-marked-unused -Wno-nonportable-include-path"
@@ -52,7 +52,7 @@ def BuildDbg(prj, arch):
     CompileCommon(outputDir)
     file = f"{outputDir}/{prj}.exe"
     cFiles = CFiles(f"Sources/{prj}") + CFiles("Sources/Config")
-    cmd = f"clang {cFiles} {Includes()} {LinkArgs()} -o {file} {WarningOptions()} {Common()} -g -glldb -target {arch}-mingw64 -D DEBUG=1"
+    cmd = f"clang {cFiles} {Includes()} {LinkArgs()} -o {file} {WarningOptions()} {Common(arch)} -g -glldb -D DEBUG=1"
     os.system(cmd)
 
 def BuildRel(prj, arch):
@@ -60,7 +60,7 @@ def BuildRel(prj, arch):
     CompileCommon(outputDir)
     file = f"{outputDir}/{prj}.exe"
     cFiles = CFiles(f"Sources/{prj}") + CFiles("Sources/Config")
-    cmd = f"clang {cFiles} {Includes()} {LinkArgs()} -o {file} -mwindows {WarningOptions()} {Common()} -s -Os -Oz -target {arch}-mingw64"
+    cmd = f"clang {cFiles} {Includes()} {LinkArgs()} -o {file} -mwindows {WarningOptions()} {Common(arch)} -s -Os -Oz"
     os.system(cmd)
 
 import sys
