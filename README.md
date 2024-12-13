@@ -21,7 +21,7 @@ Run `AddToStartup.bat` to add AltAppSwitcher to Windows startup apps.
 Run `RemoveFromStartup.bat` to revert this.
 
 ## Customization
-"Settings.exe" lets you change settings such as **key bindings**, **theme**, **scale** and **mouse support**.
+**Settings** executable lets you change settings such as **key bindings**, **theme**, **scale** and **mouse support**.
 
 ## Known issues
 - Alt tab popup is behind start menu.
