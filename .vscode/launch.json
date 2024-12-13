@@ -3,7 +3,7 @@
 		{
 			"type": "lldb",
 			"request": "launch",
-			"name": "Build and debug AAS ${GREETING_VAR}",
+			"name": "Build and debug AAS x86_64",
 			"program": "${workspaceFolder}/Output/Debug/x86_64/AltAppSwitcher.exe",
 			"args": [],
 			"cwd": "${workspaceFolder}/Output/Debug",
