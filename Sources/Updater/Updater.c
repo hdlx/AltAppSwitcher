@@ -71,7 +71,7 @@ static void DownloadLatest(SOCKET sock, const char* dstFile)
             p++;
         }
         p = response + 4;
-        printf("%s", p);
+        // printf("%s", p);
         char* at = strstr(p, "content-length");
         if (at == NULL)
             return;
@@ -183,7 +183,7 @@ int main()
     {
         char msg[256];
         sprintf(msg,
-            "msg * \"A new version of AltAppSwitcher is available (%u.%u). Please check https://github.com/hdlx/AltAppSwitcher/releases\" &",
+            "A new version of AltAppSwitcher is available (%u.%u).\nDo you want to update now?",
             major, minor);
         DWORD res = MessageBox(0, msg, "AltAppSwitcher updater", MB_YESNO);
         if (res == IDNO)
@@ -209,7 +209,10 @@ int main()
         mkdir(tempDir);
     }
 
-    DownloadLatest(sock, "");
+    char archivePath[256] = {};
+    strcpy(archivePath, tempDir);
+    strcat(archivePath, "/aas.zip");
+    DownloadLatest(sock, archivePath);
 
     close(sock);
     WSACleanup();
