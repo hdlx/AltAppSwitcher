@@ -31,10 +31,13 @@ The configuration file, `AltAppSwitcherConfig.txt` lets you change **key binding
 This is a C project relying on C standard library and Windows API. I'm using [Clang (mingw)](https://github.com/mstorsjo/llvm-mingw) and VS Code / VS Codium.
 Here is my setup:
 ### Dependencies:
-- Download Python and install or add to `Path` env. var. so "python" can be called from a terminal.
-- Download Clang for Windows, unzip and add to `Path` so "clang" can be called from a terminal.\
-  I'm using `llvm-mingw-20240619-msvcrt-x86_64` from [Clang (mingw)](https://github.com/mstorsjo/llvm-mingw) at the time of writing.
-- *(Optional)* To run the deploy script, we need Microsoft's `mt.exe`. This tool is used to embed manifest in exe. The application runs fine with external manifest (when building without calling the deploy script). `mt.exe` is part of the Windows SDK.
+- **Python:**\
+Download **Python** and install or add to "Path" so `python` can be called from a terminal.
+- **Clang and Windows libraries:**\
+Download **Clang mingw**, unzip and add to "Path" so `clang` can be called from a terminal.\
+I'm using `llvm-mingw-20240619-msvcrt-x86_64` from [Clang (mingw)](https://github.com/mstorsjo/llvm-mingw) at the time of writing.
+- *(Optional) mt.exe:*\
+To run the deploy script, we need Microsoft's `mt.exe`. This tool is used to embed manifest in exe. The application runs fine with external manifest (when building without calling the deploy script). `mt.exe` is part of the Windows SDK.
 ### Building:
 - Clone the repository.
 - Open a terminal at the root of the repository.
@@ -46,4 +49,5 @@ I'm using VSCodium/VSCode to write and debug code, with 2 extensions:
 - https://open-vsx.org/extension/llvm-vs-code-extensions/vscode-clangd for language server integration (code completion, errors...)
   
 With those, you should be able to build and run inside VSCode using the configurations defined in `.vscode\launch.json` (at the moment, configurations are written for x86_64 but you can easily create arm64 equivalent)
+
 Configurations refers to tasks defined in `/.vscode/tasks.json`
