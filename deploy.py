@@ -19,14 +19,14 @@ def deploy(arch):
     if os.path.exists(tempDir):
         shutil.rmtree(tempDir)
 
-    build.BuildRel("CheckForUpdates", arch)
+    build.BuildRel("Updater", arch)
     build.BuildRel("AltAppSwitcher", arch)
     build.BuildRel("Settings", arch)
 
     shutil.copytree(srcDir, tempDir)
 
     EmbedAndDeleteManifest(f"{tempDir}/AltAppSwitcher.exe")
-    EmbedAndDeleteManifest(f"{tempDir}/CheckForUpdates.exe")
+    EmbedAndDeleteManifest(f"{tempDir}/Updater.exe")
     EmbedAndDeleteManifest(f"{tempDir}/Settings.exe")
 
     zipFile = f"{dstDir}/AltAppSwitcher_{arch}"

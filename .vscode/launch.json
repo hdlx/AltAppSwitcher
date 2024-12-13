@@ -3,7 +3,7 @@
 		{
 			"type": "lldb",
 			"request": "launch",
-			"name": "Build and debug AAS x86_64",
+			"name": "Build and debug AAS ${GREETING_VAR}",
 			"program": "${workspaceFolder}/Output/Debug/x86_64/AltAppSwitcher.exe",
 			"args": [],
 			"cwd": "${workspaceFolder}/Output/Debug",
@@ -31,10 +31,10 @@
 		{
 			"type": "lldb",
 			"request": "launch",
-			"name": "Build and debug Settings x86_64",
-			"program": "${workspaceFolder}/Output/Debug/x86_64/Settings.exe",
+			"name": "Build and debug Updater x86_64",
+			"program": "${workspaceFolder}/Output/Debug/x86_64/Updater.exe",
 			"args": [],
-			"preLaunchTask": "Build Settings x86_64",
+			"preLaunchTask": "Build Updater x86_64",
 			"cwd": "${workspaceFolder}/Output/Debug/x86_64",
 			"console": "integratedTerminal"
 		}
