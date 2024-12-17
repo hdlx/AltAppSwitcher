@@ -1,5 +1,4 @@
 import os
-import build
 import shutil
 
 def EmbedAndDeleteManifest(exePath):

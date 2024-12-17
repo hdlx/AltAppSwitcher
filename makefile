@@ -27,9 +27,10 @@ UPDATEROBJECTS = $(patsubst $(SOURCEDIR)/%.c, $(OBJDIR)/%.o, $(wildcard $(SOURCE
 
 ASSETS = $(patsubst $(ROOTDIR)/Assets/%, $(BUILDDIR)/%, $(wildcard $(ROOTDIR)/Assets/*))
 
-.PHONY: all clean folders assets
+.PHONY: all clean directories assets
 
-ALL := $(BUILDDIR)/AltAppSwitcher.exe
+ALL := directories
+ALL += $(BUILDDIR)/AltAppSwitcher.exe
 ALL += $(BUILDDIR)/Settings.exe
 ALL += $(BUILDDIR)/Updater.exe
 ALL += $(ASSETS)
@@ -38,16 +39,16 @@ All: $(ALL)
 
 # Compile object targets:
 # AAS
-$(AASOBJECTS): $(OBJDIR)/%.o: $(SOURCEDIR)/%.c $(SDKHEADERS) $(SOURCEHEADERS) | $(OBJDIR)/AltAppSwitcher
+$(AASOBJECTS): $(OBJDIR)/%.o: $(SOURCEDIR)/%.c $(SDKHEADERS) $(SOURCEHEADERS)
 	$(CC) $(CFLAGS) $(CINCLUDES) -c $< -o $@
 # Config
-$(CONFIGOBJECTS): $(OBJDIR)/%.o: $(SOURCEDIR)/%.c $(SDKHEADERS) $(SOURCEHEADERS) | $(OBJDIR)/Config
+$(CONFIGOBJECTS): $(OBJDIR)/%.o: $(SOURCEDIR)/%.c $(SDKHEADERS) $(SOURCEHEADERS)
 	$(CC) $(CFLAGS) $(CINCLUDES) -c $< -o $@
 # Settings
-$(SETTINGSOBJECTS): $(OBJDIR)/%.o: $(SOURCEDIR)/%.c $(SDKHEADERS) $(SOURCEHEADERS) | $(OBJDIR)/Settings
+$(SETTINGSOBJECTS): $(OBJDIR)/%.o: $(SOURCEDIR)/%.c $(SDKHEADERS) $(SOURCEHEADERS)
 	$(CC) $(CFLAGS) $(CINCLUDES) -c $< -o $@
 # Updater
-$(UPDATEROBJECTS): $(OBJDIR)/%.o: $(SOURCEDIR)/%.c $(SDKHEADERS) $(SOURCEHEADERS) | $(OBJDIR)/Updater
+$(UPDATEROBJECTS): $(OBJDIR)/%.o: $(SOURCEDIR)/%.c $(SDKHEADERS) $(SOURCEHEADERS)
 	$(CC) $(CFLAGS) $(CINCLUDES) -c $< -o $@
 
 # Build exe targets (link):
@@ -61,29 +62,16 @@ $(BUILDDIR)/Updater.exe: $(UPDATEROBJECTS)
 	$(CC) $(CFLAGS) $(CLINK) $^ -o $@
 
 # Directory targets:
-# | defines order-only-prerequisites
-$(OBJDIR)/AltAppSwitcher: | $(OBJDIR)
-	mkdir "$@"
-$(OBJDIR)/Settings: | $(OBJDIR)
-	mkdir "$@"
-$(OBJDIR)/Config: | $(OBJDIR)
-	mkdir "$@"
-$(OBJDIR)/Updater: | $(OBJDIR)
-	mkdir "$@"
-$(OBJDIR): | $(BUILDDIR)
-	mkdir "$@"
-$(BUILDDIR): | $(OUTPUTDIR)
-	mkdir "$@"
-$(OUTPUTDIR):
-	mkdir "$@"
+directories:
+	python ./AAS.py MakeDirs $(CONF) $(ARCH)
 
 # Assets:
 $(ASSETS): $(BUILDDIR)/%: $(ROOTDIR)/Assets/% | $(BUILDDIR)
-	cp "$<" "$@"
+	python ./AAS.py Copy "$<" "$@"
 
 # Other targets:
 clean:
-	rm -rf "$(OUTPUTDIR)"
+	python ./AAS.py Clean
 
 # Lib target:
 # Config:
