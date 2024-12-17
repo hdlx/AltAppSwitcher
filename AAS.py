@@ -43,6 +43,16 @@ def Copy(src, dst):
         os.remove(dst)
     shutil.copy(src, dst)
 
+def MakeCompileCommands(file, args):
+    outfile = open(file, 'w')
+    outfile.write("[\n")
+    for fname in args:
+        infile = open(fname)
+        for line in infile:
+            outfile.write(line)
+    outfile.write("{}\n]")
+
+
 import sys
 if __name__ == "__main__": 
     args = sys.argv[1:]
@@ -53,3 +63,5 @@ if __name__ == "__main__":
         MakeDirs(args[1], args[2])
     elif fn == "Clean":
         Clean()
+    elif fn == "MakeCompileCommands":
+        MakeCompileCommands(args[1], args[2:])

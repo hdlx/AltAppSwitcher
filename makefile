@@ -36,6 +36,7 @@ ALL += $(BUILDDIR)/AltAppSwitcher.exe
 ALL += $(BUILDDIR)/Settings.exe
 ALL += $(BUILDDIR)/Updater.exe
 ALL += $(ASSETS)
+ALL += $(ROOT)/compile_commands.json
 
 #ALL := $(ALLOBJECTS)
 
@@ -44,7 +45,7 @@ All: $(ALL)
 # Compile object targets:
 # see 4.12.1 Syntax of Static Pattern Rules
 $(ALLOBJECTS): $(OBJDIR)/%.o: $(SOURCEDIR)/%.c $(SDKHEADERS) $(SOURCEHEADERS)
-	$(CC) $(CFLAGS) $(CINCLUDES) -c $< -o $@
+	$(CC) $(CFLAGS) $(CINCLUDES) -MJ $@.json -c $< -o $@
 
 # Build exe targets (link):
 $(BUILDDIR)/AltAppSwitcher.exe: $(AASOBJECTS) $(CONFIGOBJECTS)
@@ -61,8 +62,13 @@ directories:
 	python ./AAS.py MakeDirs $(CONF) $(ARCH)
 
 # Assets:
-$(ASSETS): $(BUILDDIR)/%: $(ROOTDIR)/Assets/% | $(BUILDDIR)
+$(ASSETS): $(BUILDDIR)/%: $(ROOTDIR)/Assets/%
 	python ./AAS.py Copy "$<" "$@"
+
+# Compile command
+$(ROOT)/compile_commands.json: $(ALLOBJECTS)
+	python ./AAS.py MakeCompileCommands $@ $(subst .o,.o.json, $^)
+#	echo($(ALLJSON))
 
 # Other targets:
 clean:
