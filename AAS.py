@@ -44,13 +44,17 @@ def Copy(src, dst):
     shutil.copy(src, dst)
 
 def MakeCompileCommands(file, args):
-    outfile = open(file, 'w')
-    outfile.write("[\n")
+    print(file)
+    outf = open(file, 'w+b')
+    outf.write("[\n".encode())
     for fname in args:
-        infile = open(fname)
-        for line in infile:
-            outfile.write(line)
-    outfile.write("{}\n]")
+        inf = open(fname, 'rb')
+        outf.write(inf.read())
+
+    outf.seek(-3, os.SEEK_END)
+    outf.truncate()
+    outf.write("\n]".encode())
+    outf.close()
 
 
 import sys

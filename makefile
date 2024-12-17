@@ -2,7 +2,7 @@ ARCH = x86_64
 CONF = Debug
 
 # Directories
-ROOTDIR = .
+ROOTDIR = $(CURDIR)
 OUTPUTDIR = $(ROOTDIR)/Output
 BUILDDIR = $(OUTPUTDIR)/$(CONF)_$(ARCH)
 SOURCEDIR = $(ROOTDIR)/Sources
@@ -36,7 +36,7 @@ ALL += $(BUILDDIR)/AltAppSwitcher.exe
 ALL += $(BUILDDIR)/Settings.exe
 ALL += $(BUILDDIR)/Updater.exe
 ALL += $(ASSETS)
-ALL += $(ROOT)/compile_commands.json
+ALL += $(SOURCEDIR)/compile_commands.json
 
 #ALL := $(ALLOBJECTS)
 
@@ -66,7 +66,7 @@ $(ASSETS): $(BUILDDIR)/%: $(ROOTDIR)/Assets/%
 	python ./AAS.py Copy "$<" "$@"
 
 # Compile command
-$(ROOT)/compile_commands.json: $(ALLOBJECTS)
+$(SOURCEDIR)/compile_commands.json: $(ALLOBJECTS)
 	python ./AAS.py MakeCompileCommands $@ $(subst .o,.o.json, $^)
 #	echo($(ALLJSON))
 
