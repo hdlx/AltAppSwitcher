@@ -32,19 +32,19 @@ This is a C project relying on C standard library and Windows API. I'm using [Cl
 Here is my setup:
 ### Dependencies:
 - **Clang and Windows libraries:**\
-Download **Clang mingw**, unzip and add `Bin` subfolder to "Path" so `clang` (and other tools from mingw) can be called from a terminal.\
+Download **Clang MinGW**, unzip and add `Bin` subfolder to "Path" so `clang` (and other tools from MinGW) can be called from a terminal.\
 I'm using `llvm-mingw-20240619-msvcrt-x86_64` from [Clang (mingw)](https://github.com/mstorsjo/llvm-mingw) at the time of writing.
 - **Python:**\
 Download **Python** and install or add to "Path" so `python` can be called from a terminal.\
-Alternatively, you can use mingw provided Python under Python/bin.
+Alternatively, you can use MinGW-provided Python under `Python/bin`.
 - **Make**\
-Make is part of mingw.
+Make is part of MinGW.
 - *(Optional) mt.exe:*\
 To run the deploy script, we need Microsoft's `mt.exe`. This tool is used to embed manifest in exe. The application runs fine with external manifest (when building without calling the deploy script). `mt.exe` is part of the Windows SDK.
 ### Building:
 - Clone the repository.
 - Open a terminal at the root of the repository.
-- run `python.exe ./build.py AltAppSwitcher release x86_64`
+- run `mingw32-make`
 - Binaries are found in `/Output/debug/x86_64`
 ### Debugging:
 I'm using VSCodium/VSCode to write and debug code, with 2 extensions:
