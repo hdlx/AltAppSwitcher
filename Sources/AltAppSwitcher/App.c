@@ -151,13 +151,6 @@ static DWORD _MainThread;
 #define MSG_DEINIT_APP (WM_USER + 8)
 #define MSG_CANCEL_APP (WM_USER + 9)
 
-static HIMAGELIST GetSysImgList()
-{
-    void* out = NULL;
-    SHGetImageList(SHIL_JUMBO, &IID_IImageList, &out);
-    return (HIMAGELIST)out;
-}
-
 static void InitGraphicsResources(SGraphicsResources* pRes, const Config* config)
 {
     // Text
@@ -431,45 +424,6 @@ static bool IsAltTabWindow(HWND hwnd)
     if ((wi.dwExStyle & WS_EX_TOOLWINDOW) != 0)
         return false;
     return true;
-}
-
-static bool ForceSetForeground(HWND win)
-{
-    const DWORD currentThread = GetCurrentThreadId();
-    const DWORD FGWThread = GetWindowThreadProcessId(GetForegroundWindow(), NULL);
-    AttachThreadInput(currentThread, FGWThread, TRUE);
-    WINDOWPLACEMENT placement;
-    placement.length = sizeof(WINDOWPLACEMENT);
-    GetWindowPlacement(win, &placement);
-    if (placement.showCmd == SW_SHOWMINIMIZED)
-        ShowWindowAsync(win, SW_RESTORE);
-    ASSERT(BringWindowToTop(win) || SetForegroundWindow(win));
-    SetFocus(win);
-    SetActiveWindow(win);
-    EnableWindow(win, TRUE);
-    AttachThreadInput(currentThread, FGWThread, FALSE);
-    return true;
-}
-
-static BOOL FindAltTabProc(HWND hwnd, LPARAM lParam)
-{
-    ALTTABINFO info = {};
-    if (!GetAltTabInfo(hwnd, 0, &info, NULL, 0))
-        return TRUE;
-    SFoundWin* pFoundWin = (SFoundWin*)(lParam);
-    pFoundWin->_Data[pFoundWin->_Size] = hwnd;
-    pFoundWin->_Size++;
-    return TRUE;
-}
-
-static HWND FindAltTabWin()
-{
-    SFoundWin foundWin;
-    foundWin._Size = 0;
-    EnumDesktopWindows(NULL, FindAltTabProc, (LPARAM)&foundWin);
-    if (foundWin._Size)
-        return foundWin._Data[0];
-    return 0;
 }
 
 void ErrorDescription(HRESULT hr) 
@@ -917,26 +871,6 @@ static void ComputeMetrics(uint32_t iconCount, float scale, Metrics *metrics)
     metrics->_WinY = sizeY;
     metrics->_Icon = iconContainerSize / 2;
     metrics->_IconContainer = iconContainerSize;
-}
-
-static DWORD GetParentPID(DWORD PID)
-{
-    HANDLE h = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
-    PROCESSENTRY32 pe = { 0 };
-    pe.dwSize = sizeof(PROCESSENTRY32);
-    WINBOOL found = Process32First(h, &pe);
-    DWORD parentPID = 0;
-    while (found)
-    {
-        if (pe.th32ProcessID == PID)
-        {
-            parentPID = pe.th32ParentProcessID;
-            break;
-        }
-        found = Process32Next(h, &pe);
-    }
-    CloseHandle(h);
-    return parentPID;
 }
 
 static const char CLASS_NAME[] = "AltAppSwitcher";
