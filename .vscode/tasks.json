@@ -6,17 +6,17 @@
         {
             "label": "Build Settings x86_64",
             "type": "shell",
-            "command": "python.exe ./build.py Settings debug x86_64"
+            "command": "mingw32-make ARCH=x86_64 CONF=DEBUG"
         },
         {
             "label": "Build AAS x86_64",
             "type": "shell",
-            "command": "python.exe ./build.py AltAppSwitcher debug x86_64"
+            "command": "mingw32-make ARCH=x86_64 CONF=DEBUG"
         },
         {
             "label": "Build Updater x86_64",
             "type": "shell",
-            "command": "python.exe ./build.py Updater debug x86_64"
+            "command": "mingw32-make ARCH=x86_64 CONF=DEBUG"
         }
     ]
 }

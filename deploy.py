@@ -9,7 +9,7 @@ def EmbedAndDeleteManifest(exePath):
     os.remove(f"{exePath}.manifest")
 
 def deploy(arch):
-    srcDir = f"./Output/Release/{arch}"
+    srcDir = f"./Output/Release_{arch}"
     if os.path.exists(srcDir):
         shutil.rmtree(srcDir)
     dstDir = "./Output/Deploy"
@@ -19,12 +19,10 @@ def deploy(arch):
     if os.path.exists(tempDir):
         shutil.rmtree(tempDir)
 
-    build.BuildRel("Updater", arch)
-    build.BuildRel("AltAppSwitcher", arch)
-    build.BuildRel("Settings", arch)
+    os.system(f"mingw32-make ARCH={arch} CONF=Release")
 
     shutil.copytree(srcDir, tempDir)
-
+    shutil.rmtree(f"{tempDir}/Objects");
     EmbedAndDeleteManifest(f"{tempDir}/AltAppSwitcher.exe")
     EmbedAndDeleteManifest(f"{tempDir}/Updater.exe")
     EmbedAndDeleteManifest(f"{tempDir}/Settings.exe")
