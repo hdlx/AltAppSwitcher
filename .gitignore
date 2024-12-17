@@ -3,3 +3,4 @@ output/
 Sources/_Generated
 compile_commands.json
 .cache/*
+Sources/.cache/*
