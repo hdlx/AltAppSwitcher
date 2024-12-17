@@ -20,14 +20,16 @@ CFLAGS = -g -Wall -static -D ARCH_$(ARCH)=1 -target $(ARCH)-mingw64
 SDKHEADERS = $(wildcard $(SDKDIR)/**/*.h) $(wildcard $(SDKDIR)/*.h) 
 SOURCEHEADERS = $(wildcard $(SOURCEDIR)/**/*.h) $(wildcard $(SOURCEDIR)/*.h) 
 
-AASOBJECTS = $(patsubst $(SOURCEDIR)/%.c, $(OBJDIR)/%.o, $(wildcard $(SOURCEDIR)/AltAppSwitcher/*.c))
-CONFIGOBJECTS = $(patsubst $(SOURCEDIR)/%.c, $(OBJDIR)/%.o, $(wildcard $(SOURCEDIR)/Config/*.c))
-SETTINGSOBJECTS = $(patsubst $(SOURCEDIR)/%.c, $(OBJDIR)/%.o, $(wildcard $(SOURCEDIR)/Settings/*.c))
-UPDATEROBJECTS = $(patsubst $(SOURCEDIR)/%.c, $(OBJDIR)/%.o, $(wildcard $(SOURCEDIR)/Updater/*.c))
+ALLOBJECTS = $(patsubst $(SOURCEDIR)/%.c, $(OBJDIR)/%.o, $(wildcard $(SOURCEDIR)/**/*.c))
+
+AASOBJECTS = $(filter $(OBJDIR)/AltAppSwitcher/%, $(ALLOBJECTS))
+CONFIGOBJECTS = $(filter $(OBJDIR)/Config/%, $(ALLOBJECTS))
+SETTINGSOBJECTS = $(filter $(OBJDIR)/Settings/%, $(ALLOBJECTS))
+UPDATEROBJECTS = $(filter $(OBJDIR)/Updater/%, $(ALLOBJECTS))
 
 ASSETS = $(patsubst $(ROOTDIR)/Assets/%, $(BUILDDIR)/%, $(wildcard $(ROOTDIR)/Assets/*))
 
-.PHONY: all clean directories assets
+.PHONY: all clean directories
 
 ALL := directories
 ALL += $(BUILDDIR)/AltAppSwitcher.exe
@@ -35,20 +37,13 @@ ALL += $(BUILDDIR)/Settings.exe
 ALL += $(BUILDDIR)/Updater.exe
 ALL += $(ASSETS)
 
+#ALL := $(ALLOBJECTS)
+
 All: $(ALL)
 
 # Compile object targets:
-# AAS
-$(AASOBJECTS): $(OBJDIR)/%.o: $(SOURCEDIR)/%.c $(SDKHEADERS) $(SOURCEHEADERS)
-	$(CC) $(CFLAGS) $(CINCLUDES) -c $< -o $@
-# Config
-$(CONFIGOBJECTS): $(OBJDIR)/%.o: $(SOURCEDIR)/%.c $(SDKHEADERS) $(SOURCEHEADERS)
-	$(CC) $(CFLAGS) $(CINCLUDES) -c $< -o $@
-# Settings
-$(SETTINGSOBJECTS): $(OBJDIR)/%.o: $(SOURCEDIR)/%.c $(SDKHEADERS) $(SOURCEHEADERS)
-	$(CC) $(CFLAGS) $(CINCLUDES) -c $< -o $@
-# Updater
-$(UPDATEROBJECTS): $(OBJDIR)/%.o: $(SOURCEDIR)/%.c $(SDKHEADERS) $(SOURCEHEADERS)
+# see 4.12.1 Syntax of Static Pattern Rules
+$(ALLOBJECTS): $(OBJDIR)/%.o: $(SOURCEDIR)/%.c $(SDKHEADERS) $(SOURCEHEADERS)
 	$(CC) $(CFLAGS) $(CINCLUDES) -c $< -o $@
 
 # Build exe targets (link):
