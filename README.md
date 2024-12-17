@@ -44,8 +44,8 @@ To run the deploy script, we need Microsoft's `mt.exe`. This tool is used to emb
 ### Building:
 - Clone the repository.
 - Open a terminal at the root of the repository.
-- run `mingw32-make`
-- Binaries are found in `/Output/debug/x86_64`
+- run `mingw32-make.exe` (MinGW make must be used)
+- Binaries are found in `/Output/Debug_x86_64`
 ### Debugging:
 I'm using VSCodium/VSCode to write and debug code, with 2 extensions:
 - https://open-vsx.org/extension/vadimcn/vscode-lldb for debugging
