@@ -31,11 +31,14 @@ Run `RemoveFromStartup.bat` to revert this.
 This is a C project relying on C standard library and Windows API. I'm using [Clang (mingw)](https://github.com/mstorsjo/llvm-mingw) and VS Code / VS Codium.
 Here is my setup:
 ### Dependencies:
-- **Python:**\
-Download **Python** and install or add to "Path" so `python` can be called from a terminal.
 - **Clang and Windows libraries:**\
-Download **Clang mingw**, unzip and add to "Path" so `clang` can be called from a terminal.\
+Download **Clang mingw**, unzip and add `Bin` subfolder to "Path" so `clang` (and other tools from mingw) can be called from a terminal.\
 I'm using `llvm-mingw-20240619-msvcrt-x86_64` from [Clang (mingw)](https://github.com/mstorsjo/llvm-mingw) at the time of writing.
+- **Python:**\
+Download **Python** and install or add to "Path" so `python` can be called from a terminal.\
+Alternatively, you can use mingw provided Python under Python/bin.
+- **Make**\
+Make is part of mingw.
 - *(Optional) mt.exe:*\
 To run the deploy script, we need Microsoft's `mt.exe`. This tool is used to embed manifest in exe. The application runs fine with external manifest (when building without calling the deploy script). `mt.exe` is part of the Windows SDK.
 ### Building:
