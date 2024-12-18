@@ -14,7 +14,7 @@ INCLUDEDIR = $(ROOTDIR)/Sources
 # Common var
 CC = $(ARCH)-w64-mingw32-clang
 CINCLUDES = -I $(ROOTDIR)/SDK/headers -I $(ROOTDIR)/Sources
-CLINK =  -static-libgcc -L $(LIBDIR) -l dwmapi -l User32 -l Gdi32 -l Gdiplus -l shlwapi -l pthread -l Ole32 -l Comctl32 -l ws2_32 -l libzip -l zlib -l bcrypt
+CLINK =  -mwindows -static-libgcc -L $(LIBDIR) -l dwmapi -l User32 -l Gdi32 -l Gdiplus -l shlwapi -l pthread -l Ole32 -l Comctl32 -l ws2_32 -l libzip -l zlib -l bcrypt
 CFLAGS = -g -Wall -static -D ARCH_$(ARCH)=1 -target $(ARCH)-mingw64
 
 SDKHEADERS = $(wildcard $(SDKDIR)/**/*.h) $(wildcard $(SDKDIR)/*.h) 
