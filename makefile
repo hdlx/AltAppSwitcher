@@ -77,7 +77,7 @@ directories:
 $(ASSETS): $(BUILDDIR)/%: $(ROOTDIR)/Assets/%
 	python ./AAS.py Copy "$<" "$@"
 
-# Compile command
+# Make compile_command.json (clangd)
 $(SOURCEDIR)/compile_commands.json: $(ALLOBJECTS)
 	python ./AAS.py MakeCompileCommands $@ $(subst .o,.o.json, $^)
 
