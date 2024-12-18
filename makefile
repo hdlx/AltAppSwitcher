@@ -13,9 +13,17 @@ INCLUDEDIR = $(ROOTDIR)/Sources
 
 # Common var
 CC = $(ARCH)-w64-mingw32-clang
-CINCLUDES = -I $(ROOTDIR)/SDK/headers -I $(ROOTDIR)/Sources
-CLINK =  -mwindows -static-libgcc -L $(LIBDIR) -l dwmapi -l User32 -l Gdi32 -l Gdiplus -l shlwapi -l pthread -l Ole32 -l Comctl32 -l ws2_32 -l libzip -l zlib -l bcrypt
-CFLAGS = -g -Wall -static -D ARCH_$(ARCH)=1 -target $(ARCH)-mingw64
+IDIRS = -I $(ROOTDIR)/SDK/headers -I $(ROOTDIR)/Sources
+LDIRS = -L $(LIBDIR)
+LFLAGS = -mwindows -static -static-libgcc -Werror
+CFLAGS = -Wall -D ARCH_$(ARCH)=1 -target $(ARCH)-mingw64 -Werror
+
+ifeq ($(CONF), Debug)
+    CFLAGS += -g3
+else
+    CFLAGS += -O3
+    LFLAGS += -s
+endif
 
 SDKHEADERS = $(wildcard $(SDKDIR)/**/*.h) $(wildcard $(SDKDIR)/*.h) 
 SOURCEHEADERS = $(wildcard $(SOURCEDIR)/**/*.h) $(wildcard $(SOURCEDIR)/*.h) 
@@ -26,6 +34,10 @@ AASOBJECTS = $(filter $(OBJDIR)/AltAppSwitcher/%, $(ALLOBJECTS))
 CONFIGOBJECTS = $(filter $(OBJDIR)/Config/%, $(ALLOBJECTS))
 SETTINGSOBJECTS = $(filter $(OBJDIR)/Settings/%, $(ALLOBJECTS))
 UPDATEROBJECTS = $(filter $(OBJDIR)/Updater/%, $(ALLOBJECTS))
+
+AASLIBS = -l dwmapi -l User32 -l Gdi32 -l Gdiplus -l shlwapi -l pthread -l Ole32 -l Comctl32
+SETTINGSLIB = -l Comctl32
+UPDATERLIBS = -l ws2_32 -l libzip -l zlib -l bcrypt
 
 ASSETS = $(patsubst $(ROOTDIR)/Assets/%, $(BUILDDIR)/%, $(wildcard $(ROOTDIR)/Assets/*))
 
@@ -45,17 +57,17 @@ All: $(ALL)
 # Compile object targets:
 # see 4.12.1 Syntax of Static Pattern Rules
 $(ALLOBJECTS): $(OBJDIR)/%.o: $(SOURCEDIR)/%.c $(SDKHEADERS) $(SOURCEHEADERS)
-	$(CC) $(CFLAGS) $(CINCLUDES) -MJ $@.json -c $< -o $@
+	$(CC) $(CFLAGS) $(IDIRS) -MJ $@.json -c $< -o $@
 
 # Build exe targets (link):
 $(BUILDDIR)/AltAppSwitcher.exe: $(AASOBJECTS) $(CONFIGOBJECTS)
-	$(CC) $(CFLAGS) $(CLINK) $^ -o $@
+	$(CC) $(LFLAGS) $(LDIRS) $(AASLIBS) $^ -o $@
 
 $(BUILDDIR)/Settings.exe: $(SETTINGSOBJECTS) $(CONFIGOBJECTS)
-	$(CC) $(CFLAGS) $(CLINK) $^ -o $@
+	$(CC) $(LFLAGS) $(LDIRS) $(SETTINGSLIB) $^ -o $@
 
 $(BUILDDIR)/Updater.exe: $(UPDATEROBJECTS)
-	$(CC) $(CFLAGS) $(CLINK) $^ -o $@
+	$(CC) $(LFLAGS) $(LDIRS) $(UPDATERLIBS) $^ -o $@
 
 # Directory targets:
 directories:
@@ -68,13 +80,7 @@ $(ASSETS): $(BUILDDIR)/%: $(ROOTDIR)/Assets/%
 # Compile command
 $(SOURCEDIR)/compile_commands.json: $(ALLOBJECTS)
 	python ./AAS.py MakeCompileCommands $@ $(subst .o,.o.json, $^)
-#	echo($(ALLJSON))
 
 # Other targets:
 clean:
 	python ./AAS.py Clean
-
-# Lib target:
-# Config:
-#$(BUILDDIR)/Config.lib: $(CONFIGOBJECTS)
-#	ar rcs $@ $^
