@@ -44,18 +44,18 @@ def Copy(src, dst):
     shutil.copy(src, dst)
 
 def MakeCompileCommands(file, args):
-    print(file)
-    outf = open(file, 'w+b')
-    outf.write("[\n".encode())
+    outf = open(file, 'w')
+    outf.write("[\n")
     for fname in args:
-        inf = open(fname, 'rb')
-        outf.write(inf.read())
-
-    outf.seek(-3, os.SEEK_END)
-    outf.truncate()
-    outf.write("\n]".encode())
+        inf = open(fname, 'r')
+        content = inf.read()
+        # if last element removes ",\n"
+        if fname == args[-1]:
+            outf.write(content[0:-2])
+        else:
+            outf.write(content)
+    outf.write("\n]")
     outf.close()
-
 
 import sys
 if __name__ == "__main__": 
