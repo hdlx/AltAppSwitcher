@@ -34,6 +34,7 @@ AASOBJECTS = $(filter $(OBJDIR)/AltAppSwitcher/%, $(ALLOBJECTS))
 CONFIGOBJECTS = $(filter $(OBJDIR)/Config/%, $(ALLOBJECTS))
 SETTINGSOBJECTS = $(filter $(OBJDIR)/Settings/%, $(ALLOBJECTS))
 UPDATEROBJECTS = $(filter $(OBJDIR)/Updater/%, $(ALLOBJECTS))
+INSTALLEROBJECTS = $(filter $(OBJDIR)/Installer/%, $(ALLOBJECTS))
 
 AASLIBS = -l dwmapi -l User32 -l Gdi32 -l Gdiplus -l shlwapi -l pthread -l Ole32 -l Comctl32
 SETTINGSLIB = -l Comctl32
@@ -47,12 +48,13 @@ ALL := directories
 ALL += $(BUILDDIR)/AltAppSwitcher.exe
 ALL += $(BUILDDIR)/Settings.exe
 ALL += $(BUILDDIR)/Updater.exe
+ALL += $(BUILDDIR)/AltAppSwitcherInstaller.exe
 ALL += $(ASSETS)
 ALL += $(SOURCEDIR)/compile_commands.json
 
 #ALL := $(ALLOBJECTS)
 
-All: $(ALL)
+default: $(ALL)
 
 # Compile object targets:
 # see 4.12.1 Syntax of Static Pattern Rules
@@ -67,6 +69,9 @@ $(BUILDDIR)/Settings.exe: $(SETTINGSOBJECTS) $(CONFIGOBJECTS)
 	$(CC) $(LFLAGS) $(LDIRS) $(SETTINGSLIB) $^ -o $@
 
 $(BUILDDIR)/Updater.exe: $(UPDATEROBJECTS)
+	$(CC) $(LFLAGS) $(LDIRS) $(UPDATERLIBS) $^ -o $@
+
+$(BUILDDIR)/AltAppSwitcherInstaller.exe: $(INSTALLEROBJECTS)
 	$(CC) $(LFLAGS) $(LDIRS) $(UPDATERLIBS) $^ -o $@
 
 # Directory targets:

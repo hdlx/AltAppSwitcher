@@ -1,7 +1,6 @@
 #pragma once
 #include <windef.h>
 #include <stdbool.h>
-#include "WinKeyCodes.h"
 
 #define MSG_RESTART_AAS (WM_USER + 10)
 

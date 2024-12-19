@@ -8,7 +8,6 @@
 #include <fileapi.h>
 #include <dirent.h>
 #include <ftw.h>
-#include "libzip/zip.h"
 
 #define MAJOR 0
 #define MINOR 19
@@ -115,28 +114,6 @@ static void StrBToF(char* str)
     }
 }
 
-static void ExtractArchive(const char* inPath)
-{
-    //Open the ZIP archive
-    int err = 0;
-    struct zip *za = zip_open(inPath, 0, &err);
-
-    int a = zip_get_num_entries(za, 0);
-    for (int i = 0; i < a; i++)
-    {
-        struct zip_stat sb = {};
-        zip_stat_index(za, i, 0, &sb);
-        printf("Name: [%s], ", sb.name);
-    }
-
-    //Read the compressed file
-    //struct zip_file *f = zip_fopen(z, name, 0);
-    //zip_fread(f, contents, st.size);
-    //zip_fclose(f);
-
-    zip_close(za);
-    return;
-}
 
 int main()
 {
@@ -241,7 +218,7 @@ int main()
     close(sock);
     WSACleanup();
 
-    ExtractArchive(archivePath);
+    // ExtractArchive(archivePath);
 
     return 0;
 }

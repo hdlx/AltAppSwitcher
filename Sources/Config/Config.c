@@ -6,6 +6,7 @@
 #include <stdlib.h>
 #include <debugapi.h>
 #include <Error/Error.h>
+#include "WinKeyCodes.h"
 
 const EnumString keyES[14] = {
     { "left alt", VK_LMENU },
