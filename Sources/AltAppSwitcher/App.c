@@ -32,7 +32,7 @@
 #include "AppxPackaging.h"
 #undef COBJMACROS
 #include "Config/Config.h"
-#include "Error/Error.h"
+#include "Utils/Error.h"
 LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam);
 
 #define MEM_INIT(ARG) memset(&ARG, 0,  sizeof(ARG))

@@ -7,7 +7,7 @@
 #include <ws2tcpip.h>
 #include <fileapi.h>
 #include <dirent.h>
-#include <ftw.h>
+#include "Utils/File.h"
 
 #define MAJOR 0
 #define MINOR 19
@@ -95,26 +95,6 @@ static void DownloadLatest(SOCKET sock, const char* dstFile)
     fclose(file);
 }
 
-int DeleteForFtw(const char* path, const struct stat* data, int type, struct FTW* ftw)
-{
-    (void)data; (void)ftw;
-    if (type == FTW_DP)
-        rmdir(path);
-    else // if (type == FTW_F)
-        unlink(path);
-    return 0;
-}
-
-static void StrBToF(char* str)
-{
-    while (*str++ != '\0')
-    {
-        if (*str == '\\')
-            *str = '/';
-    }
-}
-
-
 int main()
 {
     SOCKET sock = 0;
@@ -200,12 +180,12 @@ int main()
     {
         GetTempPath(sizeof(tempDir), tempDir);
         StrBToF(tempDir);
-        strcat(tempDir, "AltAppSwitcher");
+        strcat(tempDir, "AASUpdater");
         DIR* dir = opendir(tempDir);
         if (dir)
         {
             closedir(dir);
-            nftw(tempDir, DeleteForFtw, 0, FTW_DEPTH);
+            DeleteTree(tempDir);
         }
         mkdir(tempDir);
     }

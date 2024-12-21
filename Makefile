@@ -49,6 +49,7 @@ CONFIGOBJECTS = $(filter $(OBJDIR)/Config/%, $(ALLOBJECTS))
 SETTINGSOBJECTS = $(filter $(OBJDIR)/Settings/%, $(ALLOBJECTS))
 UPDATEROBJECTS = $(filter $(OBJDIR)/Updater/%, $(ALLOBJECTS))
 INSTALLEROBJECTS = $(filter $(OBJDIR)/Installer/%, $(ALLOBJECTS))
+UTILSOBJECTS = $(filter $(OBJDIR)/Utils/%, $(ALLOBJECTS))
 
 AASLIBS = -l dwmapi -l User32 -l Gdi32 -l Gdiplus -l shlwapi -l pthread -l Ole32 -l Comctl32
 SETTINGSLIB = -l Comctl32
@@ -66,7 +67,7 @@ ALLAAS += $(AASBUILDDIR)/Updater.exe
 ALLAAS += $(AASASSETS)
 
 AASARCHIVE = $(BUILDDIR)/AltAppSwitcher_$(CONF)_$(ARCH).zip
-AASARCHIVEOBJ = $(INSTALLERBUILDDIR)/AltAppSwitcherZip.o
+AASARCHIVEOBJ = $(INSTALLERBUILDDIR)/AASZip.o
 
 INSTALLER = $(INSTALLERBUILDDIR)/AltAppSwitcherInstaller.exe
 
@@ -90,16 +91,16 @@ $(ALLOBJECTS): $(OBJDIR)/%.o: $(SOURCEDIR)/%.c $(SDKHEADERS) $(SOURCEHEADERS)
 	$(CC) $(CFLAGS) $(IDIRS) -MJ $@.json -c $< -o $@
 
 # Build exe targets (link):
-$(AASBUILDDIR)/AltAppSwitcher.exe: $(AASOBJECTS) $(CONFIGOBJECTS)
+$(AASBUILDDIR)/AltAppSwitcher.exe: $(AASOBJECTS) $(CONFIGOBJECTS) $(UTILSOBJECTS)
 	$(CC) $(LFLAGS) $(LDIRS) $(AASLIBS) $^ -o $@
 
-$(AASBUILDDIR)/Settings.exe: $(SETTINGSOBJECTS) $(CONFIGOBJECTS)
+$(AASBUILDDIR)/Settings.exe: $(SETTINGSOBJECTS) $(CONFIGOBJECTS) $(UTILSOBJECTS)
 	$(CC) $(LFLAGS) $(LDIRS) $(SETTINGSLIB) $^ -o $@
 
-$(AASBUILDDIR)/Updater.exe: $(UPDATEROBJECTS)
+$(AASBUILDDIR)/Updater.exe: $(UPDATEROBJECTS) $(UTILSOBJECTS)
 	$(CC) $(LFLAGS) $(LDIRS) $(UPDATERLIBS) $^ -o $@
 
-$(INSTALLERBUILDDIR)/AltAppSwitcherInstaller.exe: $(INSTALLEROBJECTS) $(AASARCHIVEOBJ)
+$(INSTALLERBUILDDIR)/AltAppSwitcherInstaller.exe: $(INSTALLEROBJECTS) $(AASARCHIVEOBJ) $(UTILSOBJECTS)
 	$(CC) $(LFLAGS) $(LDIRS) $(UPDATERLIBS) $^ -o $@
 
 # Assets:
@@ -110,9 +111,10 @@ $(AASASSETS): $(AASBUILDDIR)/%: $(ROOTDIR)/Assets/AAS/%
 $(SOURCEDIR)/compile_commands.json: $(ALLOBJECTS)
 	python ./AAS.py MakeCompileCommands $@ $(subst .o,.o.json, $^)
 
+# Make archive obj.
 $(AASARCHIVEOBJ): $(AASARCHIVE)
-	python ./AAS.py BinToC $^ $(INSTALLERBUILDDIR)/Zip.c
-	$(CC) $(CFLAGS) -c $(INSTALLERBUILDDIR)/Zip.c -o $@
+	python ./AAS.py BinToC $^ $(INSTALLERBUILDDIR)/AASZip.c
+	$(CC) $(CFLAGS) -c $(INSTALLERBUILDDIR)/AASZip.c -o $@
 
 # Other targets:
 clean:

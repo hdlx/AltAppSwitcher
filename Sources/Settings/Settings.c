@@ -12,9 +12,8 @@
 #include <debugapi.h>
 #include <process.h>
 #include <Tlhelp32.h>
-
 #include "Config/Config.h"
-#include "Error/Error.h"
+#include "Utils/Error.h"
 
 static const char CLASS_NAME[] = "AltAppSwitcherSettings";
 
