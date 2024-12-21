@@ -61,6 +61,10 @@ default: directories $(ALL)
 
 deploy: default $(AASARCHIVE)
 
+# Directory targets:
+directories:
+	python ./AAS.py MakeDirs $(CONF) $(ARCH)
+
 # Archive targets:
 $(AASARCHIVE): $(ALL)
 	python ./AAS.py MakeArchive $(BUILDDIR)/AAS $@
@@ -82,10 +86,6 @@ $(AASBUILDDIR)/Updater.exe: $(UPDATEROBJECTS)
 
 $(INSTALLERBUILDDIR)/AltAppSwitcherInstaller.exe: $(INSTALLEROBJECTS)
 	$(CC) $(LFLAGS) $(LDIRS) $(UPDATERLIBS) $^ -o $@
-
-# Directory targets:
-directories:
-	python ./AAS.py MakeDirs $(CONF) $(ARCH)
 
 # Assets:
 $(AASASSETS): $(AASBUILDDIR)/%: $(ROOTDIR)/Assets/AAS/%

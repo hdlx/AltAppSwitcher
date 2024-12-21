@@ -40,7 +40,7 @@ Alternatively, you can use MinGW-provided Python under `Python/bin`.
 - **Make**\
 Make is part of MinGW.
 - *(Optional) mt.exe:*\
-To run the deploy script, we need Microsoft's `mt.exe`. This tool is used to embed manifest in exe. The application runs fine with external manifest (when building without calling the deploy script). `mt.exe` is part of the Windows SDK.
+To deploy (Makefile `deploy` target), we need Microsoft's `mt.exe`. This tool is used to embed manifest in exe. The application runs fine with external manifest (when Makefile `deploy` target). `mt.exe` is part of the Windows SDK.
 ### Building:
 - Clone the repository.
 - Open a terminal at the root of the repository.
