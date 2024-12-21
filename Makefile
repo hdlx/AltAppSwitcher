@@ -7,6 +7,8 @@ OUTPUTDIR = $(ROOTDIR)/Output
 BUILDDIR = $(OUTPUTDIR)/$(CONF)_$(ARCH)
 SOURCEDIR = $(ROOTDIR)/Sources
 OBJDIR = $(BUILDDIR)/Objects
+AASBUILDDIR = $(BUILDDIR)/AAS
+UPDATERBUILDDIR = $(BUILDDIR)/Updater
 SDKDIR = $(ROOTDIR)/SDK/Headers
 LIBDIR = $(ROOTDIR)/SDK/Libs/$(ARCH)
 INCLUDEDIR = $(ROOTDIR)/Sources
@@ -40,21 +42,28 @@ AASLIBS = -l dwmapi -l User32 -l Gdi32 -l Gdiplus -l shlwapi -l pthread -l Ole32
 SETTINGSLIB = -l Comctl32
 UPDATERLIBS = -l ws2_32 -l libzip -l zlib -l bcrypt
 
-ASSETS = $(patsubst $(ROOTDIR)/Assets/%, $(BUILDDIR)/%, $(wildcard $(ROOTDIR)/Assets/*))
+AASASSETS = $(patsubst $(ROOTDIR)/Assets/AAS/%, $(AASBUILDDIR)/%, $(wildcard $(ROOTDIR)/Assets/AAS/*))
 
-.PHONY: all clean directories
+# Do not make a non phony target depend on phony one, otherwise
+# it will rebuild every time.
+.PHONY: default clean directories deploy
 
-ALL := directories
-ALL += $(BUILDDIR)/AltAppSwitcher.exe
-ALL += $(BUILDDIR)/Settings.exe
-ALL += $(BUILDDIR)/Updater.exe
-ALL += $(BUILDDIR)/AltAppSwitcherInstaller.exe
-ALL += $(ASSETS)
+ALL = $(AASBUILDDIR)/AltAppSwitcher.exe
+ALL += $(AASBUILDDIR)/Settings.exe
+ALL += $(AASBUILDDIR)/Updater.exe
+ALL += $(INSTALLERBUILDDIR)/AltAppSwitcherInstaller.exe
+ALL += $(AASASSETS)
 ALL += $(SOURCEDIR)/compile_commands.json
 
-#ALL := $(ALLOBJECTS)
+AASARCHIVE = $(BUILDDIR)/AltAppSwitcher_$(CONF)_$(ARCH).zip
 
-default: $(ALL)
+default: directories $(ALL)
+
+deploy: default $(AASARCHIVE)
+
+# Archive targets:
+$(AASARCHIVE): $(ALL)
+	python ./AAS.py MakeArchive $(BUILDDIR)/AAS $@
 
 # Compile object targets:
 # see 4.12.1 Syntax of Static Pattern Rules
@@ -62,16 +71,16 @@ $(ALLOBJECTS): $(OBJDIR)/%.o: $(SOURCEDIR)/%.c $(SDKHEADERS) $(SOURCEHEADERS)
 	$(CC) $(CFLAGS) $(IDIRS) -MJ $@.json -c $< -o $@
 
 # Build exe targets (link):
-$(BUILDDIR)/AltAppSwitcher.exe: $(AASOBJECTS) $(CONFIGOBJECTS)
+$(AASBUILDDIR)/AltAppSwitcher.exe: $(AASOBJECTS) $(CONFIGOBJECTS)
 	$(CC) $(LFLAGS) $(LDIRS) $(AASLIBS) $^ -o $@
 
-$(BUILDDIR)/Settings.exe: $(SETTINGSOBJECTS) $(CONFIGOBJECTS)
+$(AASBUILDDIR)/Settings.exe: $(SETTINGSOBJECTS) $(CONFIGOBJECTS)
 	$(CC) $(LFLAGS) $(LDIRS) $(SETTINGSLIB) $^ -o $@
 
-$(BUILDDIR)/Updater.exe: $(UPDATEROBJECTS)
+$(AASBUILDDIR)/Updater.exe: $(UPDATEROBJECTS)
 	$(CC) $(LFLAGS) $(LDIRS) $(UPDATERLIBS) $^ -o $@
 
-$(BUILDDIR)/AltAppSwitcherInstaller.exe: $(INSTALLEROBJECTS)
+$(INSTALLERBUILDDIR)/AltAppSwitcherInstaller.exe: $(INSTALLEROBJECTS)
 	$(CC) $(LFLAGS) $(LDIRS) $(UPDATERLIBS) $^ -o $@
 
 # Directory targets:
@@ -79,7 +88,7 @@ directories:
 	python ./AAS.py MakeDirs $(CONF) $(ARCH)
 
 # Assets:
-$(ASSETS): $(BUILDDIR)/%: $(ROOTDIR)/Assets/%
+$(AASASSETS): $(AASBUILDDIR)/%: $(ROOTDIR)/Assets/AAS/%
 	python ./AAS.py Copy "$<" "$@"
 
 # Make compile_command.json (clangd)

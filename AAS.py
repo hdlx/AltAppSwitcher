@@ -36,6 +36,8 @@ def MakeDirs(conf, arch):
     MakeDirIfNeeded("./Output")
     MakeDirIfNeeded(f"./Output/{conf}_{arch}")
     MakeDirIfNeeded(f"./Output/{conf}_{arch}/Objects")
+    MakeDirIfNeeded(f"./Output/{conf}_{arch}/AAS")
+    MakeDirIfNeeded(f"./Output/{conf}_{arch}/Updater")
     CopyDirStructure("./Sources", f"./Output/{conf}_{arch}/Objects")
 
 def Copy(src, dst):
@@ -57,6 +59,44 @@ def MakeCompileCommands(file, args):
     outf.write("\n]")
     outf.close()
 
+def EmbedAndDeleteManifest(exePath):
+    if not os.path.exists(f"{exePath}.manifest"):
+        return
+    os.system(f"mt.exe -manifest \"{exePath}.manifest\" -outputresource:\"{exePath}\"")
+    os.remove(f"{exePath}.manifest")
+
+def deploy(arch):
+    srcDir = f"./Output/Release_{arch}"
+    if os.path.exists(srcDir):
+        shutil.rmtree(srcDir)
+    dstDir = "./Output/Deploy"
+    if not os.path.exists(dstDir):
+        os.makedirs(dstDir)
+    tempDir = f"./Output/Deploy/Temp_{arch}"
+    if os.path.exists(tempDir):
+        shutil.rmtree(tempDir)
+
+    os.system(f"mingw32-make ARCH={arch} CONF=Release")
+
+    shutil.copytree(srcDir, tempDir)
+    shutil.rmtree(f"{tempDir}/Objects");
+    EmbedAndDeleteManifest(f"{tempDir}/AltAppSwitcher.exe")
+    EmbedAndDeleteManifest(f"{tempDir}/Updater.exe")
+    EmbedAndDeleteManifest(f"{tempDir}/Settings.exe")
+
+    zipFile = f"{dstDir}/AltAppSwitcher_{arch}"
+    shutil.make_archive(zipFile, "zip", tempDir)
+
+def MakeArchive(srcDir, dstZip):
+    tempDir = f"{dstZip}" 
+    if os.path.exists(tempDir):
+        shutil.rmtree(tempDir)
+    shutil.copytree(srcDir, tempDir)
+    for x in os.listdir(tempDir):
+        if x.endswith(".exe"):
+            EmbedAndDeleteManifest(os.path.join(tempDir, x))
+    shutil.make_archive(dstZip, "zip", tempDir)
+
 import sys
 if __name__ == "__main__": 
     args = sys.argv[1:]
@@ -69,3 +109,5 @@ if __name__ == "__main__":
         Clean()
     elif fn == "MakeCompileCommands":
         MakeCompileCommands(args[1], args[2:])
+    elif fn == "MakeArchive":
+        MakeArchive(args[1], args[2])
