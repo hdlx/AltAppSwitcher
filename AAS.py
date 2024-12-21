@@ -37,7 +37,7 @@ def MakeDirs(conf, arch):
     MakeDirIfNeeded(f"./Output/{conf}_{arch}")
     MakeDirIfNeeded(f"./Output/{conf}_{arch}/Objects")
     MakeDirIfNeeded(f"./Output/{conf}_{arch}/AAS")
-    MakeDirIfNeeded(f"./Output/{conf}_{arch}/Updater")
+    MakeDirIfNeeded(f"./Output/{conf}_{arch}/Installer")
     CopyDirStructure("./Sources", f"./Output/{conf}_{arch}/Objects")
 
 def Copy(src, dst):

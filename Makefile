@@ -20,7 +20,7 @@ BUILDDIR = $(OUTPUTDIR)/$(CONF)_$(ARCH)
 SOURCEDIR = $(ROOTDIR)/Sources
 OBJDIR = $(BUILDDIR)/Objects
 AASBUILDDIR = $(BUILDDIR)/AAS
-UPDATERBUILDDIR = $(BUILDDIR)/Updater
+INSTALLERBUILDDIR = $(BUILDDIR)/Installer
 SDKDIR = $(ROOTDIR)/SDK/Headers
 LIBDIR = $(ROOTDIR)/SDK/Libs/$(ARCH)
 INCLUDEDIR = $(ROOTDIR)/Sources
@@ -60,7 +60,7 @@ AASASSETS = $(patsubst $(ROOTDIR)/Assets/AAS/%, $(AASBUILDDIR)/%, $(wildcard $(R
 # it will rebuild every time.
 .PHONY: default clean directories deploy
 
-ALL = $(AASBUILDDIR)/AltAppSwitcher.exe
+ALL := $(AASBUILDDIR)/AltAppSwitcher.exe
 ALL += $(AASBUILDDIR)/Settings.exe
 ALL += $(AASBUILDDIR)/Updater.exe
 ALL += $(INSTALLERBUILDDIR)/AltAppSwitcherInstaller.exe
