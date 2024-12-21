@@ -1,6 +1,18 @@
 ARCH = x86_64
 CONF = Debug
 
+# Argument check
+ifeq ($(CONF), Debug)
+else ifeq ($(CONF), Release)
+else
+$(error Bad CONF argument)
+endif
+ifeq ($(ARCH), x86_64)
+else ifeq ($(ARCH), aarch64)
+else
+$(error Bad ARCH argument)
+endif
+
 # Directories
 ROOTDIR = $(CURDIR)
 OUTPUTDIR = $(ROOTDIR)/Output

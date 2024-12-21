@@ -66,14 +66,14 @@ def EmbedAndDeleteManifest(exePath):
     os.remove(f"{exePath}.manifest")
 
 def MakeArchive(srcDir, dstZip):
-    tempDir = f"{dstZip}".su
+    tempDir = f"{dstZip}".replace(".zip", "")
     if os.path.exists(tempDir):
         shutil.rmtree(tempDir)
     shutil.copytree(srcDir, tempDir)
     for x in os.listdir(tempDir):
         if x.endswith(".exe"):
             EmbedAndDeleteManifest(os.path.join(tempDir, x))
-    shutil.make_archive(dstZip, "zip", tempDir)
+    shutil.make_archive(tempDir, "zip", tempDir)
 
 import sys
 if __name__ == "__main__": 
