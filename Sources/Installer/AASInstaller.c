@@ -54,8 +54,17 @@ static void ExtractArchive(const char* inPath)
 }
 */
 
+extern const unsigned char AASZip[];
+extern const unsigned int SizeOfAASZip;
+
 int main()
 {
+    FILE* file = fopen("./toto.zip","wb");
+    //while (1)
+    {
+        fwrite(AASZip, 1, SizeOfAASZip, file);
+    }
+    fclose(file);
     // Make temp dir
     /*
     char tempDir[256] = {};

@@ -60,16 +60,19 @@ AASASSETS = $(patsubst $(ROOTDIR)/Assets/AAS/%, $(AASBUILDDIR)/%, $(wildcard $(R
 # it will rebuild every time.
 .PHONY: default clean directories deploy
 
-ALL := $(AASBUILDDIR)/AltAppSwitcher.exe
-ALL += $(AASBUILDDIR)/Settings.exe
-ALL += $(AASBUILDDIR)/Updater.exe
-ALL += $(INSTALLERBUILDDIR)/AltAppSwitcherInstaller.exe
-ALL += $(AASASSETS)
-ALL += $(SOURCEDIR)/compile_commands.json
+ALLAAS := $(AASBUILDDIR)/AltAppSwitcher.exe
+ALLAAS += $(AASBUILDDIR)/Settings.exe
+ALLAAS += $(AASBUILDDIR)/Updater.exe
+ALLAAS += $(AASASSETS)
 
 AASARCHIVE = $(BUILDDIR)/AltAppSwitcher_$(CONF)_$(ARCH).zip
+AASARCHIVEOBJ = $(INSTALLERBUILDDIR)/AltAppSwitcherZip.o
 
-default: directories $(ALL)
+INSTALLER = $(INSTALLERBUILDDIR)/AltAppSwitcherInstaller.exe
+
+COMPILECOMMANDS = $(SOURCEDIR)/compile_commands.json
+
+default: directories $(ALLAAS) $(INSTALLER) $(COMPILECOMMANDS)
 
 deploy: default $(AASARCHIVE)
 
@@ -96,7 +99,7 @@ $(AASBUILDDIR)/Settings.exe: $(SETTINGSOBJECTS) $(CONFIGOBJECTS)
 $(AASBUILDDIR)/Updater.exe: $(UPDATEROBJECTS)
 	$(CC) $(LFLAGS) $(LDIRS) $(UPDATERLIBS) $^ -o $@
 
-$(INSTALLERBUILDDIR)/AltAppSwitcherInstaller.exe: $(INSTALLEROBJECTS)
+$(INSTALLERBUILDDIR)/AltAppSwitcherInstaller.exe: $(INSTALLEROBJECTS) $(AASARCHIVEOBJ)
 	$(CC) $(LFLAGS) $(LDIRS) $(UPDATERLIBS) $^ -o $@
 
 # Assets:
@@ -106,6 +109,10 @@ $(AASASSETS): $(AASBUILDDIR)/%: $(ROOTDIR)/Assets/AAS/%
 # Make compile_command.json (clangd)
 $(SOURCEDIR)/compile_commands.json: $(ALLOBJECTS)
 	python ./AAS.py MakeCompileCommands $@ $(subst .o,.o.json, $^)
+
+$(AASARCHIVEOBJ): $(AASARCHIVE)
+	python ./AAS.py BinToC $^ $(INSTALLERBUILDDIR)/Zip.c
+	$(CC) $(CFLAGS) -c $(INSTALLERBUILDDIR)/Zip.c -o $@
 
 # Other targets:
 clean:
