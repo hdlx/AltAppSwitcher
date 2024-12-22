@@ -49,51 +49,24 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
     case WM_DESTROY:
     {
         PostQuitMessage(0);
-        DeleteFont(guiData._Font);
-        DeleteFont(guiData._FontTitle);
-        DeleteBrush(guiData._Background);
-        guiData._Font = NULL;
-        guiData._FontTitle = NULL;
+        DeleteGUIData(&guiData);
         return 0;
     }
     case WM_CREATE:
     {
         LoadConfig(&config);
-
-        {
-            NONCLIENTMETRICS metrics = {};
-            metrics.cbSize = sizeof(metrics);
-            SystemParametersInfo(SPI_GETNONCLIENTMETRICS, metrics.cbSize, &metrics, 0);
-            metrics.lfCaptionFont.lfHeight *= 1.2;
-            metrics.lfCaptionFont.lfWidth *= 1.2;
-            guiData._Font = CreateFontIndirect(&metrics.lfCaptionFont);
-            LOGFONT title = metrics.lfCaptionFont;
-            title.lfWeight = FW_SEMIBOLD;
-            guiData._FontTitle = CreateFontIndirect(&title);
-            COLORREF col = LIGHT_COLOR;
-            guiData._Background = CreateSolidBrush(col);
-        }
+        InitGUIData(&guiData, hwnd);
 
         int x = WIN_PAD;
         int y = WIN_PAD;
-        int h = 0;
-        {
-            HWND combobox = CreateWindow(WC_COMBOBOX, "Combobox",
-                CBS_DROPDOWNLIST | CBS_HASSTRINGS | WS_CHILD | WS_VISIBLE,
-                0, 0, 0, 0,
-                hwnd, NULL, NULL, NULL);
-            SendMessage(combobox, WM_SETFONT, (LPARAM)guiData._Font, true);
-            RECT rect = {};
-            GetWindowRect(combobox, &rect);
-            h = rect.bottom -  rect.top;
-            DestroyWindow(combobox);
-        }
+        int h = guiData._CellHeight;
         int w = 0;
         {
             RECT parentRect = {};
             GetClientRect(hwnd, &parentRect);
             w = (parentRect.right - parentRect.left - WIN_PAD - WIN_PAD);
         }
+        Cell c = 
 
 #define COMBO_BOX(NAME, TOOLTIP, VALUE, ES)\
 CreateComboBox(x, y, w, h, hwnd, NAME, TOOLTIP, &VALUE, ES, &guiData);\
@@ -118,7 +91,7 @@ y += h + LINE_PAD;
 #define SEPARATOR()\
 y += LINE_PAD * 4;
 
-        Config* cfg = &config;
+        Config* cfg = &config;  
         TITLE("Key bindings:")
         COMBO_BOX("App hold key:", "", cfg->_Key._AppHold, keyES)
         COMBO_BOX("Next app key:", "", cfg->_Key._AppSwitch, keyES)

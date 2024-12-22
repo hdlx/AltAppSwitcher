@@ -198,7 +198,5 @@ int main()
     close(sock);
     WSACleanup();
 
-    // ExtractArchive(archivePath);
-
     return 0;
 }
