@@ -1499,10 +1499,12 @@ int StartAltAppSwitcher(HINSTANCE hInstance)
     CloseHandle(token);
 
     ChangeWindowMessageFilter(MSG_RESTART_AAS, MSGFLT_ADD);
+    ChangeWindowMessageFilter(MSG_CLOSE_AAS, MSGFLT_ADD);
 
     MSG msg = { };
     bool restartAAS = false;
-    while (GetMessage(&msg, NULL, 0, 0) > 0 && !restartAAS)
+    bool closeAAS = false;
+    while (GetMessage(&msg, NULL, 0, 0) > 0)
     {
         switch (msg.message)
         {
@@ -1593,11 +1595,16 @@ int StartAltAppSwitcher(HINSTANCE hInstance)
             restartAAS = true;
             break;
         }
-        }
-        if (restartAAS)
+        case MSG_CLOSE_AAS:
+        {
+            closeAAS = true;
             break;
+        }
+        }
         TranslateMessage(&msg);
         DispatchMessage(&msg);
+        if (restartAAS || closeAAS)
+            break;
     }
 
     {

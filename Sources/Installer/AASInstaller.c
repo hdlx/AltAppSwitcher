@@ -1,9 +1,4 @@
-#include <psdk_inc/_ip_types.h>
-#include <stdio.h>
-#include <unistd.h>
 #include <string.h>
-#include <winsock2.h>
-#include <ws2tcpip.h>
 #include <fileapi.h>
 #include <dirent.h>
 #include <ftw.h>

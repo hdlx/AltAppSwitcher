@@ -177,30 +177,19 @@ static bool RestartAAS()
     BOOL killed = false;
     while (hRes)
     {
-        if (strcmp(pEntry.szExeFile, "AltAppSwitcher.exe") == 0)
+        if (strcmp(pEntry.szExeFile, "AltAppSwitcher.exe") != 0)
+            hRes = Process32Next(hSnapShot, &pEntry);
+        THREADENTRY32 tEntry;
+        tEntry.dwSize = sizeof(tEntry);
+        BOOL tRes = Thread32First(hSnapShot, &tEntry);
+        while (tRes)
         {
-            THREADENTRY32 tEntry;
-            tEntry.dwSize = sizeof(tEntry);
-            BOOL tRes = Thread32First(hSnapShot, &tEntry);
-            while (tRes)
+            if (tEntry.th32OwnerProcessID == pEntry.th32ProcessID)
             {
-                if (tEntry.th32OwnerProcessID == pEntry.th32ProcessID)
-                {
-                    PostThreadMessage(tEntry.th32ThreadID, MSG_RESTART_AAS, 0, 0);
-                }
-                tRes = Thread32Next(hSnapShot, &tEntry);
+                PostThreadMessage(tEntry.th32ThreadID, MSG_RESTART_AAS, 0, 0);
             }
-/*
-            HANDLE hProcess = OpenProcess(PROCESS_TERMINATE, 0,
-                (DWORD) pEntry.th32ProcessID);
-            if (hProcess != NULL)
-            {
-                TerminateProcess(hProcess, 9);
-                CloseHandle(hProcess);
-                killed |= true;
-            }*/
+            tRes = Thread32Next(hSnapShot, &tEntry);
         }
-        hRes = Process32Next(hSnapShot, &pEntry);
     }
     CloseHandle(hSnapShot);
     return killed;

@@ -3,6 +3,7 @@
 #include <stdbool.h>
 
 #define MSG_RESTART_AAS (WM_USER + 10)
+#define MSG_CLOSE_AAS (WM_USER + 11)
 
 typedef struct KeyConfig
 {
