@@ -1,5 +1,4 @@
 #include "Settings.h"
-#include <minwindef.h>
 #include <processthreadsapi.h>
 #include <stdio.h>
 #include <windef.h>
@@ -10,7 +9,6 @@
 #include <winuser.h>
 #include <commctrl.h>
 #include <debugapi.h>
-#include <process.h>
 #include <Tlhelp32.h>
 #include "Config/Config.h"
 #include "Utils/Error.h"

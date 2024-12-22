@@ -4,19 +4,9 @@
     "version": "2.0.0",
     "tasks": [
         {
-            "label": "Build Settings x86_64",
+            "label": "Build x86_64 Debug",
             "type": "shell",
-            "command": "mingw32-make ARCH=x86_64 CONF=DEBUG"
-        },
-        {
-            "label": "Build AAS x86_64",
-            "type": "shell",
-            "command": "mingw32-make ARCH=x86_64 CONF=DEBUG"
-        },
-        {
-            "label": "Build Updater x86_64",
-            "type": "shell",
-            "command": "mingw32-make ARCH=x86_64 CONF=DEBUG"
+            "command": "mingw32-make ARCH=x86_64 CONF=Debug"
         }
     ]
 }
