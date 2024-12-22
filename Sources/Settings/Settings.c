@@ -14,159 +14,9 @@
 #include <Tlhelp32.h>
 #include "Config/Config.h"
 #include "Utils/Error.h"
+#include "Utils/GUI.h"
 
 static const char CLASS_NAME[] = "AltAppSwitcherSettings";
-
-typedef struct EnumBinding
-{
-    unsigned int* _TargetValue;
-    HWND _ComboBox;
-    const EnumString* _EnumStrings;
-} EnumBinding;
-
-typedef struct FloatBinding
-{
-    float* _TargetValue;
-    HWND _Field;
-} FloatBinding;
-
-typedef struct BoolBinding
-{
-    bool* _TargetValue;
-    HWND _CheckBox;
-} BoolBinding;
-
-typedef struct AppData
-{
-    EnumBinding _EBindings[64];
-    unsigned int _EBindingCount;
-    FloatBinding _FBindings[64];
-    unsigned int _FBindingCount;
-    BoolBinding _BBindings[64];
-    unsigned int _BBindingCount;
-    Config _Config;
-    HFONT _Font;
-    HFONT _FontTitle;
-    HBRUSH _Background;
-} AppData;
-
-#define WIN_PAD 10
-#define LINE_PAD 4
-#define DARK_COLOR 0x002C2C2C;
-#define LIGHT_COLOR 0x00FFFFFF;
-#define APPLY_BUTTON_ID 1993
-
-static void CreateText(int x, int y, int width, int height, HWND parent, const char* text, AppData* appData)
-{
-    HINSTANCE inst = (HINSTANCE)GetWindowLongPtrA(parent, GWLP_HINSTANCE);
-    HWND label = CreateWindow(WC_STATIC, text,
-        WS_CHILD | WS_VISIBLE | SS_LEFT | SS_CENTERIMAGE, // notify needed to tooltip
-        x, y, width, height,
-        parent, NULL, inst, NULL);
-    SendMessage(label, WM_SETFONT, (WPARAM)appData->_FontTitle, true);
-}
-
-static void CreateTooltip(HWND parent, HWND tool, char* string)
-{
-    HWND tt = CreateWindowEx(WS_EX_TOPMOST, TOOLTIPS_CLASS, NULL,
-        WS_POPUP | TTS_NOPREFIX | TTS_ALWAYSTIP,
-        0, 0, 100, 100,
-        parent, NULL, (HINSTANCE)GetWindowLongPtr(parent, GWLP_HINSTANCE), NULL);
-
-    SetWindowPos(tt, HWND_TOPMOST, CW_USEDEFAULT, CW_USEDEFAULT, CW_USEDEFAULT, CW_USEDEFAULT, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
-    TOOLINFO ti = {};
-    ti.cbSize = sizeof(TOOLINFO);
-    ti.uFlags = TTF_IDISHWND | TTF_SUBCLASS;
-    ti.uId = (UINT_PTR)tool;
-    ti.lpszText = string;
-    ti.hwnd = parent;
-
-    SendMessage(tt, TTM_ADDTOOL, 0, (LPARAM)&ti);
-    SendMessage(tt, TTM_SETMAXTIPWIDTH, 0, (LPARAM)400);
-    SendMessage(tt, TTM_ACTIVATE, true, (LPARAM)NULL);
-}
-
-static void CreateLabel(int x, int y, int width, int height, HWND parent, const char* name, const char* tooltip, AppData* appData)
-{
-    HINSTANCE inst = (HINSTANCE)GetWindowLongPtrA(parent, GWLP_HINSTANCE);
-    HWND label = CreateWindow(WC_STATIC, name,
-        WS_CHILD | WS_VISIBLE | SS_CENTER | SS_CENTERIMAGE | SS_NOTIFY, // notify needed to tooltip
-        x, y, width, height,
-        parent, NULL, inst, NULL);
-    SendMessage(label, WM_SETFONT, (WPARAM)appData->_Font, true);
-    CreateTooltip(parent, label, (char*)tooltip);
-}
-
-static void CreateFloatField(int x, int y, int w, int h, HWND parent, const char* name, const char* tooltip, float* value, AppData* appData)
-{
-    CreateLabel(x, y, w / 2, h, parent, name, tooltip, appData);
-    HINSTANCE inst = (HINSTANCE)GetWindowLongPtrA(parent, GWLP_HINSTANCE);
-    char sval[4] = "000";
-    sprintf(sval, "%3d", (int)(*value * 100));
-    HWND field = CreateWindow(WC_EDIT, sval,
-        WS_CHILD | WS_VISIBLE | ES_LEFT | ES_CENTER | ES_NUMBER | WS_BORDER,
-        x + w / 2, y, w / 2, h,
-        parent, NULL, inst, NULL);
-    SendMessage(field, WM_SETFONT, (WPARAM)appData->_Font, true);
-    SendMessage(field, EM_LIMITTEXT, (WPARAM)3, true);
-
-    appData->_FBindings[appData->_FBindingCount]._Field = field;
-    appData->_FBindings[appData->_FBindingCount]._TargetValue = value;
-    appData->_FBindingCount++;
-}
-
-static void CreateComboBox(int x, int y, int w, int h, HWND parent, const char* name, const char* tooltip, unsigned int* value, const EnumString* enumStrings, AppData* appData)
-{
-    CreateLabel(x, y, w / 2, h, parent, name, tooltip, appData);
-
-    HINSTANCE inst = (HINSTANCE)GetWindowLongPtrA(parent, GWLP_HINSTANCE);
-    HWND combobox = CreateWindow(WC_COMBOBOX, "Combobox",
-        CBS_DROPDOWNLIST | CBS_HASSTRINGS | WS_CHILD | WS_VISIBLE,
-        x + w / 2, y, w / 2, h,
-        parent, NULL, inst, NULL);
-    for (unsigned int i = 0; enumStrings[i].Value != 0xFFFFFFFF; i++)
-    {
-        SendMessage(combobox,(UINT)CB_ADDSTRING,(WPARAM)0,(LPARAM)enumStrings[i].Name);
-        if (*value == enumStrings[i].Value)
-            SendMessage(combobox,(UINT)CB_SETCURSEL,(WPARAM)i, (LPARAM)0);
-    }
-    SendMessage(combobox, WM_SETFONT, (WPARAM)appData->_Font, true);
-    CreateTooltip(parent, combobox, (char*)tooltip);
-
-    appData->_EBindings[appData->_EBindingCount]._ComboBox = combobox;
-    appData->_EBindings[appData->_EBindingCount]._EnumStrings = enumStrings;
-    appData->_EBindings[appData->_EBindingCount]._TargetValue = value;
-    appData->_EBindingCount++;
-}
-
-void CreateButton(int x, int y, int w, int h, HWND parent, const char* name, HMENU ID, AppData* appData)
-{
-    (void)w;
-    HINSTANCE inst = (HINSTANCE)GetWindowLongPtrA(parent, GWLP_HINSTANCE);
-    HWND button = CreateWindow(WC_BUTTON, name,
-        WS_VISIBLE | WS_CHILD | BS_PUSHBUTTON | BS_FLAT,
-        x, y, 0, 0, parent, (HMENU)ID, inst, NULL);
-    SendMessage(button, WM_SETFONT, (WPARAM)appData->_Font, true);
-    SIZE size = {};
-    Button_GetIdealSize(button, &size);
-    SetWindowPos(button, NULL, x + w / 2 - size.cx / 2, y, size.cx, h, 0);
-}
-
-void CreateBoolControl(int x, int y, int w, int h, HWND parent, const char* name, const char* tooltip, bool* value, AppData* appData)
-{
-    (void)w; (void)h;
-    CreateLabel(x, y, w / 2, h, parent, name, tooltip, appData);
-    HINSTANCE inst = (HINSTANCE)GetWindowLongPtrA(parent, GWLP_HINSTANCE);
-    HWND button = CreateWindow(WC_BUTTON, "",
-        WS_VISIBLE | WS_CHILD | BS_AUTOCHECKBOX | BS_FLAT | BS_CENTER,
-        x + w / 2, y, w / 2, h, parent, (HMENU)0, inst, NULL);
-    SendMessage(button, BM_SETCHECK, (WPARAM)*value ? BST_CHECKED : BST_UNCHECKED, true);
-    SIZE size = {};
-    Button_GetIdealSize(button, &size);
-    appData->_BBindings[appData->_BBindingCount]._CheckBox = button;
-    appData->_BBindings[appData->_BBindingCount]._TargetValue = value;
-    appData->_BBindingCount++;
-}
 
 static bool RestartAAS()
 {
@@ -197,7 +47,8 @@ static bool RestartAAS()
 
 LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 {
-    static AppData appData = {};
+    static GUIData guiData = {};
+    static Config config = {};
 
 #define APPLY_BUTTON_ID 1993
     switch (uMsg)
@@ -205,16 +56,16 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
     case WM_DESTROY:
     {
         PostQuitMessage(0);
-        DeleteFont(appData._Font);
-        DeleteFont(appData._FontTitle);
-        DeleteBrush(appData._Background);
-        appData._Font = NULL;
-        appData._FontTitle = NULL;
+        DeleteFont(guiData._Font);
+        DeleteFont(guiData._FontTitle);
+        DeleteBrush(guiData._Background);
+        guiData._Font = NULL;
+        guiData._FontTitle = NULL;
         return 0;
     }
     case WM_CREATE:
     {
-        LoadConfig(&appData._Config);
+        LoadConfig(&config);
 
         {
             NONCLIENTMETRICS metrics = {};
@@ -222,12 +73,12 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
             SystemParametersInfo(SPI_GETNONCLIENTMETRICS, metrics.cbSize, &metrics, 0);
             metrics.lfCaptionFont.lfHeight *= 1.2;
             metrics.lfCaptionFont.lfWidth *= 1.2;
-            appData._Font = CreateFontIndirect(&metrics.lfCaptionFont);
+            guiData._Font = CreateFontIndirect(&metrics.lfCaptionFont);
             LOGFONT title = metrics.lfCaptionFont;
             title.lfWeight = FW_SEMIBOLD;
-            appData._FontTitle = CreateFontIndirect(&title);
+            guiData._FontTitle = CreateFontIndirect(&title);
             COLORREF col = LIGHT_COLOR;
-            appData._Background = CreateSolidBrush(col);
+            guiData._Background = CreateSolidBrush(col);
         }
 
         int x = WIN_PAD;
@@ -238,7 +89,7 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
                 CBS_DROPDOWNLIST | CBS_HASSTRINGS | WS_CHILD | WS_VISIBLE,
                 0, 0, 0, 0,
                 hwnd, NULL, NULL, NULL);
-            SendMessage(combobox, WM_SETFONT, (LPARAM)appData._Font, true);
+            SendMessage(combobox, WM_SETFONT, (LPARAM)guiData._Font, true);
             RECT rect = {};
             GetWindowRect(combobox, &rect);
             h = rect.bottom -  rect.top;
@@ -252,29 +103,29 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
         }
 
 #define COMBO_BOX(NAME, TOOLTIP, VALUE, ES)\
-CreateComboBox(x, y, w, h, hwnd, NAME, TOOLTIP, &VALUE, ES, &appData);\
+CreateComboBox(x, y, w, h, hwnd, NAME, TOOLTIP, &VALUE, ES, &guiData);\
 y += h + LINE_PAD;
 
 #define TITLE(NAME)\
-CreateText(x, y, w, h, hwnd, NAME, &appData);\
+CreateText(x, y, w, h, hwnd, NAME, &guiData);\
 y += h + LINE_PAD;
 
 #define FLOAT_FIELD(NAME, TOOLTIP, VALUE)\
-CreateFloatField(x, y, w, h, hwnd, NAME, TOOLTIP, &VALUE, &appData);\
+CreateFloatField(x, y, w, h, hwnd, NAME, TOOLTIP, &VALUE, &guiData);\
 y += h + LINE_PAD;
 
 #define BOOL_FIELD(NAME, TOOLTIP, VALUE)\
-CreateBoolControl(x, y, w, h, hwnd, NAME, TOOLTIP, &VALUE, &appData);\
+CreateBoolControl(x, y, w, h, hwnd, NAME, TOOLTIP, &VALUE, &guiData);\
 y += h + LINE_PAD;
 
 #define BUTTON(NAME, ID)\
-CreateButton(x, y, w, h, hwnd, NAME, (HMENU)ID, &appData);\
+CreateButton(x, y, w, h, hwnd, NAME, (HMENU)ID, &guiData);\
 y += h + LINE_PAD;
 
 #define SEPARATOR()\
 y += LINE_PAD * 4;
 
-        Config* cfg = &appData._Config;
+        Config* cfg = &config;
         TITLE("Key bindings:")
         COMBO_BOX("App hold key:", "", cfg->_Key._AppHold, keyES)
         COMBO_BOX("Next app key:", "", cfg->_Key._AppSwitch, keyES)
@@ -310,9 +161,9 @@ y += LINE_PAD * 4;
     {
         if (LOWORD(wParam == APPLY_BUTTON_ID) && HIWORD(wParam) == BN_CLICKED)
         {
-            for (unsigned int i = 0; i < appData._EBindingCount; i++)
+            for (unsigned int i = 0; i < guiData._EBindingCount; i++)
             {
-                const EnumBinding* bd = &appData._EBindings[i];
+                const EnumBinding* bd = &guiData._EBindings[i];
 
                 const unsigned int iValue = SendMessage(bd->_ComboBox,(UINT)CB_GETCURSEL,(WPARAM)0, (LPARAM)0);
                 char sValue[64] = {};
@@ -329,20 +180,20 @@ y += LINE_PAD * 4;
                 }
                 ASSERT(found);
             }
-            for (unsigned int i = 0; i < appData._FBindingCount; i++)
+            for (unsigned int i = 0; i < guiData._FBindingCount; i++)
             {
-                const FloatBinding* bd = &appData._FBindings[i];
+                const FloatBinding* bd = &guiData._FBindings[i];
                 char text[4] = "000";
                 *((DWORD*)text) = 3;
                 SendMessage(bd->_Field,(UINT)EM_GETLINE,(WPARAM)0, (LPARAM)text);
                 *bd->_TargetValue = (float)strtod(text, NULL) / 100.0f;
             }
-            for (unsigned int i = 0; i < appData._BBindingCount; i++)
+            for (unsigned int i = 0; i < guiData._BBindingCount; i++)
             {
-                const BoolBinding* bd = &appData._BBindings[i];
+                const BoolBinding* bd = &guiData._BBindings[i];
                 *bd->_TargetValue = BST_CHECKED == SendMessage(bd->_CheckBox,(UINT)BM_GETCHECK, (WPARAM)0, (LPARAM)0);
             }
-            WriteConfig(&appData._Config);
+            WriteConfig(&config);
             RestartAAS();
         }
         return 0;
@@ -351,7 +202,7 @@ y += LINE_PAD * 4;
     case WM_CTLCOLORSTATIC:
     {
         SetBkMode((HDC)wParam, TRANSPARENT);
-        return (LRESULT)appData._Background;
+        return (LRESULT)guiData._Background;
     }
     }
     return DefWindowProc(hwnd, uMsg, wParam, lParam);
