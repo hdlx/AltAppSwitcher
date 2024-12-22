@@ -1,14 +1,9 @@
 #include "Settings.h"
-#include <processthreadsapi.h>
-#include <stdio.h>
 #include <windef.h>
 #include <windows.h>
 #include <windowsx.h>
 #include <wingdi.h>
-#include <winnt.h>
-#include <winuser.h>
 #include <commctrl.h>
-#include <debugapi.h>
 #include <Tlhelp32.h>
 #include "Config/Config.h"
 #include "Utils/Error.h"
