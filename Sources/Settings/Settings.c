@@ -5,37 +5,42 @@
 #include <wingdi.h>
 #include <commctrl.h>
 #include <Tlhelp32.h>
+#include <stdio.h>
 #include "Config/Config.h"
-#include "Utils/Error.h"
 #include "Utils/GUI.h"
 
 static const char CLASS_NAME[] = "AltAppSwitcherSettings";
 
-static bool RestartAAS()
+static void RestartAAS()
 {
-    HANDLE hSnapShot = CreateToolhelp32Snapshot((DWORD)TH32CS_SNAPALL, (DWORD)0);
-    PROCESSENTRY32 pEntry;
-    pEntry.dwSize = sizeof (pEntry);
-    BOOL hRes = Process32First(hSnapShot, &pEntry);
-    BOOL killed = false;
-    while (hRes)
+    HANDLE procSnap = CreateToolhelp32Snapshot((DWORD)TH32CS_SNAPPROCESS, (DWORD)0);
+    PROCESSENTRY32 procEntry = {};
+    procEntry.dwSize = sizeof(procEntry);
+    BOOL procRes = Process32First(procSnap, &procEntry);
+    while (procRes)
     {
-        if (strcmp(pEntry.szExeFile, "AltAppSwitcher.exe") != 0)
-            hRes = Process32Next(hSnapShot, &pEntry);
-        THREADENTRY32 tEntry;
-        tEntry.dwSize = sizeof(tEntry);
-        BOOL tRes = Thread32First(hSnapShot, &tEntry);
-        while (tRes)
+        if (strcmp(procEntry.szExeFile, "AltAppSwitcher.exe"))
         {
-            if (tEntry.th32OwnerProcessID == pEntry.th32ProcessID)
-            {
-                PostThreadMessage(tEntry.th32ThreadID, MSG_RESTART_AAS, 0, 0);
-            }
-            tRes = Thread32Next(hSnapShot, &tEntry);
+            procRes = Process32Next(procSnap, &procEntry);
+            continue;
         }
+        {
+            HANDLE threadSnap = CreateToolhelp32Snapshot((DWORD)TH32CS_SNAPTHREAD, (DWORD)0);
+            THREADENTRY32 threadEntry = {};
+            threadEntry.dwSize = sizeof(threadEntry);
+            BOOL threadRes = Thread32First(threadSnap, &threadEntry);
+            while (threadRes)
+            {
+                if (procEntry.th32ProcessID == threadEntry.th32OwnerProcessID)
+                    PostThreadMessage(threadEntry.th32ThreadID, MSG_RESTART_AAS, 0, 0);
+                threadRes = Thread32Next(threadSnap, &threadEntry);
+            }
+            CloseHandle(threadSnap);
+        }
+        procRes = Process32Next(procSnap, &procEntry);
     }
-    CloseHandle(hSnapShot);
-    return killed;
+    CloseHandle(procSnap);
+    return;
 }
 
 LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
@@ -113,38 +118,7 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
     {
         if (LOWORD(wParam == APPLY_BUTTON_ID) && HIWORD(wParam) == BN_CLICKED)
         {
-            for (unsigned int i = 0; i < guiData._EBindingCount; i++)
-            {
-                const EnumBinding* bd = &guiData._EBindings[i];
-
-                const unsigned int iValue = SendMessage(bd->_ComboBox,(UINT)CB_GETCURSEL,(WPARAM)0, (LPARAM)0);
-                char sValue[64] = {};
-                SendMessage(bd->_ComboBox,(UINT)CB_GETLBTEXT,(WPARAM)iValue, (LPARAM)sValue);
-                bool found = false;
-                for (unsigned int j = 0; bd->_EnumStrings[j].Value != 0xFFFFFFFF; j++)
-                {
-                    if (!strcmp(bd->_EnumStrings[j].Name, sValue))
-                    {
-                        *bd->_TargetValue = bd->_EnumStrings[j].Value;
-                        found = true;
-                        break;
-                    }
-                }
-                ASSERT(found);
-            }
-            for (unsigned int i = 0; i < guiData._FBindingCount; i++)
-            {
-                const FloatBinding* bd = &guiData._FBindings[i];
-                char text[4] = "000";
-                *((DWORD*)text) = 3;
-                SendMessage(bd->_Field,(UINT)EM_GETLINE,(WPARAM)0, (LPARAM)text);
-                *bd->_TargetValue = (float)strtod(text, NULL) / 100.0f;
-            }
-            for (unsigned int i = 0; i < guiData._BBindingCount; i++)
-            {
-                const BoolBinding* bd = &guiData._BBindings[i];
-                *bd->_TargetValue = BST_CHECKED == SendMessage(bd->_CheckBox,(UINT)BM_GETCHECK, (WPARAM)0, (LPARAM)0);
-            }
+            ApplyBindings(&guiData);
             WriteConfig(&config);
             RestartAAS();
         }

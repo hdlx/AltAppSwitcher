@@ -6,7 +6,7 @@
 			"name": "Build and debug AAS x86_64",
 			"program": "${workspaceFolder}/Output/Debug_x86_64/AAS/AltAppSwitcher.exe",
 			"args": [],
-			"cwd": "${workspaceFolder}/Output/Debug_x86_64",
+			"cwd": "${workspaceFolder}/Output/Debug_x86_64/AAS",
 			"preLaunchTask": "Build x86_64 Debug",
 			"console": "integratedTerminal"
 		},
@@ -16,7 +16,7 @@
 			"name": "Build and debug Settings x86_64",
 			"program": "${workspaceFolder}/Output/Debug_x86_64/AAS/Settings.exe",
 			"args": [],
-			"cwd": "${workspaceFolder}/Output/Debug_x86_64",
+			"cwd": "${workspaceFolder}/Output/Debug_x86_64/AAS",
 			"preLaunchTask": "Build x86_64 Debug",
 			"console": "integratedTerminal"
 		},
@@ -27,7 +27,7 @@
 			"program": "${workspaceFolder}/Output/Debug_x86_64/AAS/Updater.exe",
 			"args": [],
 			"preLaunchTask": "Build x86_64 Debug",
-			"cwd": "${workspaceFolder}/Output/Debug_x86_64",
+			"cwd": "${workspaceFolder}/Output/Debug_x86_64/AAS",
 			"console": "integratedTerminal"
 		}
 	]

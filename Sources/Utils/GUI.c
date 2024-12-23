@@ -4,6 +4,7 @@
 #include <windows.h>
 #include <windowsx.h>
 #include <commctrl.h>
+#include "Utils/Error.h"
 
 #define WIN_PAD 10
 #define LINE_PAD 4
@@ -186,4 +187,40 @@ void DeleteGUIData(GUIData* guiData)
     guiData->_Font = NULL;
     guiData->_FontTitle = NULL;
     guiData->_Background = NULL;
+}
+
+void ApplyBindings(const GUIData* guiData)
+{
+    for (unsigned int i = 0; i < guiData->_EBindingCount; i++)
+    {
+        const EnumBinding* bd = &guiData->_EBindings[i];
+
+        const unsigned int iValue = SendMessage(bd->_ComboBox,(UINT)CB_GETCURSEL,(WPARAM)0, (LPARAM)0);
+        char sValue[64] = {};
+        SendMessage(bd->_ComboBox,(UINT)CB_GETLBTEXT,(WPARAM)iValue, (LPARAM)sValue);
+        bool found = false;
+        for (unsigned int j = 0; bd->_EnumStrings[j].Value != 0xFFFFFFFF; j++)
+        {
+            if (!strcmp(bd->_EnumStrings[j].Name, sValue))
+            {
+                *bd->_TargetValue = bd->_EnumStrings[j].Value;
+                found = true;
+                break;
+            }
+        }
+        ASSERT(found);
+    }
+    for (unsigned int i = 0; i < guiData->_FBindingCount; i++)
+    {
+        const FloatBinding* bd = &guiData->_FBindings[i];
+        char text[4] = "000";
+        *((DWORD*)text) = 3;
+        SendMessage(bd->_Field,(UINT)EM_GETLINE,(WPARAM)0, (LPARAM)text);
+        *bd->_TargetValue = (float)strtod(text, NULL) / 100.0f;
+    }
+    for (unsigned int i = 0; i <  guiData->_BBindingCount; i++)
+    {
+        const BoolBinding* bd = & guiData->_BBindings[i];
+        *bd->_TargetValue = BST_CHECKED == SendMessage(bd->_CheckBox,(UINT)BM_GETCHECK, (WPARAM)0, (LPARAM)0);
+    }
 }

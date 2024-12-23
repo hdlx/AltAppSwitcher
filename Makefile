@@ -29,14 +29,15 @@ INCLUDEDIR = $(ROOTDIR)/Sources
 CC = $(ARCH)-w64-mingw32-clang
 IDIRS = -I $(ROOTDIR)/SDK/headers -I $(ROOTDIR)/Sources
 LDIRS = -L $(LIBDIR)
-LFLAGS = -mwindows -static -static-libgcc -Werror
+LFLAGS = -static -static-libgcc -Werror
 CFLAGS = -Wall -D ARCH_$(ARCH)=1 -target $(ARCH)-mingw64 -Werror
 
 ifeq ($(CONF), Debug)
-    CFLAGS += -g3
+CFLAGS += -g3
 else
-    CFLAGS += -O3
-    LFLAGS += -s
+CFLAGS += -O3
+CFLAGS += -mwindows
+LFLAGS += -s
 endif
 
 SDKHEADERS = $(wildcard $(SDKDIR)/**/*.h) $(wildcard $(SDKDIR)/*.h) 
@@ -52,8 +53,8 @@ INSTALLEROBJECTS = $(filter $(OBJDIR)/Installer/%, $(ALLOBJECTS))
 UTILSOBJECTS = $(filter $(OBJDIR)/Utils/%, $(ALLOBJECTS))
 
 AASLIBS = -l dwmapi -l User32 -l Gdi32 -l Gdiplus -l shlwapi -l pthread -l Ole32 -l Comctl32
-SETTINGSLIB = -l Comctl32
-UPDATERLIBS = -l ws2_32 -l libzip -l zlib -l bcrypt
+SETTINGSLIB = -l Comctl32 -l Gdi32
+UPDATERLIBS = -l ws2_32 -l libzip -l zlib -l bcrypt -l Gdi32
 
 AASASSETS = $(patsubst $(ROOTDIR)/Assets/AAS/%, $(AASBUILDDIR)/%, $(wildcard $(ROOTDIR)/Assets/AAS/*))
 

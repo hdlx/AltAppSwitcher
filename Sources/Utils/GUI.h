@@ -52,3 +52,4 @@ void CreateBoolControl(const char* tooltip, bool* value, GUIData* appData);
 void InitGUIData(GUIData* guiData, HWND parent);
 void DeleteGUIData(GUIData* guiData);
 void GridLayout(int columns, GUIData* guiData);
+void ApplyBindings(const GUIData* guiData);
