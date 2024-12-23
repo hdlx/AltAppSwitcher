@@ -38,16 +38,17 @@ typedef struct GUIData
     HFONT _Font;
     HFONT _FontTitle;
     HBRUSH _Background;
-    int _CellHeight;
     HWND _Parent;
+    Cell _Cell;
+    int _Columns;
+    int _Column;
 } GUIData;
 
-void CreateText(Cell c, HWND parent, const char* text, GUIData* guiData);
-void CreateTooltip(HWND parent, HWND tool, char* string);
-void CreateLabel(Cell c, HWND parent, const char* name, const char* tooltip, GUIData* guiData);
-void CreateFloatField(Cell c, HWND parent, const char* name, const char* tooltip, float* value, GUIData* appData);
-void CreateComboBox(Cell c, HWND parent, const char* name, const char* tooltip, unsigned int* value, const EnumString* enumStrings, GUIData* guiData);
-void CreateButton(Cell c, HWND parent, const char* name, HMENU ID, GUIData* guiData);
-void CreateBoolControl(Cell c, HWND parent, const char* name, const char* tooltip, bool* value, GUIData* appData);
+void CreateText(const char* text, const char* tooltip, GUIData* guiData);
+void CreateFloatField(const char* tooltip, float* value, GUIData* appData);
+void CreateComboBox(const char* tooltip, unsigned int* value, const EnumString* enumStrings, GUIData* guiData);
+void CreateButton(const char* text, HMENU ID, GUIData* guiData);
+void CreateBoolControl(const char* tooltip, bool* value, GUIData* appData);
 void InitGUIData(GUIData* guiData, HWND parent);
 void DeleteGUIData(GUIData* guiData);
+void GridLayout(int columns, GUIData* guiData);

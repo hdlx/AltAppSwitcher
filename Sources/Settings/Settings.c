@@ -54,71 +54,57 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
     }
     case WM_CREATE:
     {
-        LoadConfig(&config);
-        InitGUIData(&guiData, hwnd);
+        GUIData* gui = &guiData;
+        Config* cfg = &config;
 
-        int x = WIN_PAD;
-        int y = WIN_PAD;
-        int h = guiData._CellHeight;
-        int w = 0;
-        {
-            RECT parentRect = {};
-            GetClientRect(hwnd, &parentRect);
-            w = (parentRect.right - parentRect.left - WIN_PAD - WIN_PAD);
-        }
-        Cell c = 
+        LoadConfig(cfg);
+        InitGUIData(gui, hwnd);
 
-#define COMBO_BOX(NAME, TOOLTIP, VALUE, ES)\
-CreateComboBox(x, y, w, h, hwnd, NAME, TOOLTIP, &VALUE, ES, &guiData);\
-y += h + LINE_PAD;
+        GridLayout(1, gui);
+        CreateText("Key bindings:", "", gui);
 
-#define TITLE(NAME)\
-CreateText(x, y, w, h, hwnd, NAME, &guiData);\
-y += h + LINE_PAD;
+        GridLayout(4, gui);
+        CreateText("App hold", "", gui);
+        CreateComboBox("", &cfg->_Key._AppHold, keyES, gui);
+        CreateText("App switch", "", gui);
+        CreateComboBox("", &cfg->_Key._AppSwitch, keyES, gui);
+        CreateText("Win hold", "", gui);
+        CreateComboBox("", &cfg->_Key._WinHold, keyES, gui);
+        CreateText("Win switch", "", gui);
+        CreateComboBox("", &cfg->_Key._WinSwitch, keyES, gui);
+        CreateText("Invert", "", gui);
+        CreateComboBox("", &cfg->_Key._Invert, keyES, gui);
+        CreateText("Previous app", "", gui);
+        CreateComboBox("", &cfg->_Key._PrevApp, keyES, gui);
 
-#define FLOAT_FIELD(NAME, TOOLTIP, VALUE)\
-CreateFloatField(x, y, w, h, hwnd, NAME, TOOLTIP, &VALUE, &guiData);\
-y += h + LINE_PAD;
+        GridLayout(1, gui);
+        CreateText("Graphic options:", "", gui);
 
-#define BOOL_FIELD(NAME, TOOLTIP, VALUE)\
-CreateBoolControl(x, y, w, h, hwnd, NAME, TOOLTIP, &VALUE, &guiData);\
-y += h + LINE_PAD;
+        GridLayout(2, gui);
+        CreateText("Theme:", "", gui);
+        CreateComboBox("Color scheme. \"Auto\" to match system's.", &cfg->_ThemeMode, themeES, gui);
+        CreateText("Scale:", "", gui);
+        CreateFloatField("Scale controls icon size, expressed as percentage, 100 being Windows default icon size.",
+            &cfg->_Scale, gui);
 
-#define BUTTON(NAME, ID)\
-CreateButton(x, y, w, h, hwnd, NAME, (HMENU)ID, &guiData);\
-y += h + LINE_PAD;
+        GridLayout(1, gui);
+        CreateText("Other:", "", gui);
 
-#define SEPARATOR()\
-y += LINE_PAD * 4;
+        GridLayout(2, gui);
+        CreateText("Mouse:", "", gui);
+        CreateBoolControl("Allow selecting entry by clicking on the UI.", &cfg->_Mouse, gui);
+        CreateText("Check for updates:", "", gui);
+        CreateBoolControl("", &cfg->_CheckForUpdates, gui);
+        CreateText("App switcher mode:", "", gui);
+        CreateComboBox("App: MacOS-like, one entry per application.\nWindow: Windows-like, one entry per window (each window is considered an independent application)",
+            &cfg->_AppSwitcherMode, appSwitcherModeES, gui);
 
-        Config* cfg = &config;  
-        TITLE("Key bindings:")
-        COMBO_BOX("App hold key:", "", cfg->_Key._AppHold, keyES)
-        COMBO_BOX("Next app key:", "", cfg->_Key._AppSwitch, keyES)
-        COMBO_BOX("Window hold key:", "", cfg->_Key._WinHold, keyES)
-        COMBO_BOX("Next window key:", "", cfg->_Key._WinSwitch, keyES)
-        COMBO_BOX("Invert key:", "", cfg->_Key._Invert, keyES)
-        COMBO_BOX("Previous app key:", "", cfg->_Key._PrevApp, keyES)
-        SEPARATOR()
-        TITLE("Graphic options:")
-        COMBO_BOX("Theme:", "Color scheme. \"Auto\" to match system's.", cfg->_ThemeMode, themeES)
-        FLOAT_FIELD("Scale (\%)",
-            "Scale controls icon size, expressed as percentage, 100 being Windows default icon size.",
-            cfg->_Scale)
-        SEPARATOR()
-        TITLE("Other:")
-        BOOL_FIELD("Allow mouse:", "Allow selecting entry by clicking on the UI.", cfg->_Mouse)
-        BOOL_FIELD("Check for updates:", "", cfg->_CheckForUpdates)
-        COMBO_BOX("Switcher mode:",
-            "App: MacOS-like, one entry per application.\nWindow: Windows-like, one entry per window (each window is considered an independent application)",
-            cfg->_AppSwitcherMode, appSwitcherModeES)
-        SEPARATOR()
-        BUTTON("Apply", (HMENU)APPLY_BUTTON_ID);
-        y += WIN_PAD;
+        GridLayout(1, gui);
+        CreateButton("Apply", (HMENU)APPLY_BUTTON_ID, gui);
 
         RECT r = {};
         GetClientRect(hwnd, &r);
-        r.bottom = y;
+        r.bottom = guiData._Cell._Y;;
         AdjustWindowRect(&r, (DWORD)GetWindowLong(hwnd, GWL_STYLE), false);
         SetWindowPos(hwnd, 0, r.left, r.top, r.right - r.left, r.bottom - r.top, SWP_NOMOVE);
         return 0;
@@ -180,7 +166,7 @@ int StartSettings(HINSTANCE hInstance)
     ic.dwSize = sizeof(INITCOMMONCONTROLSEX);
     ic.dwICC = ICC_TAB_CLASSES;
     InitCommonControlsEx(&ic);
-
+#define LIGHT_COLOR 0x00FFFFFF;
     COLORREF col = LIGHT_COLOR;
     HBRUSH bkg = CreateSolidBrush(col);
 
