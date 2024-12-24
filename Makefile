@@ -43,18 +43,23 @@ endif
 SDKHEADERS = $(wildcard $(SDKDIR)/**/*.h) $(wildcard $(SDKDIR)/*.h) 
 SOURCEHEADERS = $(wildcard $(SOURCEDIR)/**/*.h) $(wildcard $(SOURCEDIR)/*.h) 
 
+# Objects:
+# All, for compilation.
 ALLOBJECTS = $(patsubst $(SOURCEDIR)/%.c, $(OBJDIR)/%.o, $(wildcard $(SOURCEDIR)/**/*.c))
-
+# Subsets, for link.
 AASOBJECTS = $(filter $(OBJDIR)/AltAppSwitcher/%, $(ALLOBJECTS))
 CONFIGOBJECTS = $(filter $(OBJDIR)/Config/%, $(ALLOBJECTS))
 SETTINGSOBJECTS = $(filter $(OBJDIR)/Settings/%, $(ALLOBJECTS))
 UPDATEROBJECTS = $(filter $(OBJDIR)/Updater/%, $(ALLOBJECTS))
 INSTALLEROBJECTS = $(filter $(OBJDIR)/Installer/%, $(ALLOBJECTS))
-UTILSOBJECTS = $(filter $(OBJDIR)/Utils/%, $(ALLOBJECTS))
+ERROROBJECTS = $(filter $(OBJDIR)/Utils/Error%, $(ALLOBJECTS))
+FILEOBJECTS = $(filter $(OBJDIR)/Utils/File%, $(ALLOBJECTS))
+COMMONOBJECTS = $(ERROROBJECTS) $(FILEOBJECTS)
+GUIOBJECTS = $(filter $(OBJDIR)/Utils/GUI%, $(ALLOBJECTS))
 
 AASLIBS = -l dwmapi -l User32 -l Gdi32 -l Gdiplus -l shlwapi -l pthread -l Ole32 -l Comctl32
 SETTINGSLIB = -l Comctl32 -l Gdi32
-UPDATERLIBS = -l ws2_32 -l libzip -l zlib -l bcrypt -l Gdi32 -l Comctl32
+UPDATERLIBS = -l ws2_32 -l libzip -l zlib -l bcrypt
 INSTALLERLIBS = -l Gdi32 -l Comctl32
 
 AASASSETS = $(patsubst $(ROOTDIR)/Assets/AAS/%, $(AASBUILDDIR)/%, $(wildcard $(ROOTDIR)/Assets/AAS/*))
@@ -93,16 +98,16 @@ $(ALLOBJECTS): $(OBJDIR)/%.o: $(SOURCEDIR)/%.c $(SDKHEADERS) $(SOURCEHEADERS)
 	$(CC) $(CFLAGS) $(IDIRS) -MJ $@.json -c $< -o $@
 
 # Build exe targets (link):
-$(AASBUILDDIR)/AltAppSwitcher.exe: $(AASOBJECTS) $(CONFIGOBJECTS) $(UTILSOBJECTS)
+$(AASBUILDDIR)/AltAppSwitcher.exe: $(AASOBJECTS) $(CONFIGOBJECTS) $(COMMONOBJECTS)
 	$(CC) $(LFLAGS) $(LDIRS) $(AASLIBS) $^ -o $@
 
-$(AASBUILDDIR)/Settings.exe: $(SETTINGSOBJECTS) $(CONFIGOBJECTS) $(UTILSOBJECTS)
+$(AASBUILDDIR)/Settings.exe: $(SETTINGSOBJECTS) $(CONFIGOBJECTS) $(COMMONOBJECTS) $(GUIOBJECTS)
 	$(CC) $(LFLAGS) $(LDIRS) $(SETTINGSLIB) $^ -o $@
 
-$(AASBUILDDIR)/Updater.exe: $(UPDATEROBJECTS) $(UTILSOBJECTS)
+$(AASBUILDDIR)/Updater.exe: $(UPDATEROBJECTS) $(COMMONOBJECTS)
 	$(CC) $(LFLAGS) $(LDIRS) $(UPDATERLIBS) $^ -o $@
 
-$(INSTALLERBUILDDIR)/AltAppSwitcherInstaller.exe: $(INSTALLEROBJECTS) $(AASARCHIVEOBJ) $(UTILSOBJECTS)
+$(INSTALLERBUILDDIR)/AltAppSwitcherInstaller.exe: $(INSTALLEROBJECTS) $(AASARCHIVEOBJ) $(COMMONOBJECTS) $(GUIOBJECTS)
 	$(CC) $(LFLAGS) $(LDIRS) $(INSTALLERLIBS) $^ -o $@
 
 # Assets:
