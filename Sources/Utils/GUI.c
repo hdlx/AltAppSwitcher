@@ -221,8 +221,15 @@ void ApplyBindings(const GUIData* guiData)
     }
 }
 
-void RegisterGUIClass(LRESULT (*windowProc)(HWND, UINT, WPARAM, LPARAM), HANDLE instance, const char* className)
+void InitGUI(LRESULT (*windowProc)(HWND, UINT, WPARAM, LPARAM), HANDLE instance, const char* className)
 {
+    // CC
+    INITCOMMONCONTROLSEX ic;
+    ic.dwSize = sizeof(INITCOMMONCONTROLSEX);
+    ic.dwICC = ICC_TAB_CLASSES;
+    InitCommonControlsEx(&ic);
+
+    // Class
     COLORREF col = LIGHT_COLOR;
     HBRUSH bkg = CreateSolidBrush(col);
     WNDCLASS wc = { };
@@ -233,9 +240,16 @@ void RegisterGUIClass(LRESULT (*windowProc)(HWND, UINT, WPARAM, LPARAM), HANDLE 
     wc.style = CS_HREDRAW | CS_VREDRAW;
     wc.hbrBackground = bkg;
     RegisterClass(&wc);
+
+    // Window
+    DWORD winStyle = WS_CAPTION | WS_SYSMENU | WS_BORDER | WS_VISIBLE | WS_MINIMIZEBOX;
+    CreateWindow(className, className,
+        winStyle,
+        0, 0, 0, 0,
+        NULL, NULL, instance, NULL);
 }
 
-void UnregisterGUIClass(HANDLE instance, const char* className)
+void DeinitGUI(HANDLE instance, const char* className)
 {
     WNDCLASS wc;
     GetClassInfo(instance, className, &wc);

@@ -54,12 +54,13 @@ UTILSOBJECTS = $(filter $(OBJDIR)/Utils/%, $(ALLOBJECTS))
 
 AASLIBS = -l dwmapi -l User32 -l Gdi32 -l Gdiplus -l shlwapi -l pthread -l Ole32 -l Comctl32
 SETTINGSLIB = -l Comctl32 -l Gdi32
-UPDATERLIBS = -l ws2_32 -l libzip -l zlib -l bcrypt -l Gdi32
+UPDATERLIBS = -l ws2_32 -l libzip -l zlib -l bcrypt -l Gdi32 -l Comctl32
+INSTALLERLIBS = -l Gdi32 -l Comctl32
 
 AASASSETS = $(patsubst $(ROOTDIR)/Assets/AAS/%, $(AASBUILDDIR)/%, $(wildcard $(ROOTDIR)/Assets/AAS/*))
 
 # Do not make a non phony target depend on phony one, otherwise
-# it will rebuild every time.
+# the target will rebuild every time.
 .PHONY: default clean directories deploy
 
 ALLAAS := $(AASBUILDDIR)/AltAppSwitcher.exe
@@ -102,7 +103,7 @@ $(AASBUILDDIR)/Updater.exe: $(UPDATEROBJECTS) $(UTILSOBJECTS)
 	$(CC) $(LFLAGS) $(LDIRS) $(UPDATERLIBS) $^ -o $@
 
 $(INSTALLERBUILDDIR)/AltAppSwitcherInstaller.exe: $(INSTALLEROBJECTS) $(AASARCHIVEOBJ) $(UTILSOBJECTS)
-	$(CC) $(LFLAGS) $(LDIRS) $(UPDATERLIBS) $^ -o $@
+	$(CC) $(LFLAGS) $(LDIRS) $(INSTALLERLIBS) $^ -o $@
 
 # Assets:
 $(AASASSETS): $(AASBUILDDIR)/%: $(ROOTDIR)/Assets/AAS/%

@@ -41,7 +41,7 @@ static void RestartAAS()
     return;
 }
 
-LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
+LRESULT WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 {
     static GUIData guiData = {};
     static Config config = {};
@@ -129,33 +129,15 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
     return DefWindowProc(hwnd, uMsg, wParam, lParam);
 }
 
-int StartSettings(HINSTANCE hInstance)
+int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR pCmdLine, int nCmdShow)
 {
-    INITCOMMONCONTROLSEX ic;
-    ic.dwSize = sizeof(INITCOMMONCONTROLSEX);
-    ic.dwICC = ICC_TAB_CLASSES;
-    InitCommonControlsEx(&ic);
-
-    // Main window
-    {
-        // Class
-        RegisterGUIClass(WindowProc, hInstance, "AASSettings");
-        // Window
-        DWORD winStyle = WS_CAPTION | WS_SYSMENU | WS_BORDER | WS_VISIBLE | WS_MINIMIZEBOX;
-        CreateWindow("AASSettings", "Alt App Switcher settings",
-            winStyle,
-            0, 0, 0, 0,
-            NULL, NULL, hInstance, NULL);
-    }
-
+    InitGUI(WindowProc, hInstance, "AASSettings");
     MSG msg = { };
     while (GetMessage(&msg, NULL, 0, 0))
     {
         TranslateMessage(&msg);
         DispatchMessage(&msg);
     }
-
-    UnregisterGUIClass(hInstance, "AASSettings");
-
+    DeinitGUI(hInstance, "AASSettings");
     return 0;
 }
