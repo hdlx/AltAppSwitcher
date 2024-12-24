@@ -9,8 +9,6 @@
 #include "Config/Config.h"
 #include "Utils/GUI.h"
 
-static const char CLASS_NAME[] = "AltAppSwitcherSettings";
-
 static void RestartAAS()
 {
     HANDLE procSnap = CreateToolhelp32Snapshot((DWORD)TH32CS_SNAPPROCESS, (DWORD)0);
@@ -107,11 +105,8 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
         GridLayout(1, gui);
         CreateButton("Apply", (HMENU)APPLY_BUTTON_ID, gui);
 
-        RECT r = {};
-        GetClientRect(hwnd, &r);
-        r.bottom = guiData._Cell._Y;;
-        AdjustWindowRect(&r, (DWORD)GetWindowLong(hwnd, GWL_STYLE), false);
-        SetWindowPos(hwnd, 0, r.left, r.top, r.right - r.left, r.bottom - r.top, SWP_NOMOVE);
+        FitParentWindow(gui);
+
         return 0;
     }
     case WM_COMMAND:
@@ -140,29 +135,16 @@ int StartSettings(HINSTANCE hInstance)
     ic.dwSize = sizeof(INITCOMMONCONTROLSEX);
     ic.dwICC = ICC_TAB_CLASSES;
     InitCommonControlsEx(&ic);
-#define LIGHT_COLOR 0x00FFFFFF;
-    COLORREF col = LIGHT_COLOR;
-    HBRUSH bkg = CreateSolidBrush(col);
 
     // Main window
     {
         // Class
-        WNDCLASS wc = { };
-        wc.lpfnWndProc = WindowProc;
-        wc.hInstance = hInstance;
-        wc.lpszClassName = CLASS_NAME;
-        wc.cbWndExtra = 0;
-        wc.style = CS_HREDRAW | CS_VREDRAW;
-        wc.hbrBackground = bkg;
-        RegisterClass(&wc);
+        RegisterGUIClass(WindowProc, hInstance, "AASSettings");
         // Window
-        const int center[2] = { GetSystemMetrics(SM_CXSCREEN) / 2, GetSystemMetrics(SM_CYSCREEN) / 2 };
         DWORD winStyle = WS_CAPTION | WS_SYSMENU | WS_BORDER | WS_VISIBLE | WS_MINIMIZEBOX;
-        RECT winRect = { center[0] - 200, center[1] - 300, center[0] + 200, center[1] + 300 };
-        AdjustWindowRect(&winRect, winStyle, false);
-        CreateWindow(CLASS_NAME, "Alt App Switcher settings",
+        CreateWindow("AASSettings", "Alt App Switcher settings",
             winStyle,
-            winRect.left, winRect.top, winRect.right - winRect.left, winRect.bottom - winRect.top,
+            0, 0, 0, 0,
             NULL, NULL, hInstance, NULL);
     }
 
@@ -172,9 +154,8 @@ int StartSettings(HINSTANCE hInstance)
         TranslateMessage(&msg);
         DispatchMessage(&msg);
     }
-    UnregisterClass(CLASS_NAME, hInstance);
 
-    DeleteBrush(bkg);
+    UnregisterGUIClass(hInstance, "AASSettings");
 
     return 0;
 }

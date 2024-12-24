@@ -8,8 +8,9 @@
 
 #define WIN_PAD 10
 #define LINE_PAD 4
-#define DARK_COLOR 0x002C2C2C;
-#define LIGHT_COLOR 0x00FFFFFF;
+#define DARK_COLOR 0x002C2C2C
+#define LIGHT_COLOR 0x00FFFFFF
+#define WIDTH 400
 
 typedef struct EnumString
 {
@@ -52,15 +53,10 @@ static void CreateTooltip(HWND parent, HWND tool, char* string)
 
 void GridLayout(int columns, GUIData* guiData)
 {
-    {
-        RECT parentRect = {};
-        GetClientRect(guiData->_Parent, &parentRect);
-        guiData->_Cell._W = (parentRect.right - parentRect.left - WIN_PAD - WIN_PAD - (WIN_PAD * (columns - 1 > 0 ? columns - 1 : 0))) / columns;
-    }
+    guiData->_Cell._W = (WIDTH - WIN_PAD - WIN_PAD - (WIN_PAD * (columns - 1 > 0 ? columns - 1 : 0))) / columns;
     guiData->_Column = 0;
     guiData->_Columns = columns;
     guiData->_Cell._X = WIN_PAD;
-
 }
 
 void CreateText(const char* text, const char* tooltip, GUIData* guiData)
@@ -223,4 +219,35 @@ void ApplyBindings(const GUIData* guiData)
         const BoolBinding* bd = & guiData->_BBindings[i];
         *bd->_TargetValue = BST_CHECKED == SendMessage(bd->_CheckBox,(UINT)BM_GETCHECK, (WPARAM)0, (LPARAM)0);
     }
+}
+
+void RegisterGUIClass(LRESULT (*windowProc)(HWND, UINT, WPARAM, LPARAM), HANDLE instance, const char* className)
+{
+    COLORREF col = LIGHT_COLOR;
+    HBRUSH bkg = CreateSolidBrush(col);
+    WNDCLASS wc = { };
+    wc.lpfnWndProc = windowProc;
+    wc.hInstance = instance;
+    wc.lpszClassName = className;
+    wc.cbWndExtra = 0;
+    wc.style = CS_HREDRAW | CS_VREDRAW;
+    wc.hbrBackground = bkg;
+    RegisterClass(&wc);
+}
+
+void UnregisterGUIClass(HANDLE instance, const char* className)
+{
+    WNDCLASS wc;
+    GetClassInfo(instance, className, &wc);
+    DeleteBrush(wc.hbrBackground);
+    UnregisterClass(className, instance);
+}
+
+void FitParentWindow(const GUIData* gui)
+{
+    const int center[2] = { GetSystemMetrics(SM_CXSCREEN) / 2, GetSystemMetrics(SM_CYSCREEN) / 2 };
+    RECT r = { center[0] - WIDTH / 2, center[1] - gui->_Cell._Y / 2,
+        center[0] + WIDTH / 2, center[1] + gui->_Cell._Y / 2 };
+    AdjustWindowRect(&r, (DWORD)GetWindowLong(gui->_Parent, GWL_STYLE), false);
+    SetWindowPos(gui->_Parent, 0, r.left, r.top, r.right - r.left, r.bottom - r.top, 0);
 }

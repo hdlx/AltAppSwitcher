@@ -53,3 +53,6 @@ void InitGUIData(GUIData* guiData, HWND parent);
 void DeleteGUIData(GUIData* guiData);
 void GridLayout(int columns, GUIData* guiData);
 void ApplyBindings(const GUIData* guiData);
+void RegisterGUIClass(LRESULT (*windowProc)(HWND, UINT, WPARAM, LPARAM), HANDLE instance, const char* className);
+void UnregisterGUIClass(HANDLE instance, const char* className);
+void FitParentWindow(const GUIData* gui);
