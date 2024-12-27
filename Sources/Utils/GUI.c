@@ -221,6 +221,23 @@ void ApplyBindings(const GUIData* guiData)
     }
 }
 
+static LRESULT GUIWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
+{
+    switch (uMsg)
+    {
+    case WM_CTLCOLOREDIT:
+    case WM_CTLCOLORSTATIC:
+    {
+        SetBkMode((HDC)wParam, TRANSPARENT);
+        return 0;//(LRESULT)guiData._Background;
+    }
+    }
+    LONG_PTR p = GetWindowLongPtr(hwnd, GWLP_USERDATA);
+    LRESULT (*windowProc)(HWND, UINT, WPARAM, LPARAM) = (LRESULT (*)(HWND, UINT, WPARAM, LPARAM))p;
+    windowProc(hwnd, uMsg, wParam, lParam);
+    return 0;
+}
+
 void InitGUI(LRESULT (*windowProc)(HWND, UINT, WPARAM, LPARAM), HANDLE instance, const char* className)
 {
     // CC
@@ -243,10 +260,13 @@ void InitGUI(LRESULT (*windowProc)(HWND, UINT, WPARAM, LPARAM), HANDLE instance,
 
     // Window
     DWORD winStyle = WS_CAPTION | WS_SYSMENU | WS_BORDER | WS_VISIBLE | WS_MINIMIZEBOX;
-    CreateWindow(className, className,
+    HWND win = CreateWindow(className, className,
         winStyle,
         0, 0, 0, 0,
         NULL, NULL, instance, NULL);
+
+    SetWindowLongPtr(win, GWLP_USERDATA, (LONG_PTR)windowProc);
+    SetWindowLongPtr(win, GWLP_WNDPROC, (LONG_PTR)GUIWindowProc);
 }
 
 void DeinitGUI(HANDLE instance, const char* className)
