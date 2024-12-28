@@ -59,8 +59,8 @@ GUIOBJECTS = $(filter $(OBJDIR)/Utils/GUI%, $(ALLOBJECTS))
 
 AASLIBS = -l dwmapi -l User32 -l Gdi32 -l Gdiplus -l shlwapi -l pthread -l Ole32 -l Comctl32
 SETTINGSLIB = -l Comctl32 -l Gdi32
-UPDATERLIBS = -l ws2_32 -l libzip -l zlib -l bcrypt
-INSTALLERLIBS = -l Gdi32 -l Comctl32
+UPDATERLIBS = -l ws2_32
+INSTALLERLIBS = -l Gdi32 -l Comctl32 -l libzip -l zlib -l bcrypt
 
 AASASSETS = $(patsubst $(ROOTDIR)/Assets/AAS/%, $(AASBUILDDIR)/%, $(wildcard $(ROOTDIR)/Assets/AAS/*))
 INSTALLERASSETS = $(patsubst $(ROOTDIR)/Assets/Installer/%, $(INSTALLERBUILDDIR)/%, $(wildcard $(ROOTDIR)/Assets/Installer/*))
