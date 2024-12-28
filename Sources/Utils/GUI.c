@@ -71,7 +71,7 @@ void CreateText(const char* text, const char* tooltip, GUIData* guiData)
     NextCell(guiData);
 }
 
-void CreateFloatField(const char* tooltip, float* value, GUIData* guiData)
+void CreatePercentField(const char* tooltip, float* value, GUIData* guiData)
 {
     HINSTANCE inst = (HINSTANCE)GetWindowLongPtrA(guiData->_Parent, GWLP_HINSTANCE);
     char sval[4] = "000";

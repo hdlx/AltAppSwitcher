@@ -71,8 +71,8 @@ static void SetupGUI(GUIData* gui, void* userData)
     GridLayout(2, gui);
     CreateText("Theme:", "", gui);
     CreateComboBox("Color scheme. \"Auto\" to match system's.", &cfg->_ThemeMode, themeES, gui);
-    CreateText("Scale:", "", gui);
-    CreateFloatField("Scale controls icon size, expressed as percentage, 100 being Windows default icon size.",
+    CreateText("Scale (\%):", "", gui);
+    CreatePercentField("Scale controls icon size, expressed as percentage, 100 being Windows default icon size.",
         &cfg->_Scale, gui);
 
     GridLayout(1, gui);

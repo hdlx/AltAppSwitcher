@@ -45,7 +45,7 @@ typedef struct GUIData
 } GUIData;
 
 void CreateText(const char* text, const char* tooltip, GUIData* guiData);
-void CreateFloatField(const char* tooltip, float* value, GUIData* appData);
+void CreatePercentField(const char* tooltip, float* value, GUIData* appData);
 void CreateComboBox(const char* tooltip, unsigned int* value, const EnumString* enumStrings, GUIData* guiData);
 void CreateButton(const char* text, HMENU ID, GUIData* guiData);
 void CreateBoolControl(const char* tooltip, bool* value, GUIData* appData);
