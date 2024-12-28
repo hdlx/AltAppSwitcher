@@ -140,7 +140,7 @@ void CreateBoolControl(const char* tooltip, bool* value, GUIData* guiData)
     NextCell(guiData);
 }
 
-void InitGUIData(GUIData* guiData, HWND parent)
+static void InitGUIData(GUIData* guiData, HWND parent)
 {
     NONCLIENTMETRICS metrics = {};
     metrics.cbSize = sizeof(metrics);
@@ -175,7 +175,7 @@ void InitGUIData(GUIData* guiData, HWND parent)
     guiData->_Column = 0;
 }
 
-void DeleteGUIData(GUIData* guiData)
+static void DeleteGUIData(GUIData* guiData)
 {
     DeleteFont(guiData->_Font);
     DeleteFont(guiData->_FontTitle);
@@ -183,6 +183,15 @@ void DeleteGUIData(GUIData* guiData)
     guiData->_Font = NULL;
     guiData->_FontTitle = NULL;
     guiData->_Background = NULL;
+}
+
+static void FitParentWindow(const GUIData* gui)
+{
+    const int center[2] = { GetSystemMetrics(SM_CXSCREEN) / 2, GetSystemMetrics(SM_CYSCREEN) / 2 };
+    RECT r = { center[0] - WIDTH / 2, center[1] - gui->_Cell._Y / 2,
+        center[0] + WIDTH / 2, center[1] + gui->_Cell._Y / 2 };
+    AdjustWindowRect(&r, (DWORD)GetWindowLong(gui->_Parent, GWL_STYLE), false);
+    SetWindowPos(gui->_Parent, 0, r.left, r.top, r.right - r.left, r.bottom - r.top, 0);
 }
 
 void ApplyBindings(const GUIData* guiData)
@@ -221,25 +230,63 @@ void ApplyBindings(const GUIData* guiData)
     }
 }
 
+typedef struct UserData
+{
+    void (*_SetupGUI)(GUIData*, void*);
+    void (*_ButtonMessage)(UINT, GUIData*, void*);
+    void* _Data;
+} UserData;
+
 static LRESULT GUIWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 {
+    static GUIData guiData = {};
+    static UserData* userData = 0;
     switch (uMsg)
     {
+    case WM_DESTROY:
+    {
+        free(userData);
+        DeleteGUIData(&guiData);
+        PostQuitMessage(0);
+        return 0;
+    }
+    case WM_CREATE:
+    {
+        CREATESTRUCT *cs = (CREATESTRUCT*)lParam;
+        userData = (UserData*)cs->lpCreateParams;
+        InitGUIData(&guiData, hwnd);
+        userData->_SetupGUI(&guiData, userData->_Data);
+        FitParentWindow(&guiData);
+        return 0;
+    }
+    case WM_COMMAND:
+    {
+        if (HIWORD(wParam) == BN_CLICKED)
+        {
+            userData->_ButtonMessage(LOWORD(wParam), &guiData, userData->_Data);
+        }
+        return 0;
+    }
     case WM_CTLCOLOREDIT:
     case WM_CTLCOLORSTATIC:
     {
         SetBkMode((HDC)wParam, TRANSPARENT);
-        return 0;//(LRESULT)guiData._Background;
+        return 0; // (LRESULT)guiData._Background;
     }
     }
-    LONG_PTR p = GetWindowLongPtr(hwnd, GWLP_USERDATA);
-    LRESULT (*windowProc)(HWND, UINT, WPARAM, LPARAM) = (LRESULT (*)(HWND, UINT, WPARAM, LPARAM))p;
-    windowProc(hwnd, uMsg, wParam, lParam);
-    return 0;
+    return DefWindowProc(hwnd, uMsg, wParam, lParam);
 }
 
-void InitGUI(LRESULT (*windowProc)(HWND, UINT, WPARAM, LPARAM), HANDLE instance, const char* className)
+void InitGUIWindow(void (*setupGUI)(GUIData*, void*),
+    void (*buttonMessage)(UINT, GUIData*, void*),
+    void* userAppData,
+    HANDLE instance, const char* className)
 {
+    UserData* userData = malloc(sizeof(UserData));
+    userData->_SetupGUI = setupGUI;
+    userData->_ButtonMessage = buttonMessage;
+    userData->_Data = userAppData;
+
     // CC
     INITCOMMONCONTROLSEX ic;
     ic.dwSize = sizeof(INITCOMMONCONTROLSEX);
@@ -250,7 +297,7 @@ void InitGUI(LRESULT (*windowProc)(HWND, UINT, WPARAM, LPARAM), HANDLE instance,
     COLORREF col = LIGHT_COLOR;
     HBRUSH bkg = CreateSolidBrush(col);
     WNDCLASS wc = { };
-    wc.lpfnWndProc = windowProc;
+    wc.lpfnWndProc = GUIWindowProc;
     wc.hInstance = instance;
     wc.lpszClassName = className;
     wc.cbWndExtra = 0;
@@ -260,28 +307,16 @@ void InitGUI(LRESULT (*windowProc)(HWND, UINT, WPARAM, LPARAM), HANDLE instance,
 
     // Window
     DWORD winStyle = WS_CAPTION | WS_SYSMENU | WS_BORDER | WS_VISIBLE | WS_MINIMIZEBOX;
-    HWND win = CreateWindow(className, className,
+    CreateWindow(className, className,
         winStyle,
         0, 0, 0, 0,
-        NULL, NULL, instance, NULL);
-
-    SetWindowLongPtr(win, GWLP_USERDATA, (LONG_PTR)windowProc);
-    SetWindowLongPtr(win, GWLP_WNDPROC, (LONG_PTR)GUIWindowProc);
+        NULL, NULL, instance, (LPVOID)userData);
 }
 
-void DeinitGUI(HANDLE instance, const char* className)
+void DeinitGUIWindow(HANDLE instance, const char* className)
 {
     WNDCLASS wc;
     GetClassInfo(instance, className, &wc);
     DeleteBrush(wc.hbrBackground);
     UnregisterClass(className, instance);
-}
-
-void FitParentWindow(const GUIData* gui)
-{
-    const int center[2] = { GetSystemMetrics(SM_CXSCREEN) / 2, GetSystemMetrics(SM_CYSCREEN) / 2 };
-    RECT r = { center[0] - WIDTH / 2, center[1] - gui->_Cell._Y / 2,
-        center[0] + WIDTH / 2, center[1] + gui->_Cell._Y / 2 };
-    AdjustWindowRect(&r, (DWORD)GetWindowLong(gui->_Parent, GWL_STYLE), false);
-    SetWindowPos(gui->_Parent, 0, r.left, r.top, r.right - r.left, r.bottom - r.top, 0);
 }

@@ -49,10 +49,10 @@ void CreateFloatField(const char* tooltip, float* value, GUIData* appData);
 void CreateComboBox(const char* tooltip, unsigned int* value, const EnumString* enumStrings, GUIData* guiData);
 void CreateButton(const char* text, HMENU ID, GUIData* guiData);
 void CreateBoolControl(const char* tooltip, bool* value, GUIData* appData);
-void InitGUIData(GUIData* guiData, HWND parent);
-void DeleteGUIData(GUIData* guiData);
 void GridLayout(int columns, GUIData* guiData);
 void ApplyBindings(const GUIData* guiData);
-void InitGUI(LRESULT (*windowProc)(HWND, UINT, WPARAM, LPARAM), HANDLE instance, const char* className);
-void DeinitGUI(HANDLE instance, const char* className);
-void FitParentWindow(const GUIData* gui);
+void DeinitGUIWindow(HANDLE instance, const char* className);
+void InitGUIWindow(void (*setupGUI)(GUIData*, void*),
+    void (*buttonMessage)(UINT, GUIData*, void*),
+    void* userAppData,
+    HANDLE instance, const char* className);

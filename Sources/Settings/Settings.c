@@ -41,97 +41,80 @@ static void RestartAAS()
     return;
 }
 
-LRESULT WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
-{
-    static GUIData guiData = {};
-    static Config config = {};
-
 #define APPLY_BUTTON_ID 1993
-    switch (uMsg)
+
+static void SetupGUI(GUIData* gui, void* userData)
+{
+    Config* cfg = (Config*)userData;
+    LoadConfig(cfg);
+
+    GridLayout(1, gui);
+    CreateText("Key bindings:", "", gui);
+
+    GridLayout(4, gui);
+    CreateText("App hold", "", gui);
+    CreateComboBox("", &cfg->_Key._AppHold, keyES, gui);
+    CreateText("App switch", "", gui);
+    CreateComboBox("", &cfg->_Key._AppSwitch, keyES, gui);
+    CreateText("Win hold", "", gui);
+    CreateComboBox("", &cfg->_Key._WinHold, keyES, gui);
+    CreateText("Win switch", "", gui);
+    CreateComboBox("", &cfg->_Key._WinSwitch, keyES, gui);
+    CreateText("Invert", "", gui);
+    CreateComboBox("", &cfg->_Key._Invert, keyES, gui);
+    CreateText("Previous app", "", gui);
+    CreateComboBox("", &cfg->_Key._PrevApp, keyES, gui);
+
+    GridLayout(1, gui);
+    CreateText("Graphic options:", "", gui);
+
+    GridLayout(2, gui);
+    CreateText("Theme:", "", gui);
+    CreateComboBox("Color scheme. \"Auto\" to match system's.", &cfg->_ThemeMode, themeES, gui);
+    CreateText("Scale:", "", gui);
+    CreateFloatField("Scale controls icon size, expressed as percentage, 100 being Windows default icon size.",
+        &cfg->_Scale, gui);
+
+    GridLayout(1, gui);
+    CreateText("Other:", "", gui);
+
+    GridLayout(2, gui);
+    CreateText("Mouse:", "", gui);
+    CreateBoolControl("Allow selecting entry by clicking on the UI.", &cfg->_Mouse, gui);
+    CreateText("Check for updates:", "", gui);
+    CreateBoolControl("", &cfg->_CheckForUpdates, gui);
+    CreateText("App switcher mode:", "", gui);
+    CreateComboBox("App: MacOS-like, one entry per application.\nWindow: Windows-like, one entry per window (each window is considered an independent application)",
+        &cfg->_AppSwitcherMode, appSwitcherModeES, gui);
+
+    GridLayout(1, gui);
+    CreateButton("Apply", (HMENU)APPLY_BUTTON_ID, gui);
+}
+
+static void ButtonMessage(UINT buttonID, GUIData* guiData, void* userData)
+{
+    switch (buttonID)
     {
-    case WM_DESTROY:
+    case APPLY_BUTTON_ID:
     {
-        PostQuitMessage(0);
-        DeleteGUIData(&guiData);
-        return 0;
-    }
-    case WM_CREATE:
-    {
-        GUIData* gui = &guiData;
-        Config* cfg = &config;
-
-        LoadConfig(cfg);
-        InitGUIData(gui, hwnd);
-
-        GridLayout(1, gui);
-        CreateText("Key bindings:", "", gui);
-
-        GridLayout(4, gui);
-        CreateText("App hold", "", gui);
-        CreateComboBox("", &cfg->_Key._AppHold, keyES, gui);
-        CreateText("App switch", "", gui);
-        CreateComboBox("", &cfg->_Key._AppSwitch, keyES, gui);
-        CreateText("Win hold", "", gui);
-        CreateComboBox("", &cfg->_Key._WinHold, keyES, gui);
-        CreateText("Win switch", "", gui);
-        CreateComboBox("", &cfg->_Key._WinSwitch, keyES, gui);
-        CreateText("Invert", "", gui);
-        CreateComboBox("", &cfg->_Key._Invert, keyES, gui);
-        CreateText("Previous app", "", gui);
-        CreateComboBox("", &cfg->_Key._PrevApp, keyES, gui);
-
-        GridLayout(1, gui);
-        CreateText("Graphic options:", "", gui);
-
-        GridLayout(2, gui);
-        CreateText("Theme:", "", gui);
-        CreateComboBox("Color scheme. \"Auto\" to match system's.", &cfg->_ThemeMode, themeES, gui);
-        CreateText("Scale:", "", gui);
-        CreateFloatField("Scale controls icon size, expressed as percentage, 100 being Windows default icon size.",
-            &cfg->_Scale, gui);
-
-        GridLayout(1, gui);
-        CreateText("Other:", "", gui);
-
-        GridLayout(2, gui);
-        CreateText("Mouse:", "", gui);
-        CreateBoolControl("Allow selecting entry by clicking on the UI.", &cfg->_Mouse, gui);
-        CreateText("Check for updates:", "", gui);
-        CreateBoolControl("", &cfg->_CheckForUpdates, gui);
-        CreateText("App switcher mode:", "", gui);
-        CreateComboBox("App: MacOS-like, one entry per application.\nWindow: Windows-like, one entry per window (each window is considered an independent application)",
-            &cfg->_AppSwitcherMode, appSwitcherModeES, gui);
-
-        GridLayout(1, gui);
-        CreateButton("Apply", (HMENU)APPLY_BUTTON_ID, gui);
-
-        FitParentWindow(gui);
-
-        return 0;
-    }
-    case WM_COMMAND:
-    {
-        if (LOWORD(wParam == APPLY_BUTTON_ID) && HIWORD(wParam) == BN_CLICKED)
-        {
-            ApplyBindings(&guiData);
-            WriteConfig(&config);
-            RestartAAS();
-        }
-        return 0;
+        Config* cfg = (Config*)userData;
+        ApplyBindings(guiData);
+        WriteConfig(cfg);
+        RestartAAS();
     }
     }
-    return DefWindowProc(hwnd, uMsg, wParam, lParam);
 }
 
 int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR pCmdLine, int nCmdShow)
 {
-    InitGUI(WindowProc, hInstance, "AASSettings");
+    Config config = {};
+    InitGUIWindow(SetupGUI, ButtonMessage, (void*)&config, hInstance, "AASSettings");
     MSG msg = { };
     while (GetMessage(&msg, NULL, 0, 0))
     {
         TranslateMessage(&msg);
         DispatchMessage(&msg);
     }
-    DeinitGUI(hInstance, "AASSettings");
+    DeinitGUIWindow(hInstance, "AASSettings");
     return 0;
 }

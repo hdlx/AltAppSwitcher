@@ -2,14 +2,53 @@
 #include <fileapi.h>
 #include <dirent.h>
 #include <ftw.h>
+#include <windows.h>
 #include "libzip/zip.h"
 #include "Utils/File.h"
+#include "Utils/GUI.h"
 
 extern const unsigned char AASZip[];
 extern const unsigned int SizeOfAASZip;
 
-int main(int argc, char** argv)
+static void SetupGUI(GUIData* gui, void* userAppData)
 {
+    GridLayout(1, gui);
+    CreateText("Test:", "", gui);
+
+    GridLayout(4, gui);
+    CreateText("Test:", "", gui);
+    CreateText("Test:", "", gui);
+    CreateText("Test:", "", gui);
+    CreateText("Test:", "", gui);
+
+    GridLayout(1, gui);
+    CreateButton("Apply", (HMENU)1993, gui);
+    CreateText("Test:", "", gui);
+}
+
+static void ButtonMessage(UINT buttonID, GUIData* guiData, void* appData)
+{
+    switch (buttonID)
+    {
+    case 0:
+    {
+    //
+    }
+    }
+}
+
+int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR pCmdLine, int nCmdShow)
+{
+    int appData;
+    InitGUIWindow(SetupGUI, ButtonMessage, &appData, hInstance, "AASInstaller");
+    MSG msg = { };
+    while (GetMessage(&msg, NULL, 0, 0))
+    {
+        TranslateMessage(&msg);
+        DispatchMessage(&msg);
+    }
+    DeinitGUIWindow(hInstance, "AASInstaller");
+
     // Make temp dir
     char tempDir[256] = {};
     {

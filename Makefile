@@ -63,12 +63,13 @@ UPDATERLIBS = -l ws2_32 -l libzip -l zlib -l bcrypt
 INSTALLERLIBS = -l Gdi32 -l Comctl32
 
 AASASSETS = $(patsubst $(ROOTDIR)/Assets/AAS/%, $(AASBUILDDIR)/%, $(wildcard $(ROOTDIR)/Assets/AAS/*))
+INSTALLERASSETS = $(patsubst $(ROOTDIR)/Assets/Installer/%, $(INSTALLERBUILDDIR)/%, $(wildcard $(ROOTDIR)/Assets/Installer/*))
 
 # Do not make a non phony target depend on phony one, otherwise
 # the target will rebuild every time.
 .PHONY: default clean directories deploy
 
-ALLAAS := $(AASBUILDDIR)/AltAppSwitcher.exe
+ALLAAS = $(AASBUILDDIR)/AltAppSwitcher.exe
 ALLAAS += $(AASBUILDDIR)/Settings.exe
 ALLAAS += $(AASBUILDDIR)/Updater.exe
 ALLAAS += $(AASASSETS)
@@ -77,6 +78,7 @@ AASARCHIVE = $(BUILDDIR)/AltAppSwitcher_$(CONF)_$(ARCH).zip
 AASARCHIVEOBJ = $(INSTALLERBUILDDIR)/AASZip.o
 
 INSTALLER = $(INSTALLERBUILDDIR)/AltAppSwitcherInstaller.exe
+INSTALLER += $(INSTALLERASSETS)
 
 COMPILECOMMANDS = $(SOURCEDIR)/compile_commands.json
 
@@ -112,6 +114,10 @@ $(INSTALLERBUILDDIR)/AltAppSwitcherInstaller.exe: $(INSTALLEROBJECTS) $(AASARCHI
 
 # Assets:
 $(AASASSETS): $(AASBUILDDIR)/%: $(ROOTDIR)/Assets/AAS/%
+	python ./AAS.py Copy "$<" "$@"
+
+# Assets:
+$(INSTALLERASSETS): $(INSTALLERBUILDDIR)/%: $(ROOTDIR)/Assets/Installer/%
 	python ./AAS.py Copy "$<" "$@"
 
 # Make compile_command.json (clangd)
