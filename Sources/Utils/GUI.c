@@ -18,6 +18,37 @@ typedef struct EnumString
     unsigned int Value;
 } EnumString;
 
+typedef enum Alignment
+{
+    AlignementLeft,
+    AlignementCenter
+} Alignment;
+
+struct GUIData
+{
+    EnumBinding _EBindings[64];
+    unsigned int _EBindingCount;
+    FloatBinding _FBindings[64];
+    unsigned int _FBindingCount;
+    BoolBinding _BBindings[64];
+    unsigned int _BBindingCount;
+    HFONT _CurrentFont;
+    HFONT _Font;
+    HFONT _FontBold;
+    HBRUSH _Background;
+    HWND _Parent;
+    Cell _Cell;
+    int _Columns;
+    int _Column;
+    Alignment _Align;
+    bool _Close;
+};
+
+void CloseGUI(GUIData* gui)
+{
+    gui->_Close = true;
+}
+
 static void NextCell(GUIData* guiData)
 {
     guiData->_Column++;
@@ -59,16 +90,20 @@ void GridLayout(int columns, GUIData* guiData)
     guiData->_Cell._X = WIN_PAD;
 }
 
-void CreateText(const char* text, const char* tooltip, GUIData* guiData)
+HWND CreateText(const char* text, const char* tooltip, GUIData* guiData)
 {
+    int align = SS_LEFT;
+    if (guiData->_Align == AlignementCenter)
+        align = SS_CENTER;
     HINSTANCE inst = (HINSTANCE)GetWindowLongPtrA(guiData->_Parent, GWLP_HINSTANCE);
-    HWND label = CreateWindow(WC_STATIC, text,
-        WS_CHILD | WS_VISIBLE | SS_CENTER | SS_CENTERIMAGE | SS_NOTIFY, // notify needed to tooltip
+    HWND textWin = CreateWindow(WC_STATIC, text,
+        WS_CHILD | WS_VISIBLE | SS_CENTER | SS_NOTIFY | align,// notify needed to tooltip
         guiData->_Cell._X, guiData->_Cell._Y, guiData->_Cell._W, guiData->_Cell._H,
         guiData->_Parent, NULL, inst, NULL);
-    SendMessage(label, WM_SETFONT, (WPARAM)guiData->_Font, true);
-    CreateTooltip(guiData->_Parent, label, (char*)tooltip);
+    SendMessage(textWin, WM_SETFONT, (WPARAM)guiData->_CurrentFont, true);
+    CreateTooltip(guiData->_Parent, textWin, (char*)tooltip);
     NextCell(guiData);
+    return textWin;
 }
 
 void CreatePercentField(const char* tooltip, float* value, GUIData* guiData)
@@ -110,7 +145,7 @@ void CreateComboBox(const char* tooltip, unsigned int* value, const EnumString* 
     NextCell(guiData);
 }
 
-void CreateButton(const char* text, HMENU ID, GUIData* guiData)
+HWND CreateButton(const char* text, HMENU ID, GUIData* guiData)
 {
     HINSTANCE inst = (HINSTANCE)GetWindowLongPtrA(guiData->_Parent, GWLP_HINSTANCE);
     HWND button = CreateWindow(WC_BUTTON, text,
@@ -122,6 +157,7 @@ void CreateButton(const char* text, HMENU ID, GUIData* guiData)
     Button_GetIdealSize(button, &size);
     SetWindowPos(button, NULL, guiData->_Cell._X + guiData->_Cell._W / 2 - size.cx / 2, guiData->_Cell._Y, size.cx, guiData->_Cell._H, 0);
     NextCell(guiData);
+    return button;
 }
 
 void CreateBoolControl(const char* tooltip, bool* value, GUIData* guiData)
@@ -150,10 +186,12 @@ static void InitGUIData(GUIData* guiData, HWND parent)
     guiData->_Font = CreateFontIndirect(&metrics.lfCaptionFont);
     LOGFONT title = metrics.lfCaptionFont;
     title.lfWeight = FW_SEMIBOLD;
-    guiData->_FontTitle = CreateFontIndirect(&title);
+    guiData->_FontBold = CreateFontIndirect(&title);
+    guiData->_CurrentFont = guiData->_Font;
     COLORREF col = LIGHT_COLOR;
     guiData->_Background = CreateSolidBrush(col);
     guiData->_Parent = parent;
+    guiData->_Align = AlignementCenter;
     {
         HWND combobox = CreateWindow(WC_COMBOBOX, "Combobox",
             CBS_DROPDOWNLIST | CBS_HASSTRINGS | WS_CHILD | WS_VISIBLE,
@@ -178,10 +216,10 @@ static void InitGUIData(GUIData* guiData, HWND parent)
 static void DeleteGUIData(GUIData* guiData)
 {
     DeleteFont(guiData->_Font);
-    DeleteFont(guiData->_FontTitle);
+    DeleteFont(guiData->_FontBold);
     DeleteBrush(guiData->_Background);
     guiData->_Font = NULL;
-    guiData->_FontTitle = NULL;
+    guiData->_FontBold = NULL;
     guiData->_Background = NULL;
 }
 
@@ -265,6 +303,8 @@ static LRESULT GUIWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
         {
             userData->_ButtonMessage(LOWORD(wParam), &guiData, userData->_Data);
         }
+        if (guiData._Close)
+            PostQuitMessage(0);
         return 0;
     }
     case WM_CTLCOLOREDIT:
@@ -277,7 +317,32 @@ static LRESULT GUIWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
     return DefWindowProc(hwnd, uMsg, wParam, lParam);
 }
 
-void InitGUIWindow(void (*setupGUI)(GUIData*, void*),
+void SetBoldFont(GUIData* gui)
+{
+    gui->_CurrentFont = gui->_FontBold;
+}
+
+void SetNormalFont(GUIData* gui)
+{
+    gui->_CurrentFont = gui->_Font;
+}
+
+void AlignLeft(GUIData* gui)
+{
+    gui->_Align = AlignementLeft;
+}
+
+void AlignCenter(GUIData* gui)
+{
+    gui->_Align = AlignementCenter;
+}
+
+void WhiteSpace(GUIData* gui)
+{
+    NextCell(gui);
+}
+
+void GUIWindow(void (*setupGUI)(GUIData*, void*),
     void (*buttonMessage)(UINT, GUIData*, void*),
     void* userAppData,
     HANDLE instance, const char* className)
@@ -311,12 +376,14 @@ void InitGUIWindow(void (*setupGUI)(GUIData*, void*),
         winStyle,
         0, 0, 0, 0,
         NULL, NULL, instance, (LPVOID)userData);
-}
 
-void DeinitGUIWindow(HANDLE instance, const char* className)
-{
-    WNDCLASS wc;
-    GetClassInfo(instance, className, &wc);
-    DeleteBrush(wc.hbrBackground);
+    MSG msg = { };
+    while (GetMessage(&msg, NULL, 0, 0))
+    {
+        TranslateMessage(&msg);
+        DispatchMessage(&msg);
+    }
+
+    DeleteBrush(bkg);
     UnregisterClass(className, instance);
 }

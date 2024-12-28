@@ -3,6 +3,7 @@
 #include <dirent.h>
 #include <ftw.h>
 #include <windows.h>
+#include <shlobj.h>
 #include "libzip/zip.h"
 #include "Utils/File.h"
 #include "Utils/GUI.h"
@@ -10,44 +11,51 @@
 extern const unsigned char AASZip[];
 extern const unsigned int SizeOfAASZip;
 
-static void SetupGUI(GUIData* gui, void* userAppData)
+typedef struct AppData
 {
-    GridLayout(1, gui);
-    CreateText("Test:", "", gui);
+    char _InstallPath[256];
+    HWND _InstallPathText;
+} AppData;
 
-    GridLayout(4, gui);
-    CreateText("Test:", "", gui);
-    CreateText("Test:", "", gui);
-    CreateText("Test:", "", gui);
-    CreateText("Test:", "", gui);
-
+static void SetupGUI(GUIData* gui, void* userData)
+{
+    AppData* ad = (AppData*)userData;
     GridLayout(1, gui);
-    CreateButton("Apply", (HMENU)1993, gui);
-    CreateText("Test:", "", gui);
+    SetBoldFont(gui);
+    CreateText("Installation directory:", "", gui);
+    SetNormalFont(gui);
+    ad->_InstallPathText = CreateText(ad->_InstallPath, "", gui);
+    CreateButton("Set directory", (HMENU)0, gui);
+    WhiteSpace(gui);
+    CreateButton("Install", (HMENU)1, gui);
 }
 
-static void ButtonMessage(UINT buttonID, GUIData* guiData, void* appData)
+static void ButtonMessage(UINT buttonID, GUIData* guiData, void* userData)
 {
+    AppData* ad = (AppData*)userData;
     switch (buttonID)
     {
     case 0:
     {
-    //
+        BROWSEINFO bi = {};
+        LPITEMIDLIST item = SHBrowseForFolder(&bi);
+        SHGetPathFromIDList(item, ad->_InstallPath);
+        SendMessage(ad->_InstallPathText, WM_SETTEXT, 0, (LPARAM)ad->_InstallPath);
+        break;
+    }
+    case 1:
+    {
+        CloseGUI(guiData);
+        break;
     }
     }
 }
 
 int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR pCmdLine, int nCmdShow)
 {
-    int appData;
-    InitGUIWindow(SetupGUI, ButtonMessage, &appData, hInstance, "AASInstaller");
-    MSG msg = { };
-    while (GetMessage(&msg, NULL, 0, 0))
-    {
-        TranslateMessage(&msg);
-        DispatchMessage(&msg);
-    }
-    DeinitGUIWindow(hInstance, "AASInstaller");
+    AppData appData = {};
+    strcpy(appData._InstallPath, "default");
+    GUIWindow(SetupGUI, ButtonMessage, &appData, hInstance, "AASInstaller");
 
     // Make temp dir
     char tempDir[256] = {};

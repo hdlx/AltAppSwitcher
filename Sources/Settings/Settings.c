@@ -108,13 +108,6 @@ static void ButtonMessage(UINT buttonID, GUIData* guiData, void* userData)
 int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR pCmdLine, int nCmdShow)
 {
     Config config = {};
-    InitGUIWindow(SetupGUI, ButtonMessage, (void*)&config, hInstance, "AASSettings");
-    MSG msg = { };
-    while (GetMessage(&msg, NULL, 0, 0))
-    {
-        TranslateMessage(&msg);
-        DispatchMessage(&msg);
-    }
-    DeinitGUIWindow(hInstance, "AASSettings");
+    GUIWindow(SetupGUI, ButtonMessage, (void*)&config, hInstance, "AASSettings");
     return 0;
 }
