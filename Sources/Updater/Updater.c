@@ -53,7 +53,7 @@ static void DownloadInstaller(SOCKET sock, int major, int minor, const char* dst
 #endif
 
     char msg[512] = {};
-    sprintf(msg, "GET /aasinstaller_%i_%i/AltAppSwitcherInstaller_%s.exe HTTP/1.1\r\nHost: www.hamtarodeluxe.com\r\n\r\n", major, minor, arch);
+    sprintf(msg, "GET /aasinstaller-%i-%i/AltAppSwitcherInstaller_%s.exe HTTP/1.1\r\nHost: www.hamtarodeluxe.com\r\n\r\n", major, minor, arch);
 
     if (SOCKET_ERROR == send(sock, msg, strlen(msg), 0))
     {
@@ -64,9 +64,9 @@ static void DownloadInstaller(SOCKET sock, int major, int minor, const char* dst
 
     int fileSize = 0;
     {
-        char response[1024];
-        memset(response, '\0', sizeof(response));
-        char* p = response + 4;
+        char buf[1024];
+        memset(buf, '\0', sizeof(buf));
+        char* p = buf + 4;
         while (1)
         {
             if (SOCKET_ERROR == recv(sock, p, 1, 0))
@@ -75,12 +75,14 @@ static void DownloadInstaller(SOCKET sock, int major, int minor, const char* dst
                 break;
             p++;
         }
-        p = response + 4;
+        p = buf + 4;
         // printf("%s", p);
+        ASSERT(strstr(p, "404 Not Found") == NULL);
         char* at = strstr(p, "content-length");
         if (at == NULL)
             return;
-        sscanf(at, "content-length: %i", &fileSize);
+        const int ret = sscanf(at, "content-length: %i", &fileSize);
+        ASSERT(ret != -1);
         ASSERT(fileSize > 0)
     }
 

@@ -36,7 +36,7 @@ ifeq ($(CONF), Debug)
 CFLAGS += -g3
 else
 CFLAGS += -O3
-CFLAGS += -mwindows
+LFLAGS += -mwindows
 LFLAGS += -s
 endif
 
