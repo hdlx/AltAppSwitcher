@@ -11,9 +11,7 @@
 #include <winbase.h>
 #include "Utils/File.h"
 #include "Utils/Error.h"
-
-#define MAJOR 0
-#define MINOR 21
+#include "Utils/Version.h"
 
 static void GetAASVersion(int* major, int* minor, SOCKET sock)
 {
@@ -205,6 +203,7 @@ int main()
 
     close(sock);
     WSACleanup();
+
 
     char args[512] = {};
     char currDir[256] = {};

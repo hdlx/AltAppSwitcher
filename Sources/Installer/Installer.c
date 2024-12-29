@@ -9,6 +9,7 @@
 #include "Utils/GUI.h"
 #include "Utils/Error.h"
 #include "Utils/Message.h"
+#include "Utils/Version.h"
 
 extern const unsigned char AASZip[];
 extern const unsigned int SizeOfAASZip;
@@ -161,6 +162,21 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR pCmdLine,
     }
 
     DeleteTree(tempDir);
+
+    char msg[256] = {};
+    if (update)
+    {
+        sprintf(msg,
+            "AltAppSwitcher successfully updated to %u.%u",
+            MAJOR, MINOR);
+    }
+    else
+    {
+        sprintf(msg,
+            "AltAppSwitcher %u.%u successfully installed.",
+            MAJOR, MINOR);
+    }
+    MessageBox(0, msg, "AltAppSwitcher", MB_OK);
 
     {
         char AASExe[256] = {};
