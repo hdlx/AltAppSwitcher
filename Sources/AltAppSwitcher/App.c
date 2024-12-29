@@ -207,7 +207,7 @@ static void InitGraphicsResources(SGraphicsResources* pRes, const Config* config
         // Colorref do not support alpha and high order bits MUST be 00
         // This is different from gdip "ARGB" type
         COLORREF darkColor = 0x002C2C2C;
-        COLORREF lightColor = 0x00F3FF1F;
+        COLORREF lightColor = 0x00FFFFFF;
         pRes->_LightTheme = lightTheme;
         if (lightTheme)
         {
