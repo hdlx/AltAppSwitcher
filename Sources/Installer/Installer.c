@@ -7,6 +7,7 @@
 #include "libzip/zip.h"
 #include "Utils/File.h"
 #include "Utils/GUI.h"
+#include "Utils/Error.h"
 
 extern const unsigned char AASZip[];
 extern const unsigned int SizeOfAASZip;
@@ -58,17 +59,43 @@ static void ButtonMessage(UINT buttonID, GUIData* guiData, void* userData)
 
 int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR pCmdLine, int nCmdShow)
 {
-    AppData appData = {};
-    SHGetSpecialFolderPath(
-            0,
-            appData._InstallPath,
-            CSIDL_PROGRAM_FILES,
-            FALSE);
-    strcat(appData._InstallPath, "\\AltAppSwitcher");
-    GUIWindow(SetupGUI, ButtonMessage, &appData, hInstance, "AASInstaller");
+    char installPath[256] = {};
+    bool update = false;
+    {
+        int i = 0;
+        while (i < __argc)
+        {
+            if (!strcmp(__argv[i], "--update"))
+            {
+                update = true;
+                i++;
+                continue;
+            }
+            else if (!strcmp(__argv[i], "--installPath"))
+            {
+                ASSERT(i + 1 < __argc)
+                strcpy(installPath, __argv[i + 1]);
+                i += 2;
+                continue;
+            }
+            i++;
+        }
+    }
 
-    if (!appData._Install)
-        return 0;
+    if (!update)
+    {
+        AppData appData = {};
+        SHGetSpecialFolderPath(
+                0,
+                appData._InstallPath,
+                CSIDL_PROGRAM_FILES,
+                FALSE);
+        strcat(appData._InstallPath, "\\AltAppSwitcher");
+        GUIWindow(SetupGUI, ButtonMessage, &appData, hInstance, "AASInstaller");
+        if (!appData._Install)
+            return 0;
+        strcpy(installPath, appData._InstallPath);
+    }
 
     // Make temp dir
     char tempDir[256] = {};
@@ -95,9 +122,9 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR pCmdLine,
         fclose(file);
     }
 
-    DIR* dir = opendir(appData._InstallPath);
+    DIR* dir = opendir(installPath);
     if (!dir)
-        mkdir(appData._InstallPath);
+        mkdir(installPath);
     else
         closedir(dir);
 
@@ -109,10 +136,10 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR pCmdLine,
         {
             struct zip_stat zs = {};
             zip_stat_index(z, i, 0, &zs);
-            printf("Name: [%s], ", zs.name);
+            // printf("Name: [%s], ", zs.name);
             struct zip_file* zf = zip_fopen_index(z, i, 0);
             char dstPath[256] = {};
-            strcpy(dstPath, appData._InstallPath);
+            strcpy(dstPath, installPath);
             strcat(dstPath, "/");
             strcat(dstPath, zs.name);
             FILE* dstFile = fopen(dstPath, "wb");
@@ -128,5 +155,6 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR pCmdLine,
         }
     }
 
+    DeleteTree(tempDir);
     return 0;
 }

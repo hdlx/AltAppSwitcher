@@ -42,12 +42,11 @@ static void DownloadLatest(SOCKET sock, const char* dstFile)
 {
     const char message[] =
 #if defined(ARCH_x86_64)
-       "GET /aasarchives/AltAppSwitcher_x86_64.zip HTTP/1.1\r\nHost: www.hamtarodeluxe.com\r\n\r\n";
+       "GET /latestInstaller/AltAppSwitcherInstaller_x86_64.exe HTTP/1.1\r\nHost: www.hamtarodeluxe.com\r\n\r\n";
 #elif defined(ARCH_aarch64)
-       "GET /aasarchives/AltAppSwitcher_aarch64.zip HTTP/1.1\r\nHost: www.hamtarodeluxe.com\r\n\r\n";
+       "GET /latestInstaller/AltAppSwitcherInstaller_aarch64.exe HTTP/1.1\r\nHost: www.hamtarodeluxe.com\r\n\r\n";
 #else
-       "GET /aasarchives/AltAppSwitcher_x86_64.zip HTTP/1.1\r\nHost: www.hamtarodeluxe.com\r\n\r\n";
-// #error
+#error
 #endif
 
     if (SOCKET_ERROR == send(sock, message, strlen(message), 0))

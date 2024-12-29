@@ -1,38 +1,28 @@
 #define COBJMACROS
 #include <stdio.h>
 #include <string.h>
-#include <time.h>
 #include <vsstyle.h>
 #include <wchar.h>
 #include <windef.h>
 #include <windows.h>
-#include <tlhelp32.h>
 #include <stdbool.h>
 #include <stdint.h>
 #include <psapi.h>
 #include <dwmapi.h>
 #include <winnt.h>
 #include <winscard.h>
-#include <winuser.h>
 #include <processthreadsapi.h>
 #include <gdiplus.h>
 #include <appmodel.h>
 #include <shlwapi.h>
 #include <winreg.h>
-#include <stdlib.h>
 #include <windowsx.h>
-#include <combaseapi.h>
-#include <initguid.h>
-#include <Shellapi.h>
-#include <commoncontrols.h>
-#include <Shobjidl.h>
-#include <objidl.h>
-#include <Unknwn.h>
 #include <unistd.h>
 #include "AppxPackaging.h"
 #undef COBJMACROS
 #include "Config/Config.h"
 #include "Utils/Error.h"
+#include "Utils/MessageDef.h"
 LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam);
 
 #define MEM_INIT(ARG) memset(&ARG, 0,  sizeof(ARG))

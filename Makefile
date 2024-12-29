@@ -54,7 +54,8 @@ UPDATEROBJECTS = $(filter $(OBJDIR)/Updater/%, $(ALLOBJECTS))
 INSTALLEROBJECTS = $(filter $(OBJDIR)/Installer/%, $(ALLOBJECTS))
 ERROROBJECTS = $(filter $(OBJDIR)/Utils/Error%, $(ALLOBJECTS))
 FILEOBJECTS = $(filter $(OBJDIR)/Utils/File%, $(ALLOBJECTS))
-COMMONOBJECTS = $(ERROROBJECTS) $(FILEOBJECTS)
+MSGOBJECTS = $(filter $(OBJDIR)/Utils/Message%, $(ALLOBJECTS))
+COMMONOBJECTS = $(ERROROBJECTS) $(FILEOBJECTS) $(MSGOBJECTS)
 GUIOBJECTS = $(filter $(OBJDIR)/Utils/GUI%, $(ALLOBJECTS))
 
 AASLIBS = -l dwmapi -l User32 -l Gdi32 -l Gdiplus -l shlwapi -l pthread -l Ole32 -l Comctl32
@@ -74,25 +75,30 @@ ALLAAS += $(AASBUILDDIR)/Settings.exe
 ALLAAS += $(AASBUILDDIR)/Updater.exe
 ALLAAS += $(AASASSETS)
 
-AASARCHIVE = $(BUILDDIR)/AltAppSwitcher_$(CONF)_$(ARCH).zip
-AASARCHIVEOBJ = $(INSTALLERBUILDDIR)/AASZip.o
+AASARCHIVE = $(BUILDDIR)/Deploy/AltAppSwitcher_$(CONF)_$(ARCH).zip
+INSTALLERDEPLOY = $(BUILDDIR)/Deploy/AltAppSwitcherInstaller_$(CONF)_$(ARCH).exe
 
-INSTALLER = $(INSTALLERBUILDDIR)/AltAppSwitcherInstaller.exe
+INSTALLER = $(INSTALLERBUILDDIR)/Installer.exe
 INSTALLER += $(INSTALLERASSETS)
 
 COMPILECOMMANDS = $(SOURCEDIR)/compile_commands.json
 
 default: directories $(ALLAAS) $(INSTALLER) $(COMPILECOMMANDS)
 
-deploy: default $(AASARCHIVE)
+deploy: default $(AASARCHIVE) $(INSTALLERDEPLOY)
 
 # Directory targets:
 directories:
 	python ./AAS.py MakeDirs $(CONF) $(ARCH)
 
-# Archive targets:
-$(AASARCHIVE): $(ALL)
+# Deploy targets:
+$(AASARCHIVE): $(ALLAAS)
 	python ./AAS.py MakeArchive $(BUILDDIR)/AAS $@
+
+$(INSTALLERDEPLOY): $(INSTALLER)
+	python ./AAS.py Copy $< $@
+	python ./AAS.py Copy $<.manifest $@.manifest
+	python ./AAS.py EmbedManifest $@
 
 # Compile object targets:
 # see 4.12.1 Syntax of Static Pattern Rules
@@ -109,14 +115,13 @@ $(AASBUILDDIR)/Settings.exe: $(SETTINGSOBJECTS) $(CONFIGOBJECTS) $(COMMONOBJECTS
 $(AASBUILDDIR)/Updater.exe: $(UPDATEROBJECTS) $(COMMONOBJECTS)
 	$(CC) $(LFLAGS) $(LDIRS) $(UPDATERLIBS) $^ -o $@
 
-$(INSTALLERBUILDDIR)/AltAppSwitcherInstaller.exe: $(INSTALLEROBJECTS) $(AASARCHIVEOBJ) $(COMMONOBJECTS) $(GUIOBJECTS)
+$(INSTALLERBUILDDIR)/Installer.exe: $(INSTALLEROBJECTS) $(INSTALLERBUILDDIR)/AASZip.o $(COMMONOBJECTS) $(GUIOBJECTS)
 	$(CC) $(LFLAGS) $(LDIRS) $(INSTALLERLIBS) $^ -o $@
 
 # Assets:
 $(AASASSETS): $(AASBUILDDIR)/%: $(ROOTDIR)/Assets/AAS/%
 	python ./AAS.py Copy "$<" "$@"
 
-# Assets:
 $(INSTALLERASSETS): $(INSTALLERBUILDDIR)/%: $(ROOTDIR)/Assets/Installer/%
 	python ./AAS.py Copy "$<" "$@"
 
@@ -125,8 +130,8 @@ $(SOURCEDIR)/compile_commands.json: $(ALLOBJECTS)
 	python ./AAS.py MakeCompileCommands $@ $(subst .o,.o.json, $^)
 
 # Make archive obj.
-$(AASARCHIVEOBJ): $(AASARCHIVE)
-	python ./AAS.py BinToC $^ $(INSTALLERBUILDDIR)/AASZip.c
+$(INSTALLERBUILDDIR)/AASZip.o: $(AASARCHIVE)
+	python ./AAS.py BinToC $< $(INSTALLERBUILDDIR)/AASZip.c
 	$(CC) $(CFLAGS) -c $(INSTALLERBUILDDIR)/AASZip.c -o $@
 
 # Other targets:

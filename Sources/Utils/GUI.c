@@ -12,6 +12,30 @@
 #define LIGHT_COLOR 0x00FFFFFF
 #define WIDTH 400
 
+typedef struct EnumBinding
+{
+    unsigned int* _TargetValue;
+    HWND _ComboBox;
+    const EnumString* _EnumStrings;
+} EnumBinding;
+
+typedef struct FloatBinding
+{
+    float* _TargetValue;
+    HWND _Field;
+} FloatBinding;
+
+typedef struct BoolBinding
+{
+    bool* _TargetValue;
+    HWND _CheckBox;
+} BoolBinding;
+
+typedef struct Cell
+{
+    int _X, _Y, _W, _H;
+} Cell;
+
 typedef struct EnumString
 {
     const char* Name;

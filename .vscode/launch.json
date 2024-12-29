@@ -34,7 +34,7 @@
 			"type": "lldb",
 			"request": "launch",
 			"name": "Installer x86_64",
-			"program": "${workspaceFolder}/Output/Debug_x86_64/Installer/AltAppSwitcherInstaller.exe",
+			"program": "${workspaceFolder}/Output/Debug_x86_64/Installer/Installer.exe",
 			"args": [],
 			"preLaunchTask": "Build x86_64 Debug",
 			"cwd": "${workspaceFolder}/Output/Debug_x86_64/Installer",
