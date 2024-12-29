@@ -176,7 +176,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR pCmdLine,
             "AltAppSwitcher %u.%u successfully installed.",
             MAJOR, MINOR);
     }
-    MessageBox(0, msg, "AltAppSwitcher", MB_OK);
+    MessageBox(0, msg, "AltAppSwitcher", MB_OK | MB_SETFOREGROUND);
 
     {
         char AASExe[256] = {};
