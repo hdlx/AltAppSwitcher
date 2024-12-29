@@ -44,7 +44,7 @@ To deploy (Makefile `deploy` target), we need Microsoft's `mt.exe`. This tool is
 ### Building:
 - Clone the repository.
 - Open a terminal at the root of the repository.
-- run `mingw32-make.exe` (MinGW make must be used)
+- Run `mingw32-make.exe` (MinGW make must be used)
 - Binaries are found in `/Output/Debug_x86_64`
 ### Debugging:
 I'm using VSCodium/VSCode to write and debug code, with 2 extensions:
