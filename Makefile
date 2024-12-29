@@ -29,61 +29,76 @@ INCLUDEDIR = $(ROOTDIR)/Sources
 CC = $(ARCH)-w64-mingw32-clang
 IDIRS = -I $(ROOTDIR)/SDK/headers -I $(ROOTDIR)/Sources
 LDIRS = -L $(LIBDIR)
-LFLAGS = -mwindows -static -static-libgcc -Werror
+LFLAGS = -static -static-libgcc -Werror
 CFLAGS = -Wall -D ARCH_$(ARCH)=1 -target $(ARCH)-mingw64 -Werror
 
 ifeq ($(CONF), Debug)
-    CFLAGS += -g3
+CFLAGS += -g3
 else
-    CFLAGS += -O3
-    LFLAGS += -s
+CFLAGS += -O3
+CFLAGS += -mwindows
+LFLAGS += -s
 endif
 
 SDKHEADERS = $(wildcard $(SDKDIR)/**/*.h) $(wildcard $(SDKDIR)/*.h) 
 SOURCEHEADERS = $(wildcard $(SOURCEDIR)/**/*.h) $(wildcard $(SOURCEDIR)/*.h) 
 
+# Objects:
+# All, for compilation.
 ALLOBJECTS = $(patsubst $(SOURCEDIR)/%.c, $(OBJDIR)/%.o, $(wildcard $(SOURCEDIR)/**/*.c))
-
+# Subsets, for link.
 AASOBJECTS = $(filter $(OBJDIR)/AltAppSwitcher/%, $(ALLOBJECTS))
 CONFIGOBJECTS = $(filter $(OBJDIR)/Config/%, $(ALLOBJECTS))
 SETTINGSOBJECTS = $(filter $(OBJDIR)/Settings/%, $(ALLOBJECTS))
 UPDATEROBJECTS = $(filter $(OBJDIR)/Updater/%, $(ALLOBJECTS))
 INSTALLEROBJECTS = $(filter $(OBJDIR)/Installer/%, $(ALLOBJECTS))
-UTILSOBJECTS = $(filter $(OBJDIR)/Utils/%, $(ALLOBJECTS))
+ERROROBJECTS = $(filter $(OBJDIR)/Utils/Error%, $(ALLOBJECTS))
+FILEOBJECTS = $(filter $(OBJDIR)/Utils/File%, $(ALLOBJECTS))
+MSGOBJECTS = $(filter $(OBJDIR)/Utils/Message%, $(ALLOBJECTS))
+COMMONOBJECTS = $(ERROROBJECTS) $(FILEOBJECTS) $(MSGOBJECTS)
+GUIOBJECTS = $(filter $(OBJDIR)/Utils/GUI%, $(ALLOBJECTS))
 
 AASLIBS = -l dwmapi -l User32 -l Gdi32 -l Gdiplus -l shlwapi -l pthread -l Ole32 -l Comctl32
-SETTINGSLIB = -l Comctl32
-UPDATERLIBS = -l ws2_32 -l libzip -l zlib -l bcrypt
+SETTINGSLIB = -l Comctl32 -l Gdi32
+UPDATERLIBS = -l ws2_32
+INSTALLERLIBS = -l Gdi32 -l Comctl32 -l libzip -l zlib -l bcrypt
 
 AASASSETS = $(patsubst $(ROOTDIR)/Assets/AAS/%, $(AASBUILDDIR)/%, $(wildcard $(ROOTDIR)/Assets/AAS/*))
+INSTALLERASSETS = $(patsubst $(ROOTDIR)/Assets/Installer/%, $(INSTALLERBUILDDIR)/%, $(wildcard $(ROOTDIR)/Assets/Installer/*))
 
 # Do not make a non phony target depend on phony one, otherwise
-# it will rebuild every time.
+# the target will rebuild every time.
 .PHONY: default clean directories deploy
 
-ALLAAS := $(AASBUILDDIR)/AltAppSwitcher.exe
+ALLAAS = $(AASBUILDDIR)/AltAppSwitcher.exe
 ALLAAS += $(AASBUILDDIR)/Settings.exe
 ALLAAS += $(AASBUILDDIR)/Updater.exe
 ALLAAS += $(AASASSETS)
 
-AASARCHIVE = $(BUILDDIR)/AltAppSwitcher_$(CONF)_$(ARCH).zip
-AASARCHIVEOBJ = $(INSTALLERBUILDDIR)/AASZip.o
+AASARCHIVE = $(BUILDDIR)/Deploy/AltAppSwitcher_$(ARCH).zip
+INSTALLERDEPLOY = $(BUILDDIR)/Deploy/AltAppSwitcherInstaller_$(ARCH).exe
 
-INSTALLER = $(INSTALLERBUILDDIR)/AltAppSwitcherInstaller.exe
+INSTALLER = $(INSTALLERBUILDDIR)/Installer.exe
+INSTALLER += $(INSTALLERASSETS)
 
 COMPILECOMMANDS = $(SOURCEDIR)/compile_commands.json
 
 default: directories $(ALLAAS) $(INSTALLER) $(COMPILECOMMANDS)
 
-deploy: default $(AASARCHIVE)
+deploy: default $(AASARCHIVE) $(INSTALLERDEPLOY)
 
 # Directory targets:
 directories:
 	python ./AAS.py MakeDirs $(CONF) $(ARCH)
 
-# Archive targets:
-$(AASARCHIVE): $(ALL)
+# Deploy targets:
+$(AASARCHIVE): $(ALLAAS)
 	python ./AAS.py MakeArchive $(BUILDDIR)/AAS $@
+
+$(INSTALLERDEPLOY): $(INSTALLER)
+	python ./AAS.py Copy $< $@
+	python ./AAS.py Copy $<.manifest $@.manifest
+	python ./AAS.py EmbedManifest $@
 
 # Compile object targets:
 # see 4.12.1 Syntax of Static Pattern Rules
@@ -91,20 +106,23 @@ $(ALLOBJECTS): $(OBJDIR)/%.o: $(SOURCEDIR)/%.c $(SDKHEADERS) $(SOURCEHEADERS)
 	$(CC) $(CFLAGS) $(IDIRS) -MJ $@.json -c $< -o $@
 
 # Build exe targets (link):
-$(AASBUILDDIR)/AltAppSwitcher.exe: $(AASOBJECTS) $(CONFIGOBJECTS) $(UTILSOBJECTS)
+$(AASBUILDDIR)/AltAppSwitcher.exe: $(AASOBJECTS) $(CONFIGOBJECTS) $(COMMONOBJECTS)
 	$(CC) $(LFLAGS) $(LDIRS) $(AASLIBS) $^ -o $@
 
-$(AASBUILDDIR)/Settings.exe: $(SETTINGSOBJECTS) $(CONFIGOBJECTS) $(UTILSOBJECTS)
+$(AASBUILDDIR)/Settings.exe: $(SETTINGSOBJECTS) $(CONFIGOBJECTS) $(COMMONOBJECTS) $(GUIOBJECTS)
 	$(CC) $(LFLAGS) $(LDIRS) $(SETTINGSLIB) $^ -o $@
 
-$(AASBUILDDIR)/Updater.exe: $(UPDATEROBJECTS) $(UTILSOBJECTS)
+$(AASBUILDDIR)/Updater.exe: $(UPDATEROBJECTS) $(COMMONOBJECTS)
 	$(CC) $(LFLAGS) $(LDIRS) $(UPDATERLIBS) $^ -o $@
 
-$(INSTALLERBUILDDIR)/AltAppSwitcherInstaller.exe: $(INSTALLEROBJECTS) $(AASARCHIVEOBJ) $(UTILSOBJECTS)
-	$(CC) $(LFLAGS) $(LDIRS) $(UPDATERLIBS) $^ -o $@
+$(INSTALLERBUILDDIR)/Installer.exe: $(INSTALLEROBJECTS) $(INSTALLERBUILDDIR)/AASZip.o $(COMMONOBJECTS) $(GUIOBJECTS)
+	$(CC) $(LFLAGS) $(LDIRS) $(INSTALLERLIBS) $^ -o $@
 
 # Assets:
 $(AASASSETS): $(AASBUILDDIR)/%: $(ROOTDIR)/Assets/AAS/%
+	python ./AAS.py Copy "$<" "$@"
+
+$(INSTALLERASSETS): $(INSTALLERBUILDDIR)/%: $(ROOTDIR)/Assets/Installer/%
 	python ./AAS.py Copy "$<" "$@"
 
 # Make compile_command.json (clangd)
@@ -112,8 +130,8 @@ $(SOURCEDIR)/compile_commands.json: $(ALLOBJECTS)
 	python ./AAS.py MakeCompileCommands $@ $(subst .o,.o.json, $^)
 
 # Make archive obj.
-$(AASARCHIVEOBJ): $(AASARCHIVE)
-	python ./AAS.py BinToC $^ $(INSTALLERBUILDDIR)/AASZip.c
+$(INSTALLERBUILDDIR)/AASZip.o: $(AASARCHIVE)
+	python ./AAS.py BinToC $< $(INSTALLERBUILDDIR)/AASZip.c
 	$(CC) $(CFLAGS) -c $(INSTALLERBUILDDIR)/AASZip.c -o $@
 
 # Other targets:

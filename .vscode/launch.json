@@ -3,39 +3,41 @@
 		{
 			"type": "lldb",
 			"request": "launch",
-			"name": "Build and debug AAS x86_64",
-			"program": "${workspaceFolder}/Output/Debug_x86_64/AltAppSwitcher.exe",
+			"name": "AAS x86_64",
+			"program": "${workspaceFolder}/Output/Debug_x86_64/AAS/AltAppSwitcher.exe",
 			"args": [],
-			"cwd": "${workspaceFolder}/Output/Debug_x86_64",
+			"cwd": "${workspaceFolder}/Output/Debug_x86_64/AAS",
 			"preLaunchTask": "Build x86_64 Debug",
 			"console": "integratedTerminal"
 		},
 		{
 			"type": "lldb",
 			"request": "launch",
-			"name": "Debug AAS x86_64",
-			"program": "${workspaceFolder}/Output/Debug_x86_64/AltAppSwitcher.exe",
+			"name": "Settings x86_64",
+			"program": "${workspaceFolder}/Output/Debug_x86_64/AAS/Settings.exe",
 			"args": [],
-			"cwd": "${workspaceFolder}/Output/Debug_x86_64",
+			"cwd": "${workspaceFolder}/Output/Debug_x86_64/AAS",
+			"preLaunchTask": "Build x86_64 Debug",
 			"console": "integratedTerminal"
 		},
 		{
 			"type": "lldb",
 			"request": "launch",
-			"name": "Debug Settings x86_64",
-			"program": "${workspaceFolder}/Output/Debug_x86_64/Settings.exe",
-			"args": [],
-			"cwd": "${workspaceFolder}/Output/Debug_x86_64",
-			"console": "integratedTerminal"
-		},
-		{
-			"type": "lldb",
-			"request": "launch",
-			"name": "Build and debug Updater x86_64",
-			"program": "${workspaceFolder}/Output/Debug_x86_64/Updater.exe",
+			"name": "Updater x86_64",
+			"program": "${workspaceFolder}/Output/Debug_x86_64/AAS/Updater.exe",
 			"args": [],
 			"preLaunchTask": "Build x86_64 Debug",
-			"cwd": "${workspaceFolder}/Output/Debug_x86_64",
+			"cwd": "${workspaceFolder}/Output/Debug_x86_64/AAS",
+			"console": "integratedTerminal"
+		},
+		{
+			"type": "lldb",
+			"request": "launch",
+			"name": "Installer x86_64",
+			"program": "${workspaceFolder}/Output/Debug_x86_64/Installer/Installer.exe",
+			"args": [],
+			"preLaunchTask": "Build x86_64 Debug",
+			"cwd": "${workspaceFolder}/Output/Debug_x86_64/Installer",
 			"console": "integratedTerminal"
 		}
 	]

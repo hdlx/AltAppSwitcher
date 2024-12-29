@@ -20,6 +20,15 @@ void StrBToF(char* str)
     }
 }
 
+void StrFToB(char* str)
+{
+    while (*str++ != '\0')
+    {
+        if (*str == '/')
+            *str = '\\';
+    }
+}
+
 void DeleteTree(const char* dir)
 {
     nftw(dir, DeleteForFtw, 0, FTW_DEPTH);

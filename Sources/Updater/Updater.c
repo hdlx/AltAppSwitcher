@@ -7,10 +7,13 @@
 #include <ws2tcpip.h>
 #include <fileapi.h>
 #include <dirent.h>
+#include <shellapi.h>
+#include <winbase.h>
 #include "Utils/File.h"
+#include "Utils/Error.h"
 
 #define MAJOR 0
-#define MINOR 19
+#define MINOR 21
 
 static void GetAASVersion(int* major, int* minor, SOCKET sock)
 {
@@ -38,19 +41,21 @@ static void GetAASVersion(int* major, int* minor, SOCKET sock)
     return;
 }
 
-static void DownloadLatest(SOCKET sock, const char* dstFile)
+static void DownloadInstaller(SOCKET sock, int major, int minor, const char* dstFile)
 {
-    const char message[] =
+    const char arch[] =
 #if defined(ARCH_x86_64)
-       "GET /aasarchives/AltAppSwitcher_x86_64.zip HTTP/1.1\r\nHost: www.hamtarodeluxe.com\r\n\r\n";
+       "x86_64";
 #elif defined(ARCH_aarch64)
-       "GET /aasarchives/AltAppSwitcher_aarch64.zip HTTP/1.1\r\nHost: www.hamtarodeluxe.com\r\n\r\n";
+       "aarch64";
 #else
-       "GET /aasarchives/AltAppSwitcher_x86_64.zip HTTP/1.1\r\nHost: www.hamtarodeluxe.com\r\n\r\n";
-// #error
+#error
 #endif
 
-    if (SOCKET_ERROR == send(sock, message, strlen(message), 0))
+    char msg[512] = {};
+    sprintf(msg, "GET /aasinstaller_%i_%i/AltAppSwitcherInstaller_%s.exe HTTP/1.1\r\nHost: www.hamtarodeluxe.com\r\n\r\n", major, minor, arch);
+
+    if (SOCKET_ERROR == send(sock, msg, strlen(msg), 0))
     {
         close(sock);
         WSACleanup();
@@ -76,6 +81,7 @@ static void DownloadLatest(SOCKET sock, const char* dstFile)
         if (at == NULL)
             return;
         sscanf(at, "content-length: %i", &fileSize);
+        ASSERT(fileSize > 0)
     }
 
     int bytes = 0;
@@ -190,15 +196,20 @@ int main()
         mkdir(tempDir);
     }
 
-    char archivePath[256] = {};
-    strcpy(archivePath, tempDir);
-    strcat(archivePath, "/aas.zip");
-    DownloadLatest(sock, archivePath);
+    char installerPath[256] = {};
+    strcpy(installerPath, tempDir);
+    strcat(installerPath, "/AltAppSwitcherInstaller.exe");
+    DownloadInstaller(sock, major, minor, installerPath);
 
     close(sock);
     WSACleanup();
 
-    // ExtractArchive(archivePath);
+    char args[512] = {};
+    char currDir[256] = {};
+    GetCurrentDirectory(256, currDir);
+    sprintf(args, "--installPath %s --update", currDir);
+    printf("%s", args);
+    ShellExecute(NULL, "open", installerPath, args, "", SW_SHOWNORMAL);
 
     return 0;
 }

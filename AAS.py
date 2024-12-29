@@ -38,6 +38,7 @@ def MakeDirs(conf, arch):
     MakeDirIfNeeded(f"./Output/{conf}_{arch}/Objects")
     MakeDirIfNeeded(f"./Output/{conf}_{arch}/AAS")
     MakeDirIfNeeded(f"./Output/{conf}_{arch}/Installer")
+    MakeDirIfNeeded(f"./Output/{conf}_{arch}/Deploy")
     CopyDirStructure("./Sources", f"./Output/{conf}_{arch}/Objects")
 
 def Copy(src, dst):
@@ -74,6 +75,7 @@ def MakeArchive(srcDir, dstZip):
         if x.endswith(".exe"):
             EmbedAndDeleteManifest(os.path.join(tempDir, x))
     shutil.make_archive(tempDir, "zip", tempDir)
+    shutil.rmtree(tempDir)
 
 def BinToC(src, dst):
     fi = open(src, 'rb')
@@ -107,3 +109,5 @@ if __name__ == "__main__":
         MakeArchive(args[1], args[2])
     elif fn == "BinToC":
         BinToC(args[1], args[2])
+    elif fn == "EmbedManifest":
+        EmbedAndDeleteManifest(args[1])

@@ -1,247 +1,78 @@
-#include "Settings.h"
-#include <windef.h>
 #include <windows.h>
 #include <windowsx.h>
 #include <wingdi.h>
 #include <commctrl.h>
-#include <Tlhelp32.h>
 #include "Config/Config.h"
-#include "Utils/Error.h"
 #include "Utils/GUI.h"
-
-static const char CLASS_NAME[] = "AltAppSwitcherSettings";
-
-static bool RestartAAS()
-{
-    HANDLE hSnapShot = CreateToolhelp32Snapshot((DWORD)TH32CS_SNAPALL, (DWORD)0);
-    PROCESSENTRY32 pEntry;
-    pEntry.dwSize = sizeof (pEntry);
-    BOOL hRes = Process32First(hSnapShot, &pEntry);
-    BOOL killed = false;
-    while (hRes)
-    {
-        if (strcmp(pEntry.szExeFile, "AltAppSwitcher.exe") != 0)
-            hRes = Process32Next(hSnapShot, &pEntry);
-        THREADENTRY32 tEntry;
-        tEntry.dwSize = sizeof(tEntry);
-        BOOL tRes = Thread32First(hSnapShot, &tEntry);
-        while (tRes)
-        {
-            if (tEntry.th32OwnerProcessID == pEntry.th32ProcessID)
-            {
-                PostThreadMessage(tEntry.th32ThreadID, MSG_RESTART_AAS, 0, 0);
-            }
-            tRes = Thread32Next(hSnapShot, &tEntry);
-        }
-    }
-    CloseHandle(hSnapShot);
-    return killed;
-}
-
-LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
-{
-    static GUIData guiData = {};
-    static Config config = {};
+#include "Utils/Message.h"
 
 #define APPLY_BUTTON_ID 1993
-    switch (uMsg)
-    {
-    case WM_DESTROY:
-    {
-        PostQuitMessage(0);
-        DeleteFont(guiData._Font);
-        DeleteFont(guiData._FontTitle);
-        DeleteBrush(guiData._Background);
-        guiData._Font = NULL;
-        guiData._FontTitle = NULL;
-        return 0;
-    }
-    case WM_CREATE:
-    {
-        LoadConfig(&config);
 
-        {
-            NONCLIENTMETRICS metrics = {};
-            metrics.cbSize = sizeof(metrics);
-            SystemParametersInfo(SPI_GETNONCLIENTMETRICS, metrics.cbSize, &metrics, 0);
-            metrics.lfCaptionFont.lfHeight *= 1.2;
-            metrics.lfCaptionFont.lfWidth *= 1.2;
-            guiData._Font = CreateFontIndirect(&metrics.lfCaptionFont);
-            LOGFONT title = metrics.lfCaptionFont;
-            title.lfWeight = FW_SEMIBOLD;
-            guiData._FontTitle = CreateFontIndirect(&title);
-            COLORREF col = LIGHT_COLOR;
-            guiData._Background = CreateSolidBrush(col);
-        }
+static void SetupGUI(GUIData* gui, void* userData)
+{
+    Config* cfg = (Config*)userData;
+    LoadConfig(cfg);
 
-        int x = WIN_PAD;
-        int y = WIN_PAD;
-        int h = 0;
-        {
-            HWND combobox = CreateWindow(WC_COMBOBOX, "Combobox",
-                CBS_DROPDOWNLIST | CBS_HASSTRINGS | WS_CHILD | WS_VISIBLE,
-                0, 0, 0, 0,
-                hwnd, NULL, NULL, NULL);
-            SendMessage(combobox, WM_SETFONT, (LPARAM)guiData._Font, true);
-            RECT rect = {};
-            GetWindowRect(combobox, &rect);
-            h = rect.bottom -  rect.top;
-            DestroyWindow(combobox);
-        }
-        int w = 0;
-        {
-            RECT parentRect = {};
-            GetClientRect(hwnd, &parentRect);
-            w = (parentRect.right - parentRect.left - WIN_PAD - WIN_PAD);
-        }
+    GridLayout(1, gui);
+    CreateText("Key bindings:", "", gui);
 
-#define COMBO_BOX(NAME, TOOLTIP, VALUE, ES)\
-CreateComboBox(x, y, w, h, hwnd, NAME, TOOLTIP, &VALUE, ES, &guiData);\
-y += h + LINE_PAD;
+    GridLayout(4, gui);
+    CreateText("App hold", "", gui);
+    CreateComboBox("", &cfg->_Key._AppHold, keyES, gui);
+    CreateText("App switch", "", gui);
+    CreateComboBox("", &cfg->_Key._AppSwitch, keyES, gui);
+    CreateText("Win hold", "", gui);
+    CreateComboBox("", &cfg->_Key._WinHold, keyES, gui);
+    CreateText("Win switch", "", gui);
+    CreateComboBox("", &cfg->_Key._WinSwitch, keyES, gui);
+    CreateText("Invert", "", gui);
+    CreateComboBox("", &cfg->_Key._Invert, keyES, gui);
+    CreateText("Previous app", "", gui);
+    CreateComboBox("", &cfg->_Key._PrevApp, keyES, gui);
 
-#define TITLE(NAME)\
-CreateText(x, y, w, h, hwnd, NAME, &guiData);\
-y += h + LINE_PAD;
+    GridLayout(1, gui);
+    CreateText("Graphic options:", "", gui);
 
-#define FLOAT_FIELD(NAME, TOOLTIP, VALUE)\
-CreateFloatField(x, y, w, h, hwnd, NAME, TOOLTIP, &VALUE, &guiData);\
-y += h + LINE_PAD;
+    GridLayout(2, gui);
+    CreateText("Theme:", "", gui);
+    CreateComboBox("Color scheme. \"Auto\" to match system's.", &cfg->_ThemeMode, themeES, gui);
+    CreateText("Scale (\%):", "", gui);
+    CreatePercentField("Scale controls icon size, expressed as percentage, 100 being Windows default icon size.",
+        &cfg->_Scale, gui);
 
-#define BOOL_FIELD(NAME, TOOLTIP, VALUE)\
-CreateBoolControl(x, y, w, h, hwnd, NAME, TOOLTIP, &VALUE, &guiData);\
-y += h + LINE_PAD;
+    GridLayout(1, gui);
+    CreateText("Other:", "", gui);
 
-#define BUTTON(NAME, ID)\
-CreateButton(x, y, w, h, hwnd, NAME, (HMENU)ID, &guiData);\
-y += h + LINE_PAD;
+    GridLayout(2, gui);
+    CreateText("Mouse:", "", gui);
+    CreateBoolControl("Allow selecting entry by clicking on the UI.", &cfg->_Mouse, gui);
+    CreateText("Check for updates:", "", gui);
+    CreateBoolControl("", &cfg->_CheckForUpdates, gui);
+    CreateText("App switcher mode:", "", gui);
+    CreateComboBox("App: MacOS-like, one entry per application.\nWindow: Windows-like, one entry per window (each window is considered an independent application)",
+        &cfg->_AppSwitcherMode, appSwitcherModeES, gui);
 
-#define SEPARATOR()\
-y += LINE_PAD * 4;
-
-        Config* cfg = &config;
-        TITLE("Key bindings:")
-        COMBO_BOX("App hold key:", "", cfg->_Key._AppHold, keyES)
-        COMBO_BOX("Next app key:", "", cfg->_Key._AppSwitch, keyES)
-        COMBO_BOX("Window hold key:", "", cfg->_Key._WinHold, keyES)
-        COMBO_BOX("Next window key:", "", cfg->_Key._WinSwitch, keyES)
-        COMBO_BOX("Invert key:", "", cfg->_Key._Invert, keyES)
-        COMBO_BOX("Previous app key:", "", cfg->_Key._PrevApp, keyES)
-        SEPARATOR()
-        TITLE("Graphic options:")
-        COMBO_BOX("Theme:", "Color scheme. \"Auto\" to match system's.", cfg->_ThemeMode, themeES)
-        FLOAT_FIELD("Scale (\%)",
-            "Scale controls icon size, expressed as percentage, 100 being Windows default icon size.",
-            cfg->_Scale)
-        SEPARATOR()
-        TITLE("Other:")
-        BOOL_FIELD("Allow mouse:", "Allow selecting entry by clicking on the UI.", cfg->_Mouse)
-        BOOL_FIELD("Check for updates:", "", cfg->_CheckForUpdates)
-        COMBO_BOX("Switcher mode:",
-            "App: MacOS-like, one entry per application.\nWindow: Windows-like, one entry per window (each window is considered an independent application)",
-            cfg->_AppSwitcherMode, appSwitcherModeES)
-        SEPARATOR()
-        BUTTON("Apply", (HMENU)APPLY_BUTTON_ID);
-        y += WIN_PAD;
-
-        RECT r = {};
-        GetClientRect(hwnd, &r);
-        r.bottom = y;
-        AdjustWindowRect(&r, (DWORD)GetWindowLong(hwnd, GWL_STYLE), false);
-        SetWindowPos(hwnd, 0, r.left, r.top, r.right - r.left, r.bottom - r.top, SWP_NOMOVE);
-        return 0;
-    }
-    case WM_COMMAND:
-    {
-        if (LOWORD(wParam == APPLY_BUTTON_ID) && HIWORD(wParam) == BN_CLICKED)
-        {
-            for (unsigned int i = 0; i < guiData._EBindingCount; i++)
-            {
-                const EnumBinding* bd = &guiData._EBindings[i];
-
-                const unsigned int iValue = SendMessage(bd->_ComboBox,(UINT)CB_GETCURSEL,(WPARAM)0, (LPARAM)0);
-                char sValue[64] = {};
-                SendMessage(bd->_ComboBox,(UINT)CB_GETLBTEXT,(WPARAM)iValue, (LPARAM)sValue);
-                bool found = false;
-                for (unsigned int j = 0; bd->_EnumStrings[j].Value != 0xFFFFFFFF; j++)
-                {
-                    if (!strcmp(bd->_EnumStrings[j].Name, sValue))
-                    {
-                        *bd->_TargetValue = bd->_EnumStrings[j].Value;
-                        found = true;
-                        break;
-                    }
-                }
-                ASSERT(found);
-            }
-            for (unsigned int i = 0; i < guiData._FBindingCount; i++)
-            {
-                const FloatBinding* bd = &guiData._FBindings[i];
-                char text[4] = "000";
-                *((DWORD*)text) = 3;
-                SendMessage(bd->_Field,(UINT)EM_GETLINE,(WPARAM)0, (LPARAM)text);
-                *bd->_TargetValue = (float)strtod(text, NULL) / 100.0f;
-            }
-            for (unsigned int i = 0; i < guiData._BBindingCount; i++)
-            {
-                const BoolBinding* bd = &guiData._BBindings[i];
-                *bd->_TargetValue = BST_CHECKED == SendMessage(bd->_CheckBox,(UINT)BM_GETCHECK, (WPARAM)0, (LPARAM)0);
-            }
-            WriteConfig(&config);
-            RestartAAS();
-        }
-        return 0;
-    }
-    case WM_CTLCOLOREDIT:
-    case WM_CTLCOLORSTATIC:
-    {
-        SetBkMode((HDC)wParam, TRANSPARENT);
-        return (LRESULT)guiData._Background;
-    }
-    }
-    return DefWindowProc(hwnd, uMsg, wParam, lParam);
+    GridLayout(1, gui);
+    CreateButton("Apply", (HMENU)APPLY_BUTTON_ID, gui);
 }
 
-int StartSettings(HINSTANCE hInstance)
+static void ButtonMessage(UINT buttonID, GUIData* guiData, void* userData)
 {
-    INITCOMMONCONTROLSEX ic;
-    ic.dwSize = sizeof(INITCOMMONCONTROLSEX);
-    ic.dwICC = ICC_TAB_CLASSES;
-    InitCommonControlsEx(&ic);
-
-    COLORREF col = LIGHT_COLOR;
-    HBRUSH bkg = CreateSolidBrush(col);
-
-    // Main window
+    switch (buttonID)
     {
-        // Class
-        WNDCLASS wc = { };
-        wc.lpfnWndProc = WindowProc;
-        wc.hInstance = hInstance;
-        wc.lpszClassName = CLASS_NAME;
-        wc.cbWndExtra = 0;
-        wc.style = CS_HREDRAW | CS_VREDRAW;
-        wc.hbrBackground = bkg;
-        RegisterClass(&wc);
-        // Window
-        const int center[2] = { GetSystemMetrics(SM_CXSCREEN) / 2, GetSystemMetrics(SM_CYSCREEN) / 2 };
-        DWORD winStyle = WS_CAPTION | WS_SYSMENU | WS_BORDER | WS_VISIBLE | WS_MINIMIZEBOX;
-        RECT winRect = { center[0] - 200, center[1] - 300, center[0] + 200, center[1] + 300 };
-        AdjustWindowRect(&winRect, winStyle, false);
-        CreateWindow(CLASS_NAME, "Alt App Switcher settings",
-            winStyle,
-            winRect.left, winRect.top, winRect.right - winRect.left, winRect.bottom - winRect.top,
-            NULL, NULL, hInstance, NULL);
-    }
-
-    MSG msg = { };
-    while (GetMessage(&msg, NULL, 0, 0))
+    case APPLY_BUTTON_ID:
     {
-        TranslateMessage(&msg);
-        DispatchMessage(&msg);
+        Config* cfg = (Config*)userData;
+        ApplyBindings(guiData);
+        WriteConfig(cfg);
+        RestartAAS();
     }
-    UnregisterClass(CLASS_NAME, hInstance);
+    }
+}
 
-    DeleteBrush(bkg);
-
+int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR pCmdLine, int nCmdShow)
+{
+    Config config = {};
+    GUIWindow(SetupGUI, ButtonMessage, (void*)&config, hInstance, "AASSettings");
     return 0;
 }
