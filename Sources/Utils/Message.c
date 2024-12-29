@@ -43,3 +43,26 @@ void CloseAAS()
 {
     PostAASMsg(MSG_CLOSE_AAS);
 }
+
+int AASIsRunning()
+{
+    HANDLE procSnap = CreateToolhelp32Snapshot((DWORD)TH32CS_SNAPPROCESS, (DWORD)0);
+    PROCESSENTRY32 procEntry = {};
+    procEntry.dwSize = sizeof(procEntry);
+    BOOL procRes = Process32First(procSnap, &procEntry);
+    while (procRes)
+    {
+        if (!strcmp(procEntry.szExeFile, "AltAppSwitcher.exe"))
+            return 1;
+        procRes = Process32Next(procSnap, &procEntry);
+    }
+    CloseHandle(procSnap);
+    return 0;
+}
+
+void CloseAASBlocking()
+{
+    PostAASMsg(MSG_CLOSE_AAS);
+    while (AASIsRunning())
+    {}
+}

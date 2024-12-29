@@ -33,3 +33,11 @@ void DeleteTree(const char* dir)
 {
     nftw(dir, DeleteForFtw, 0, FTW_DEPTH);
 }
+
+void FileToParentDir(char* file)
+{
+    StrBToF(file);
+    char* last = strrchr(file, '/');
+    if (last)
+        *last = '\0';
+}

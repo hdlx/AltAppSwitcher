@@ -8,10 +8,11 @@
 #include <fileapi.h>
 #include <dirent.h>
 #include <shellapi.h>
-#include <winbase.h>
+#include "libzip/zip.h"
 #include "Utils/File.h"
 #include "Utils/Error.h"
 #include "Utils/Version.h"
+#include "Utils/Message.h"
 
 static void GetAASVersion(int* major, int* minor, SOCKET sock)
 {
@@ -39,7 +40,7 @@ static void GetAASVersion(int* major, int* minor, SOCKET sock)
     return;
 }
 
-static void DownloadInstaller(SOCKET sock, int major, int minor, const char* dstFile)
+static void DownloadArchive(SOCKET sock, int major, int minor, const char* dstFile)
 {
     const char arch[] =
 #if defined(ARCH_x86_64)
@@ -51,7 +52,7 @@ static void DownloadInstaller(SOCKET sock, int major, int minor, const char* dst
 #endif
 
     char msg[512] = {};
-    sprintf(msg, "GET /aasinstaller-%i-%i/AltAppSwitcherInstaller_%s.exe HTTP/1.1\r\nHost: www.hamtarodeluxe.com\r\n\r\n", major, minor, arch);
+    sprintf(msg, "GET /aasarchive-%i-%i/AltAppSwitcher_%s.zip HTTP/1.1\r\nHost: www.hamtarodeluxe.com\r\n\r\n", major, minor, arch);
 
     if (SOCKET_ERROR == send(sock, msg, strlen(msg), 0))
     {
@@ -101,8 +102,65 @@ static void DownloadInstaller(SOCKET sock, int major, int minor, const char* dst
     fclose(file);
 }
 
-int main()
+static void Extract(const char* targetDir)
 {
+    CloseAASBlocking();
+    int err = 0;
+    struct zip* z = zip_open("./AltAppSwitcher.zip" , 0, &err);
+    unsigned char buf[1024];
+    for (int i = 0; i < zip_get_num_entries(z, 0); i++)
+    {
+        struct zip_stat zs = {};
+        zip_stat_index(z, i, 0, &zs);
+        printf("Name: [%s], ", zs.name);
+        if (!strcmp(zs.name, "AltAppSwitcherConfig.txt"))
+            continue;
+        struct zip_file* zf = zip_fopen_index(z, i, 0);
+        char dstPath[256] = {};
+        strcpy(dstPath, targetDir);
+        strcat(dstPath, "/");
+        strcat(dstPath, zs.name);
+        FILE* dstFile = fopen(dstPath, "wb");
+        int sum = 0;
+        while (sum != zs.size)
+        {
+            int len = zip_fread(zf, buf, sizeof(buf));
+            fwrite(buf, sizeof(unsigned char),len, dstFile);
+            sum += len;
+        }
+        fclose(dstFile);
+        zip_fclose(zf);
+    }
+    MessageBox(0, "AltAppSwitcher successfully updated", "AltAppSwitcher", MB_OK | MB_SETFOREGROUND);
+    {
+        char AASExe[256] = {};
+        strcat(AASExe, targetDir);
+        strcat(AASExe, "/AltAppSwitcher.exe");
+        STARTUPINFO si = {};
+        PROCESS_INFORMATION pi = {};
+        CreateProcess(NULL, AASExe, 0, 0, 0, CREATE_NEW_PROCESS_GROUP, 0, targetDir, &si, &pi);
+    }
+}
+
+int main(int argc, char *argv[])
+{
+    BOOL extract = 0;
+    char targetDir[256] = {};
+    for (int i = 0; i < argc; i++)
+    {
+        if (!strcmp(argv[i], "--target"))
+        {
+            strcpy(targetDir, argv[i + 1]);
+            i++;
+            extract = 1;
+        }
+    }
+    if (extract)
+    {
+        Extract(targetDir);
+        return 0;
+    }
+
     SOCKET sock = 0;
     // Connects to hamtarodeluxe.com
     {
@@ -196,21 +254,42 @@ int main()
         mkdir(tempDir);
     }
 
-    char installerPath[256] = {};
-    strcpy(installerPath, tempDir);
-    strcat(installerPath, "/AltAppSwitcherInstaller.exe");
-    DownloadInstaller(sock, major, minor, installerPath);
+    char archivePath[256] = {};
+    {
+        strcpy(archivePath, tempDir);
+        strcat(archivePath, "/AltAppSwitcher.zip");
+        DownloadArchive(sock, major, minor, archivePath);
+    }
 
     close(sock);
     WSACleanup();
 
+    // Copy updater to temp
+    char updaterPath[256] = {};
+    {
+        strcpy(updaterPath, tempDir);
+        strcat(updaterPath, "/Updater.exe");
+        char currentExe[256];
+        GetModuleFileName(NULL, currentExe, 256);
+        FILE* dst = fopen(updaterPath, "wb");
+        FILE* src = fopen(currentExe, "rb");
+        unsigned char buf[1024];
+        int size = 1;
+        while (size)
+        {
+            size = fread(buf, sizeof(char), sizeof(buf), src);
+            fwrite(buf, sizeof(char), size, dst);
+        }
+        fclose(src);
+        fclose(dst);
+    }
 
+    // Run copied updater
     char args[512] = {};
-    char currDir[256] = {};
-    GetCurrentDirectory(256, currDir);
-    sprintf(args, "--installPath %s --update", currDir);
-    printf("%s", args);
-    ShellExecute(NULL, "open", installerPath, args, "", SW_SHOWNORMAL);
+    char AASDir[256] = {};
+    GetCurrentDirectory(256, AASDir);
+    sprintf(args, "--target %s", AASDir);
+    ShellExecute(NULL, "runas", updaterPath, args, tempDir, SW_SHOWNORMAL);
 
     return 0;
 }

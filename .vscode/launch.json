@@ -33,6 +33,16 @@
 		{
 			"type": "lldb",
 			"request": "launch",
+			"name": "Updater extract x86_64",
+			"program": "C:/Users/Paul/AppData/Local/Temp/AASUpdater/Updater.exe",
+			"args": ["--target", "D:\\Dev\\AltAppSwitcher\\Output\\Debug_x86_64\\AAS"],
+			"preLaunchTask": "Build x86_64 Debug",
+			"cwd": "C:/Users/Paul/AppData/Local/Temp/AASUpdater",
+			"console": "integratedTerminal"
+		},
+		{
+			"type": "lldb",
+			"request": "launch",
 			"name": "Installer x86_64",
 			"program": "${workspaceFolder}/Output/Debug_x86_64/Installer/Installer.exe",
 			"args": [],
