@@ -131,7 +131,6 @@ static void Extract(const char* targetDir)
         fclose(dstFile);
         zip_fclose(zf);
     }
-    MessageBox(0, "AltAppSwitcher successfully updated", "AltAppSwitcher", MB_OK | MB_SETFOREGROUND);
     {
         char AASExe[256] = {};
         strcat(AASExe, targetDir);
@@ -140,6 +139,7 @@ static void Extract(const char* targetDir)
         PROCESS_INFORMATION pi = {};
         CreateProcess(NULL, AASExe, 0, 0, 0, CREATE_NEW_PROCESS_GROUP, 0, targetDir, &si, &pi);
     }
+    MessageBox(0, "AltAppSwitcher successfully updated", "AltAppSwitcher", MB_OK | MB_SETFOREGROUND);
 }
 
 int main(int argc, char *argv[])
@@ -288,7 +288,7 @@ int main(int argc, char *argv[])
     char args[512] = {};
     char AASDir[256] = {};
     GetCurrentDirectory(256, AASDir);
-    sprintf(args, "--target %s", AASDir);
+    sprintf(args, "--target \"%s\"", AASDir);
     ShellExecute(NULL, "runas", updaterPath, args, tempDir, SW_SHOWNORMAL);
 
     return 0;
