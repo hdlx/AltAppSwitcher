@@ -1464,7 +1464,7 @@ int StartAltAppSwitcher(HINSTANCE hInstance)
         {
             STARTUPINFO si = {};
             PROCESS_INFORMATION pi = {};
-            CreateProcess(NULL, ".\\Updater.exe", 0, 0, false, 0, 0, 0,
+            CreateProcess(NULL, ".\\Updater.exe", 0, 0, false, CREATE_NEW_PROCESS_GROUP, 0, 0,
             &si, &pi);
         }
         InitGraphicsResources(&_AppData._GraphicsResources, &_AppData._Config);
@@ -1608,7 +1608,7 @@ int StartAltAppSwitcher(HINSTANCE hInstance)
     {
         STARTUPINFO si = {};
         PROCESS_INFORMATION pi = {};
-        CreateProcess(NULL, ".\\AltAppSwitcher.exe", 0, 0, false, 0, 0, 0,
+        CreateProcess(NULL, ".\\AltAppSwitcher.exe", 0, 0, false, CREATE_NEW_PROCESS_GROUP, 0, 0,
         &si, &pi);
     }
     return 0;

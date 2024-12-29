@@ -2,7 +2,7 @@
 #include <Tlhelp32.h>
 #include "Utils/MessageDef.h"
 
-void RestartAAS()
+static void PostAASMsg(int msg)
 {
     HANDLE procSnap = CreateToolhelp32Snapshot((DWORD)TH32CS_SNAPPROCESS, (DWORD)0);
     PROCESSENTRY32 procEntry = {};
@@ -23,7 +23,7 @@ void RestartAAS()
             while (threadRes)
             {
                 if (procEntry.th32ProcessID == threadEntry.th32OwnerProcessID)
-                    PostThreadMessage(threadEntry.th32ThreadID, MSG_RESTART_AAS, 0, 0);
+                    PostThreadMessage(threadEntry.th32ThreadID, msg, 0, 0);
                 threadRes = Thread32Next(threadSnap, &threadEntry);
             }
             CloseHandle(threadSnap);
@@ -32,4 +32,14 @@ void RestartAAS()
     }
     CloseHandle(procSnap);
     return;
+}
+
+void RestartAAS()
+{
+    PostAASMsg(MSG_RESTART_AAS);
+}
+
+void CloseAAS()
+{
+    PostAASMsg(MSG_CLOSE_AAS);
 }

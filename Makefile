@@ -75,8 +75,8 @@ ALLAAS += $(AASBUILDDIR)/Settings.exe
 ALLAAS += $(AASBUILDDIR)/Updater.exe
 ALLAAS += $(AASASSETS)
 
-AASARCHIVE = $(BUILDDIR)/Deploy/AltAppSwitcher_$(CONF)_$(ARCH).zip
-INSTALLERDEPLOY = $(BUILDDIR)/Deploy/AltAppSwitcherInstaller_$(CONF)_$(ARCH).exe
+AASARCHIVE = $(BUILDDIR)/Deploy/AltAppSwitcher_$(ARCH).zip
+INSTALLERDEPLOY = $(BUILDDIR)/Deploy/AltAppSwitcherInstaller_$(ARCH).exe
 
 INSTALLER = $(INSTALLERBUILDDIR)/Installer.exe
 INSTALLER += $(INSTALLERASSETS)

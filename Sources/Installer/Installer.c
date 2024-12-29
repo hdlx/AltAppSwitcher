@@ -8,6 +8,7 @@
 #include "Utils/File.h"
 #include "Utils/GUI.h"
 #include "Utils/Error.h"
+#include "Utils/Message.h"
 
 extern const unsigned char AASZip[];
 extern const unsigned int SizeOfAASZip;
@@ -97,6 +98,8 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR pCmdLine,
         strcpy(installPath, appData._InstallPath);
     }
 
+    CloseAAS();
+
     // Make temp dir
     char tempDir[256] = {};
     {
@@ -116,7 +119,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR pCmdLine,
     char outZip[256] = {};
     {
         strcat(outZip, tempDir);
-        strcat(outZip, "/toto.zip");
+        strcat(outZip, "/AASArchive.zip");
         FILE* file = fopen(outZip,"wb");
         fwrite(AASZip, 1, SizeOfAASZip, file);
         fclose(file);
@@ -137,6 +140,8 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR pCmdLine,
             struct zip_stat zs = {};
             zip_stat_index(z, i, 0, &zs);
             // printf("Name: [%s], ", zs.name);
+            if (update && !strcmp(zs.name, "AltAppSwitcherConfig.txt"))
+                continue;
             struct zip_file* zf = zip_fopen_index(z, i, 0);
             char dstPath[256] = {};
             strcpy(dstPath, installPath);
@@ -156,5 +161,15 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR pCmdLine,
     }
 
     DeleteTree(tempDir);
+
+    {
+        char AASExe[256] = {};
+        strcat(AASExe, installPath);
+        strcat(AASExe, "/AltAppSwitcher.exe");
+        STARTUPINFO si = {};
+        PROCESS_INFORMATION pi = {};
+        CreateProcess(NULL, AASExe, 0, 0, false, CREATE_NEW_PROCESS_GROUP, 0, 0, &si, &pi);
+    }
+
     return 0;
 }

@@ -1,1 +1,2 @@
 void RestartAAS();
+void CloseAAS();
