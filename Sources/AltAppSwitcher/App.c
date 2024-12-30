@@ -1216,28 +1216,22 @@ static void DrawRoundedRect(GpGraphics* pGraphics, GpPen* pPen, GpBrush* pBrush,
     GdipDeletePath(pPath);
 }
 
+static bool IsInside(int x, int y, HWND win)
+{
+    RECT r = {};
+    ASSERT(GetClientRect(win, &r));
+    return x > r.left && x < r.right && y > r.top && y < r.bottom;
+}
+
 LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 {
-    static bool mouseInside = false;
     static SAppData* appData = NULL;
     switch (uMsg)
     {
-    case WM_MOUSELEAVE:
-    {
-        mouseInside = false;
-        return 0;
-    }
     case WM_MOUSEMOVE:
     {
         if (!appData->_Config._Mouse)
             return 0;
-        if (!mouseInside)
-        {
-            // Mouse move event is fired on window show if the mouse is already in client area.
-            // Skip first event so only actual move triggers mouse selection.
-            mouseInside = true;
-            return 0;
-        }
         const int iconContainerSize = (int)appData->_Metrics._IconContainer;
         const int posX = GET_X_LPARAM(lParam);
         appData->_MouseSelection = min(max(0, posX / iconContainerSize), (int)appData->_WinGroups._Size);
@@ -1263,7 +1257,6 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
             ASSERT(appData->_GraphicsResources._Bitmap != NULL);
             ReleaseDC(hwnd, winDC);
         }
-        mouseInside = false;
         SetCapture(hwnd);
         // Otherwise cursor is busy on hover. I Don't understand why.
         SetCursor(LoadCursor(NULL, IDC_ARROW));
@@ -1271,7 +1264,7 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
     }
     case WM_LBUTTONUP:
     {
-        if (!mouseInside)
+        if (!IsInside(GET_X_LPARAM(lParam), GET_Y_LPARAM(lParam), hwnd))
         {
             appData->_Mode = ModeNone;
             DestroyWin(appData->_MainWin);
