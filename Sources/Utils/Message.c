@@ -53,7 +53,10 @@ int AASIsRunning()
     while (procRes)
     {
         if (!strcmp(procEntry.szExeFile, "AltAppSwitcher.exe"))
+        {
+            CloseHandle(procSnap);
             return 1;
+        }
         procRes = Process32Next(procSnap, &procEntry);
     }
     CloseHandle(procSnap);

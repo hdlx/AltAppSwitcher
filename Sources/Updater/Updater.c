@@ -14,7 +14,7 @@
 #include "Utils/Version.h"
 #include "Utils/Message.h"
 
-static void GetAASVersion(int* major, int* minor, SOCKET sock)
+static void GetAASVersion(int* major, int* minor, SOCKET sock, BOOL preview)
 {
     *major = 0;
     *minor = 0;
@@ -29,14 +29,22 @@ static void GetAASVersion(int* major, int* minor, SOCKET sock)
     if (SOCKET_ERROR == recv(sock, response, sizeof(response), 0))
         return;
 
-    const char version[] = "\"Version\": ";
-    char* at = strstr(response, version);
-
-    if (at == NULL)
-        return;
-
-    sscanf(at, "\"Version\": %i.%i", major, minor);
-
+    if (preview)
+    {
+        const char version[] = "\"PreviewVersion\": ";
+        char* at = strstr(response, version);
+        if (at == NULL)
+            return;
+        sscanf(at, "\"PreviewVersion\": %i.%i", major, minor);
+    }
+    else
+    {
+        const char version[] = "\"Version\": ";
+        char* at = strstr(response, version);
+        if (at == NULL)
+            return;
+        sscanf(at, "\"Version\": %i.%i", major, minor);
+    }
     return;
 }
 
@@ -145,14 +153,19 @@ static void Extract(const char* targetDir)
 int main(int argc, char *argv[])
 {
     BOOL extract = 0;
+    BOOL preview = 0;
     char targetDir[256] = {};
     for (int i = 0; i < argc; i++)
     {
-        if (!strcmp(argv[i], "--target"))
+        if (!strcmp(argv[i], "--target") && (i + 1) < argc)
         {
             strcpy(targetDir, argv[i + 1]);
             i++;
             extract = 1;
+        }
+        else if (!strcmp(argv[i], "--preview"))
+        {
+            preview = 1;
         }
     }
     if (extract)
@@ -218,7 +231,7 @@ int main(int argc, char *argv[])
     }
 
     int major, minor;
-    GetAASVersion(&major, &minor, sock);
+    GetAASVersion(&major, &minor, sock, preview);
     if ((MAJOR >= major) && (MINOR >= minor))
     {
         close(sock);
