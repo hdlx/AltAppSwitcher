@@ -916,20 +916,14 @@ static void InitializeSwitchApp(SAppData* appData)
 static void InitializeSwitchWin(SAppData* appData)
 {
     HWND win = GetForegroundWindow();
-    if (!win)
-    {
-        return;
-    }
     while (true)
     {
-        if (IsAltTabWindow(win))
+        if (!win || IsAltTabWindow(win))
             break;
         win = GetParent(win);
     }
     if (!win)
-    {
         return;
-    }
     DWORD PID;
     BOOL isUWP = false;
     FindActualPID(win, &PID, &isUWP);
