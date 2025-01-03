@@ -1373,6 +1373,20 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
                 DrawRoundedRect(pGraphics, NULL, pGraphRes->_pBrushText, rect[0], rect[1], rect[0] + rect[2], rect[1] + rect[3], 5);
                 ASSERT(!GdipDrawString(pGraphics, count, digitsCount, pGraphRes->_pFont, &rectf, pGraphRes->_pFormat, pGraphRes->_pBrushBg));
             }
+
+            // {
+            //     //https://learn.microsoft.com/en-us/windows/win32/gdiplus/-gdiplus-obtaining-font-metrics-use
+            //     uint32_t r[4] = {
+            //         x - padding,
+            //         iconContainerSize - padding,
+            //         iconContainerSize,
+            //         padding };
+            //     RectF rf = { (float)r[0], (float)r[1], (float)r[2], (float)r[3] };
+            //     wchar_t name[] = L"Some application";
+            //     DrawRoundedRect(pGraphics, NULL, pGraphRes->_pBrushText, r[0], r[1], r[0] + r[2], r[1] + r[3], 5);
+            //     GdipDrawString(pGraphics, name, wcslen(name), pGraphRes->_pFont, &rf, pGraphRes->_pFormat, pGraphRes->_pBrushBg);
+            // }
+
             x += iconContainerSize;
         }
         BitBlt(ps.hdc, clientRect.left, clientRect.top, clientRect.right - clientRect.left, clientRect.bottom - clientRect.top, pGraphRes->_DC, 0, 0, SRCCOPY);
