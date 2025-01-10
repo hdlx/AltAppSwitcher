@@ -152,6 +152,15 @@ static void Extract(const char* targetDir)
     MessageBox(0, "AltAppSwitcher successfully updated", "AltAppSwitcher", MB_OK | MB_SETFOREGROUND);
 }
 
+static size_t writeData(void* ptr, size_t size, size_t nmemb, void* userData)
+{
+    (void)nmemb;
+    (char*)* use
+    memcpy(ptr, userData, size);
+    (userData) += size;
+    return size;
+}
+
 int main(int argc, char *argv[])
 {
     BOOL extract = 0;
@@ -185,6 +194,8 @@ int main(int argc, char *argv[])
         return 0;
     }
 
+    char response[1024] = {};
+
     curl_easy_setopt(curl, CURLOPT_URL, "https://api.github.com/repos/hdlx/altappswitcher/releases/latest/url");
     struct curl_slist *list = NULL;
     list = curl_slist_append(list, "User-Agent: Awesome-Octocat-App");
@@ -192,6 +203,8 @@ int main(int argc, char *argv[])
     curl_easy_setopt(curl, CURLOPT_HTTPHEADER, list);
     curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, 0L);
     curl_easy_setopt(curl, CURLOPT_SSL_VERIFYHOST, 0L);
+    curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, writeData);
+    curl_easy_setopt(curl, CURLOPT_WRITEDATA, &response);
     curl_easy_setopt(curl, CURLOPT_CA_CACHE_TIMEOUT, 604800L);
     res = curl_easy_perform(curl);
     ASSERT(res == CURLE_OK)
