@@ -51,7 +51,6 @@ AASOBJECTS = $(filter $(OBJDIR)/AltAppSwitcher/%, $(ALLOBJECTS))
 CONFIGOBJECTS = $(filter $(OBJDIR)/Config/%, $(ALLOBJECTS))
 SETTINGSOBJECTS = $(filter $(OBJDIR)/Settings/%, $(ALLOBJECTS))
 UPDATEROBJECTS = $(filter $(OBJDIR)/Updater/%, $(ALLOBJECTS))
-INSTALLEROBJECTS = $(filter $(OBJDIR)/Installer/%, $(ALLOBJECTS))
 ERROROBJECTS = $(filter $(OBJDIR)/Utils/Error%, $(ALLOBJECTS))
 FILEOBJECTS = $(filter $(OBJDIR)/Utils/File%, $(ALLOBJECTS))
 MSGOBJECTS = $(filter $(OBJDIR)/Utils/Message%, $(ALLOBJECTS))
@@ -60,11 +59,10 @@ GUIOBJECTS = $(filter $(OBJDIR)/Utils/GUI%, $(ALLOBJECTS))
 
 AASLIBS = -l dwmapi -l User32 -l Gdi32 -l Gdiplus -l shlwapi -l pthread -l Ole32 -l Comctl32
 SETTINGSLIB = -l Comctl32 -l Gdi32
-UPDATERLIBS = -l ws2_32 -l libzip -l zlib -l bcrypt
-INSTALLERLIBS = -l Gdi32 -l Comctl32 -l libzip -l zlib -l bcrypt
+UPDATERLIBS = -l libzip -l zlib -l bcrypt -l curl/libcurl -l curl/libcurl.dll
 
 AASASSETS = $(patsubst $(ROOTDIR)/Assets/AAS/%, $(AASBUILDDIR)/%, $(wildcard $(ROOTDIR)/Assets/AAS/*))
-INSTALLERASSETS = $(patsubst $(ROOTDIR)/Assets/Installer/%, $(INSTALLERBUILDDIR)/%, $(wildcard $(ROOTDIR)/Assets/Installer/*))
+DLL = $(patsubst $(ROOTDIR)/SDK/Dll/$(ARCH)/%, $(AASBUILDDIR)/%, $(wildcard $(ROOTDIR)/SDK/Dll/$(ARCH)/*))
 
 # Do not make a non phony target depend on phony one, otherwise
 # the target will rebuild every time.
@@ -74,18 +72,15 @@ ALLAAS = $(AASBUILDDIR)/AltAppSwitcher.exe
 ALLAAS += $(AASBUILDDIR)/Settings.exe
 ALLAAS += $(AASBUILDDIR)/Updater.exe
 ALLAAS += $(AASASSETS)
+ALLAAS += $(DLL)
 
 AASARCHIVE = $(BUILDDIR)/Deploy/AltAppSwitcher_$(ARCH).zip
-INSTALLERDEPLOY = $(BUILDDIR)/Deploy/AltAppSwitcherInstaller_$(ARCH).exe
-
-INSTALLER = $(INSTALLERBUILDDIR)/Installer.exe
-INSTALLER += $(INSTALLERASSETS)
 
 COMPILECOMMANDS = $(SOURCEDIR)/compile_commands.json
 
-default: directories $(ALLAAS) $(INSTALLER) $(COMPILECOMMANDS)
+default: directories $(ALLAAS) $(COMPILECOMMANDS)
 
-deploy: default $(AASARCHIVE) $(INSTALLERDEPLOY)
+deploy: default $(AASARCHIVE)
 
 # Directory targets:
 directories:
@@ -94,11 +89,6 @@ directories:
 # Deploy targets:
 $(AASARCHIVE): $(ALLAAS)
 	python ./AAS.py MakeArchive $(BUILDDIR)/AAS $@
-
-$(INSTALLERDEPLOY): $(INSTALLER)
-	python ./AAS.py Copy $< $@
-	python ./AAS.py Copy $<.manifest $@.manifest
-	python ./AAS.py EmbedManifest $@
 
 # Compile object targets:
 # see 4.12.1 Syntax of Static Pattern Rules
@@ -115,24 +105,17 @@ $(AASBUILDDIR)/Settings.exe: $(SETTINGSOBJECTS) $(CONFIGOBJECTS) $(COMMONOBJECTS
 $(AASBUILDDIR)/Updater.exe: $(UPDATEROBJECTS) $(COMMONOBJECTS)
 	$(CC) $(LFLAGS) $(LDIRS) $(UPDATERLIBS) $^ -o $@
 
-$(INSTALLERBUILDDIR)/Installer.exe: $(INSTALLEROBJECTS) $(INSTALLERBUILDDIR)/AASZip.o $(COMMONOBJECTS) $(GUIOBJECTS)
-	$(CC) $(LFLAGS) $(LDIRS) $(INSTALLERLIBS) $^ -o $@
-
 # Assets:
 $(AASASSETS): $(AASBUILDDIR)/%: $(ROOTDIR)/Assets/AAS/%
 	python ./AAS.py Copy "$<" "$@"
 
-$(INSTALLERASSETS): $(INSTALLERBUILDDIR)/%: $(ROOTDIR)/Assets/Installer/%
+# Dll:
+$(DLL): $(AASBUILDDIR)/%: $(ROOTDIR)/SDK/Dll/$(ARCH)/%
 	python ./AAS.py Copy "$<" "$@"
 
 # Make compile_command.json (clangd)
 $(SOURCEDIR)/compile_commands.json: $(ALLOBJECTS)
 	python ./AAS.py MakeCompileCommands $@ $(subst .o,.o.json, $^)
-
-# Make archive obj.
-$(INSTALLERBUILDDIR)/AASZip.o: $(AASARCHIVE)
-	python ./AAS.py BinToC $< $(INSTALLERBUILDDIR)/AASZip.c
-	$(CC) $(CFLAGS) -c $(INSTALLERBUILDDIR)/AASZip.c -o $@
 
 # Other targets:
 clean:

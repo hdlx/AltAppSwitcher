@@ -1,33 +1,35 @@
-#include <psdk_inc/_ip_types.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
 #include <string.h>
-#include <winsock2.h>
-#include <ws2tcpip.h>
 #include <fileapi.h>
 #include <dirent.h>
+#include <windef.h>
+#include <processthreadsapi.h>
+#include <winbase.h>
+#include <winuser.h>
 #include <shellapi.h>
 #include "libzip/zip.h"
+#include "curl/curl/curl.h"
 #include "Utils/File.h"
 #include "Utils/Error.h"
 #include "Utils/Version.h"
 #include "Utils/Message.h"
 
-static void GetAASVersion(int* major, int* minor, SOCKET sock, BOOL preview)
+static void GetAASVersion(int* major, int* minor, BOOL preview)
 {
     *major = 0;
     *minor = 0;
     const char message[] =
        "GET /aasversion HTTP/1.1\r\nHost: www.hamtarodeluxe.com\r\n\r\n";
-
-    if (SOCKET_ERROR == send(sock, message, strlen(message), 0))
-        return;
+    (void)message;
+    //if (SOCKET_ERROR == send(sock, message, strlen(message), 0))
+    //    return;
 
     char response[1024];
     memset(response, 0, sizeof(response));
-    if (SOCKET_ERROR == recv(sock, response, sizeof(response), 0))
-        return;
+   //if (SOCKET_ERROR == recv(sock, response, sizeof(response), 0))
+   //    return;
 
     if (preview)
     {
@@ -47,7 +49,7 @@ static void GetAASVersion(int* major, int* minor, SOCKET sock, BOOL preview)
     }
     return;
 }
-
+/*
 static void DownloadArchive(SOCKET sock, int major, int minor, const char* dstFile)
 {
     const char arch[] =
@@ -109,7 +111,7 @@ static void DownloadArchive(SOCKET sock, int major, int minor, const char* dstFi
     }
     fclose(file);
 }
-
+*/
 static void Extract(const char* targetDir)
 {
     CloseAASBlocking();
@@ -173,69 +175,33 @@ int main(int argc, char *argv[])
         Extract(targetDir);
         return 0;
     }
-
-    SOCKET sock = 0;
-    // Connects to hamtarodeluxe.com
+    CURL* curl = NULL;
+    CURLcode res;
+    curl_global_init(CURL_GLOBAL_ALL);
+    curl = curl_easy_init();
+    if (!curl)
     {
-        WSADATA wsaData;
-        ZeroMemory(&wsaData, sizeof(WSADATA));
-        if (WSAStartup(MAKEWORD(2, 2), &wsaData) != 0)
-            return 0;
-
-        struct addrinfo *res = NULL, hints;
-
-        ZeroMemory(&hints, sizeof(hints));
-        hints.ai_family = AF_INET;
-        hints.ai_socktype = SOCK_STREAM;
-        hints.ai_protocol = IPPROTO_TCP;
-        hints.ai_flags = AI_PASSIVE;
-        #define DEFAULT_PORT "80"
-
-        // Resolve the local address and port to be used by the server
-        int iResult = getaddrinfo("hamtarodeluxe.com", "http", &hints, &res);
-        if (iResult != 0)
-        {
-            WSACleanup();
-            return 0;
-        }
-
-        sock = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
-        if (sock < 0)
-            return 0;
-
-        void* sockAddr;
-        int sizeOfSockAddr = 0;
-        while (res)
-        {
-            char addressStr[64];
-            inet_ntop(res->ai_family, res->ai_addr->sa_data, addressStr, 100);
-            switch (res->ai_family)
-            {
-            case AF_INET:
-                sockAddr = (struct sockaddr_in*)res->ai_addr;
-                sizeOfSockAddr = sizeof(struct sockaddr_in);
-                break;
-            case AF_INET6:
-                sockAddr = (struct sockaddr_in6*) res->ai_addr;
-                sizeOfSockAddr = sizeof(struct sockaddr_in6);
-                break;
-            }
-            res = res->ai_next;
-        }
-
-        if (connect(sock, sockAddr, sizeOfSockAddr))
-        {
-            WSACleanup();
-            return 0;
-        }
+        curl_global_cleanup();
+        return 0;
     }
 
+    curl_easy_setopt(curl, CURLOPT_URL, "https://api.github.com/repos/hdlx/altappswitcher/releases/latest/url");
+    struct curl_slist *list = NULL;
+    list = curl_slist_append(list, "User-Agent: Awesome-Octocat-App");
+    list = curl_slist_append(list, "Accept: application/vnd.github+json");
+    curl_easy_setopt(curl, CURLOPT_HTTPHEADER, list);
+    curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, 0L);
+    curl_easy_setopt(curl, CURLOPT_SSL_VERIFYHOST, 0L);
+    curl_easy_setopt(curl, CURLOPT_CA_CACHE_TIMEOUT, 604800L);
+    res = curl_easy_perform(curl);
+    ASSERT(res == CURLE_OK)
+    curl_easy_cleanup(curl);
+    curl_global_cleanup();
+    
     int major, minor;
-    GetAASVersion(&major, &minor, sock, preview);
+    GetAASVersion(&major, &minor, preview);
     if ((MAJOR >= major) && (MINOR >= minor))
     {
-        close(sock);
-        WSACleanup();
         return 0;
     }
     {
@@ -246,8 +212,6 @@ int main(int argc, char *argv[])
         DWORD res = MessageBox(0, msg, "AltAppSwitcher updater", MB_YESNO);
         if (res == IDNO)
         {
-            close(sock);
-            WSACleanup();
             return 0;
         }
     }
@@ -271,11 +235,8 @@ int main(int argc, char *argv[])
     {
         strcpy(archivePath, tempDir);
         strcat(archivePath, "/AltAppSwitcher.zip");
-        DownloadArchive(sock, major, minor, archivePath);
+   //     DownloadArchive(sock, major, minor, archivePath);
     }
-
-    close(sock);
-    WSACleanup();
 
     // Copy updater to temp
     char updaterPath[256] = {};
