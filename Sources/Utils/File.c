@@ -1,5 +1,7 @@
 #include <dirent.h>
 #include <ftw.h>
+#include <stdio.h>
+#include <dirent.h>
 
 static int DeleteForFtw(const char* path, const struct stat* data, int type, struct FTW* ftw)
 {
@@ -34,10 +36,60 @@ void DeleteTree(const char* dir)
     nftw(dir, DeleteForFtw, 0, FTW_DEPTH);
 }
 
-void FileToParentDir(char* file)
+void ParentDir(const char* file, char* out)
 {
-    StrBToF(file);
-    char* last = strrchr(file, '/');
+    strcpy(out, file);
+    StrBToF(out);
+    char* last = strrchr(out, '/');
     if (last)
         *last = '\0';
+}
+
+static void CopyFile(const char* srcStr, const char* dstStr)
+{
+    FILE* dst = fopen(dstStr, "wb");
+    FILE* src = fopen(srcStr, "rb");
+    unsigned char buf[1024];
+    int size = 1;
+    while (size)
+    {
+        size = fread(buf, sizeof(char), sizeof(buf), src);
+        fwrite(buf, sizeof(char), size, dst);
+    }
+    fclose(src);
+    fclose(dst);
+}
+
+void CopyDirContent(const char* srcDir, const char* dstDir)
+{
+    DIR* dir = opendir(srcDir);
+    struct dirent* e = readdir(dir);
+    while (e != NULL)
+    {
+        struct stat info;
+        stat(e->d_name, &info);
+        if (info.st_mode & S_IFDIR)
+        {
+        }
+        else if (info.st_mode & S_IFREG)
+        {
+            char srcFile[256] = {};
+            {
+                strcpy(srcFile, srcDir);
+                StrBToF(srcFile);
+                strcat(srcFile, "/");
+                strcat(srcFile, e->d_name);
+            }
+            char dstFile[256] = {};
+            {
+                strcpy(dstFile, dstDir);
+                StrBToF(dstFile);
+                strcat(dstFile, "/");
+                strcat(dstFile, e->d_name);
+            }
+            CopyFile(srcFile, dstFile);
+        }
+        e = readdir(dir);
+    }
+    closedir(dir);
 }

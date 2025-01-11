@@ -9,6 +9,7 @@
 #include <winbase.h>
 #include <winuser.h>
 #include <shellapi.h>
+#include <sys/stat.h>
 #include "libzip/zip.h"
 #include "curl/curl/curl.h"
 #include "cJSON/cJSON.h"
@@ -131,8 +132,6 @@ static void DownloadArchive(char* url, char* dstFile)
 
     curl_easy_setopt(curl, CURLOPT_URL, url);
     struct curl_slist *list = NULL;
-    //list = curl_slist_append(list, userAgent);
-    //list = curl_slist_append(list, "Accept: application/vnd.github+json");
     curl_easy_setopt(curl, CURLOPT_HTTPHEADER, list);
     curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, 0L);
     curl_easy_setopt(curl, CURLOPT_SSL_VERIFYHOST, 0L);
@@ -252,21 +251,13 @@ int main(int argc, char *argv[])
     // Copy updater to temp
     char updaterPath[256] = {};
     {
-        strcpy(updaterPath, tempDir);
-        strcat(updaterPath, "/Updater.exe");
-        char currentExe[256];
+        char currentExe[256] = {};
         GetModuleFileName(NULL, currentExe, 256);
-        FILE* dst = fopen(updaterPath, "wb");
-        FILE* src = fopen(currentExe, "rb");
-        unsigned char buf[1024];
-        int size = 1;
-        while (size)
-        {
-            size = fread(buf, sizeof(char), sizeof(buf), src);
-            fwrite(buf, sizeof(char), size, dst);
-        }
-        fclose(src);
-        fclose(dst);
+        char currentDir[256] = {};
+        ParentDir(currentExe, currentDir);
+        CopyDirContent(currentDir, tempDir);
+        strcat(updaterPath, tempDir);
+        strcat(updaterPath, "/Updater.exe");
     }
 
     // Run copied updater
