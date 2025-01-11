@@ -46,7 +46,7 @@ static int GetAASVersion(BOOL preview, char* outVersion, char* outURL)
     }
 
     DynMem response = {};
-    curl_easy_setopt(curl, CURLOPT_URL, "https://api.github.com/repos/hdlx/altappswitcher/releases/latest/assets");
+    curl_easy_setopt(curl, CURLOPT_URL, "https://api.github.com/repos/hdlx/altappswitcher/releases/latest");
     struct curl_slist *list = NULL;
     char userAgent[256] = {};
     sprintf(userAgent,  "User-Agent: AltAppSwitcher_v%i.%i", MAJOR, MINOR);
@@ -71,14 +71,18 @@ static int GetAASVersion(BOOL preview, char* outVersion, char* outURL)
 
     cJSON* json = cJSON_Parse(response._Data);
     free(response._Data);
+    const cJSON* tagName = cJSON_GetObjectItem(json, "tag_name");
+    const char* tag = cJSON_GetStringValue(tagName);
+    int major = 0; int minor = 0;
+    strcpy(outVersion, tag);
+    sscanf(outVersion, "v%i.%i", &major, &minor);
 
+    if (MAJOR >= major &&  MINOR >= minor)
+    {
+        cJSON_Delete(json);
+        return 1;
+    }
 
-    cJSON_Delete(json);
-    return 1;
-}
-/*
-static void DownloadArchive(SOCKET sock, int major, int minor, const char* dstFile)
-{
     const char arch[] =
 #if defined(ARCH_x86_64)
        "x86_64";
@@ -88,57 +92,61 @@ static void DownloadArchive(SOCKET sock, int major, int minor, const char* dstFi
 #error
 #endif
 
-    char msg[512] = {};
-    sprintf(msg, "GET /aasarchive-%i-%i/AltAppSwitcher_%s.zip HTTP/1.1\r\nHost: www.hamtarodeluxe.com\r\n\r\n", major, minor, arch);
-
-    if (SOCKET_ERROR == send(sock, msg, strlen(msg), 0))
+    const cJSON* assets = cJSON_GetObjectItem(json, "assets");
+    for (int i = 0; i < cJSON_GetArraySize(assets); i++)
     {
-        close(sock);
-        WSACleanup();
+        const cJSON* item = cJSON_GetArrayItem(assets, i);
+        const cJSON* name = cJSON_GetObjectItem(item, "name");
+        const char* nameStr = cJSON_GetStringValue(name);
+        if (strstr(nameStr, arch) == NULL)
+            continue;
+        const cJSON* url = cJSON_GetObjectItem(item, "browser_download_url");
+        strcpy(outURL, cJSON_GetStringValue(url));
+    }
+    cJSON_Delete(json);
+    return 1;
+}
+
+static size_t CurlWriteFile(void* ptr, size_t size, size_t nmemb, void* userData)
+{
+    (void)size;
+    FILE* f = (FILE*)userData;
+    fwrite(ptr, 1, nmemb, f);
+    return nmemb;
+}
+
+static void DownloadArchive(char* url, char* dstFile)
+{
+    CURL* curl = NULL;
+    CURLcode res;
+    curl_global_init(CURL_GLOBAL_ALL);
+    curl = curl_easy_init();
+    if (!curl)
+    {
+        curl_global_cleanup();
         return;
     }
 
-    int fileSize = 0;
-    {
-        char buf[1024];
-        memset(buf, '\0', sizeof(buf));
-        char* p = buf + 4;
-        while (1)
-        {
-            if (SOCKET_ERROR == recv(sock, p, 1, 0))
-                return;
-            if (!strncmp(p - 3, "\r\n\r\n", 4))
-                break;
-            p++;
-        }
-        p = buf + 4;
-        // printf("%s", p);
-        ASSERT(strstr(p, "404 Not Found") == NULL);
-        char* at = strstr(p, "content-length");
-        if (at == NULL)
-            return;
-        const int ret = sscanf(at, "content-length: %i", &fileSize);
-        ASSERT(ret != -1);
-        ASSERT(fileSize > 0)
-    }
-
-    int bytes = 0;
     FILE* file = fopen(dstFile,"wb");
-    while (1)
-    {
-        static char response[1024];
-        memset(response, 0, sizeof(response));
-        const int bytesRecv = recv(sock, response, 1024, 0);
-        if (bytesRecv == -1)
-            return;
-        fwrite(response, 1, bytesRecv, file);
-        bytes += bytesRecv;
-        if (bytes == fileSize)
-            break;
-    }
+
+    curl_easy_setopt(curl, CURLOPT_URL, url);
+    struct curl_slist *list = NULL;
+    //list = curl_slist_append(list, userAgent);
+    //list = curl_slist_append(list, "Accept: application/vnd.github+json");
+    curl_easy_setopt(curl, CURLOPT_HTTPHEADER, list);
+    curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, 0L);
+    curl_easy_setopt(curl, CURLOPT_SSL_VERIFYHOST, 0L);
+    curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, CurlWriteFile);
+    curl_easy_setopt(curl, CURLOPT_WRITEDATA, file);
+    curl_easy_setopt(curl, CURLOPT_CA_CACHE_TIMEOUT, 604800L);
+    res = curl_easy_perform(curl);
+    ASSERT(res == CURLE_OK)
+    curl_slist_free_all(list);
+    curl_easy_cleanup(curl);
+    curl_global_cleanup();
+
     fclose(file);
 }
-*/
 static void Extract(const char* targetDir)
 {
     CloseAASBlocking();
@@ -204,9 +212,9 @@ int main(int argc, char *argv[])
     }
 
     char version[64] = {};
-    char url[512] = {};
-    GetAASVersion(preview, version, url);
-    if (url[0] == '\0')
+    char archiveURL[512] = {};
+    GetAASVersion(preview, version, archiveURL);
+    if (archiveURL[0] == '\0')
         return 0;
     
     {
@@ -238,7 +246,7 @@ int main(int argc, char *argv[])
     {
         strcpy(archivePath, tempDir);
         strcat(archivePath, "/AltAppSwitcher.zip");
-   //     DownloadArchive(sock, major, minor, archivePath);
+        DownloadArchive(archiveURL, archivePath);
     }
 
     // Copy updater to temp
