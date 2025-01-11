@@ -11,43 +11,70 @@
 #include <shellapi.h>
 #include "libzip/zip.h"
 #include "curl/curl/curl.h"
+#include "cJSON/cJSON.h"
 #include "Utils/File.h"
 #include "Utils/Error.h"
 #include "Utils/Version.h"
 #include "Utils/Message.h"
 
-static void GetAASVersion(int* major, int* minor, BOOL preview)
+typedef struct DynMem
 {
-    *major = 0;
-    *minor = 0;
-    const char message[] =
-       "GET /aasversion HTTP/1.1\r\nHost: www.hamtarodeluxe.com\r\n\r\n";
-    (void)message;
-    //if (SOCKET_ERROR == send(sock, message, strlen(message), 0))
-    //    return;
+  char* _Data;
+  size_t _Size;
+} DynMem;
 
-    char response[1024];
-    memset(response, 0, sizeof(response));
-   //if (SOCKET_ERROR == recv(sock, response, sizeof(response), 0))
-   //    return;
+static size_t writeData(void* ptr, size_t size, size_t nmemb, void* userData)
+{
+    (void)size;
+    DynMem* mem = (DynMem*)userData;
+    mem->_Data = realloc(mem->_Data, mem->_Size + nmemb);
+    memcpy(mem->_Data + mem->_Size, ptr, nmemb);
+    mem->_Size += nmemb;
+    return nmemb;
+}
 
-    if (preview)
+static int GetAASVersion(BOOL preview, char* outVersion, char* outURL)
+{
+    CURL* curl = NULL;
+    CURLcode res;
+    curl_global_init(CURL_GLOBAL_ALL);
+    curl = curl_easy_init();
+    if (!curl)
     {
-        const char version[] = "\"PreviewVersion\": ";
-        char* at = strstr(response, version);
-        if (at == NULL)
-            return;
-        sscanf(at, "\"PreviewVersion\": %i.%i", major, minor);
+        curl_global_cleanup();
+        return 0;
     }
-    else
+
+    DynMem response = {};
+    curl_easy_setopt(curl, CURLOPT_URL, "https://api.github.com/repos/hdlx/altappswitcher/releases/latest/assets");
+    struct curl_slist *list = NULL;
+    char userAgent[256] = {};
+    sprintf(userAgent,  "User-Agent: AltAppSwitcher_v%i.%i", MAJOR, MINOR);
+    list = curl_slist_append(list, userAgent);
+    list = curl_slist_append(list, "Accept: application/vnd.github+json");
+    curl_easy_setopt(curl, CURLOPT_HTTPHEADER, list);
+    curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, 0L);
+    curl_easy_setopt(curl, CURLOPT_SSL_VERIFYHOST, 0L);
+    curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, writeData);
+    curl_easy_setopt(curl, CURLOPT_WRITEDATA, &response);
+    curl_easy_setopt(curl, CURLOPT_CA_CACHE_TIMEOUT, 604800L);
+    res = curl_easy_perform(curl);
+    ASSERT(res == CURLE_OK)
     {
-        const char version[] = "\"Version\": ";
-        char* at = strstr(response, version);
-        if (at == NULL)
-            return;
-        sscanf(at, "\"Version\": %i.%i", major, minor);
+        response._Data = realloc(response._Data, response._Size + 1);
+        response._Data[response._Size] = '\0';
+        response._Size += 1;
     }
-    return;
+    curl_slist_free_all(list);
+    curl_easy_cleanup(curl);
+    curl_global_cleanup();
+
+    cJSON* json = cJSON_Parse(response._Data);
+    free(response._Data);
+
+
+    cJSON_Delete(json);
+    return 1;
 }
 /*
 static void DownloadArchive(SOCKET sock, int major, int minor, const char* dstFile)
@@ -152,15 +179,6 @@ static void Extract(const char* targetDir)
     MessageBox(0, "AltAppSwitcher successfully updated", "AltAppSwitcher", MB_OK | MB_SETFOREGROUND);
 }
 
-static size_t writeData(void* ptr, size_t size, size_t nmemb, void* userData)
-{
-    (void)nmemb;
-    (char*)* use
-    memcpy(ptr, userData, size);
-    (userData) += size;
-    return size;
-}
-
 int main(int argc, char *argv[])
 {
     BOOL extract = 0;
@@ -184,49 +202,21 @@ int main(int argc, char *argv[])
         Extract(targetDir);
         return 0;
     }
-    CURL* curl = NULL;
-    CURLcode res;
-    curl_global_init(CURL_GLOBAL_ALL);
-    curl = curl_easy_init();
-    if (!curl)
-    {
-        curl_global_cleanup();
+
+    char version[64] = {};
+    char url[512] = {};
+    GetAASVersion(preview, version, url);
+    if (url[0] == '\0')
         return 0;
-    }
-
-    char response[1024] = {};
-
-    curl_easy_setopt(curl, CURLOPT_URL, "https://api.github.com/repos/hdlx/altappswitcher/releases/latest/url");
-    struct curl_slist *list = NULL;
-    list = curl_slist_append(list, "User-Agent: Awesome-Octocat-App");
-    list = curl_slist_append(list, "Accept: application/vnd.github+json");
-    curl_easy_setopt(curl, CURLOPT_HTTPHEADER, list);
-    curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, 0L);
-    curl_easy_setopt(curl, CURLOPT_SSL_VERIFYHOST, 0L);
-    curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, writeData);
-    curl_easy_setopt(curl, CURLOPT_WRITEDATA, &response);
-    curl_easy_setopt(curl, CURLOPT_CA_CACHE_TIMEOUT, 604800L);
-    res = curl_easy_perform(curl);
-    ASSERT(res == CURLE_OK)
-    curl_easy_cleanup(curl);
-    curl_global_cleanup();
     
-    int major, minor;
-    GetAASVersion(&major, &minor, preview);
-    if ((MAJOR >= major) && (MINOR >= minor))
-    {
-        return 0;
-    }
     {
         char msg[256];
         sprintf(msg,
-            "A new version of AltAppSwitcher is available (%u.%u).\nDo you want to update now?",
-            major, minor);
+            "A new version of AltAppSwitcher is available (%s).\nDo you want to update now?",
+            version);
         DWORD res = MessageBox(0, msg, "AltAppSwitcher updater", MB_YESNO);
         if (res == IDNO)
-        {
             return 0;
-        }
     }
 
     // Make temp dir

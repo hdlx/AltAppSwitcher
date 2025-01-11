@@ -27,7 +27,7 @@ INCLUDEDIR = $(ROOTDIR)/Sources
 
 # Common var
 CC = $(ARCH)-w64-mingw32-clang
-IDIRS = -I $(ROOTDIR)/SDK/headers -I $(ROOTDIR)/Sources
+IDIRS = -I $(ROOTDIR)/SDK/Headers -I $(ROOTDIR)/Sources -I $(ROOTDIR)/SDK/Sources
 LDIRS = -L $(LIBDIR)
 LFLAGS = -static -static-libgcc -Werror
 CFLAGS = -Wall -D ARCH_$(ARCH)=1 -target $(ARCH)-mingw64 -Werror
@@ -40,22 +40,25 @@ LFLAGS += -mwindows
 LFLAGS += -s
 endif
 
-SDKHEADERS = $(wildcard $(SDKDIR)/**/*.h) $(wildcard $(SDKDIR)/*.h) 
-SOURCEHEADERS = $(wildcard $(SOURCEDIR)/**/*.h) $(wildcard $(SOURCEDIR)/*.h) 
+# All .h, for dependency recompilation. No granularity.
+ALLH = $(wildcard $(ROOTDIR)/*/*.h $(ROOTDIR)/*/*/*.h $(ROOTDIR)/*/*/*/*.h)
 
 # Objects:
 # All, for compilation.
-ALLOBJECTS = $(patsubst $(SOURCEDIR)/%.c, $(OBJDIR)/%.o, $(wildcard $(SOURCEDIR)/**/*.c))
+ALLC = $(wildcard $(ROOTDIR)/*/*.c $(ROOTDIR)/*/*/*.c $(ROOTDIR)/*/*/*/*.c)
+ALLOBJECTS = $(patsubst $(ROOTDIR)/%.c, $(OBJDIR)/%.o, $(ALLC))
+
 # Subsets, for link.
-AASOBJECTS = $(filter $(OBJDIR)/AltAppSwitcher/%, $(ALLOBJECTS))
-CONFIGOBJECTS = $(filter $(OBJDIR)/Config/%, $(ALLOBJECTS))
-SETTINGSOBJECTS = $(filter $(OBJDIR)/Settings/%, $(ALLOBJECTS))
-UPDATEROBJECTS = $(filter $(OBJDIR)/Updater/%, $(ALLOBJECTS))
-ERROROBJECTS = $(filter $(OBJDIR)/Utils/Error%, $(ALLOBJECTS))
-FILEOBJECTS = $(filter $(OBJDIR)/Utils/File%, $(ALLOBJECTS))
-MSGOBJECTS = $(filter $(OBJDIR)/Utils/Message%, $(ALLOBJECTS))
-COMMONOBJECTS = $(ERROROBJECTS) $(FILEOBJECTS) $(MSGOBJECTS)
-GUIOBJECTS = $(filter $(OBJDIR)/Utils/GUI%, $(ALLOBJECTS))
+AASOBJECTS = $(filter $(OBJDIR)/Sources/AltAppSwitcher/%, $(ALLOBJECTS))
+CONFIGOBJECTS = $(filter $(OBJDIR)/Sources/Config/%, $(ALLOBJECTS))
+SETTINGSOBJECTS = $(filter $(OBJDIR)/Sources/Settings/%, $(ALLOBJECTS))
+UPDATEROBJECTS = $(filter $(OBJDIR)/Sources/Updater/%, $(ALLOBJECTS))
+ERROROBJECTS = $(filter $(OBJDIR)/Sources/Utils/Error%, $(ALLOBJECTS))
+FILEOBJECTS = $(filter $(OBJDIR)/Sources/Utils/File%, $(ALLOBJECTS))
+MSGOBJECTS = $(filter $(OBJDIR)/Sources/Utils/Message%, $(ALLOBJECTS))
+GUIOBJECTS = $(filter $(OBJDIR)/Sources/Utils/GUI%, $(ALLOBJECTS))
+SDKOBJECTS = $(filter $(OBJDIR)/SDK%, $(ALLOBJECTS))
+COMMONOBJECTS = $(ERROROBJECTS) $(FILEOBJECTS) $(MSGOBJECTS) $(SDKOBJECTS)
 
 AASLIBS = -l dwmapi -l User32 -l Gdi32 -l Gdiplus -l shlwapi -l pthread -l Ole32 -l Comctl32
 SETTINGSLIB = -l Comctl32 -l Gdi32
@@ -92,7 +95,7 @@ $(AASARCHIVE): $(ALLAAS)
 
 # Compile object targets:
 # see 4.12.1 Syntax of Static Pattern Rules
-$(ALLOBJECTS): $(OBJDIR)/%.o: $(SOURCEDIR)/%.c $(SDKHEADERS) $(SOURCEHEADERS)
+$(ALLOBJECTS): $(OBJDIR)/%.o: $(ROOTDIR)/%.c $(ALLH)
 	$(CC) $(CFLAGS) $(IDIRS) -MJ $@.json -c $< -o $@
 
 # Build exe targets (link):

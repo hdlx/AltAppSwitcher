@@ -36,10 +36,12 @@ def MakeDirs(conf, arch):
     MakeDirIfNeeded("./Output")
     MakeDirIfNeeded(f"./Output/{conf}_{arch}")
     MakeDirIfNeeded(f"./Output/{conf}_{arch}/Objects")
+    MakeDirIfNeeded(f"./Output/{conf}_{arch}/Objects/Sources")
+    MakeDirIfNeeded(f"./Output/{conf}_{arch}/Objects/SDK")
     MakeDirIfNeeded(f"./Output/{conf}_{arch}/AAS")
-    MakeDirIfNeeded(f"./Output/{conf}_{arch}/Installer")
     MakeDirIfNeeded(f"./Output/{conf}_{arch}/Deploy")
-    CopyDirStructure("./Sources", f"./Output/{conf}_{arch}/Objects")
+    CopyDirStructure("./Sources", f"./Output/{conf}_{arch}/Objects/Sources")
+    CopyDirStructure("./SDK", f"./Output/{conf}_{arch}/Objects/SDK")
 
 def Copy(src, dst):
     if os.path.exists(dst):
@@ -77,22 +79,6 @@ def MakeArchive(srcDir, dstZip):
     shutil.make_archive(tempDir, "zip", tempDir)
     shutil.rmtree(tempDir)
 
-def BinToC(src, dst):
-    fi = open(src, 'rb')
-    fo = open(dst, 'w')
-    fo.write("const unsigned char AASZip[] = {")
-    i = 0
-    for byte in fi.read():
-        fo.write(f" {hex(byte)},")
-        i += 1
-        if i == 25:
-            i = 0
-            fo.write("\n")
-    fo.write("};\n")
-    fo.write("const unsigned int SizeOfAASZip = sizeof(AASZip);\n")
-    fo.close()
-    fi.close()
-
 import sys
 if __name__ == "__main__": 
     args = sys.argv[1:]
@@ -107,7 +93,4 @@ if __name__ == "__main__":
         MakeCompileCommands(args[1], args[2:])
     elif fn == "MakeArchive":
         MakeArchive(args[1], args[2])
-    elif fn == "BinToC":
-        BinToC(args[1], args[2])
-    elif fn == "EmbedManifest":
-        EmbedAndDeleteManifest(args[1])
+
