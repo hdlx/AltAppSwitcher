@@ -36,6 +36,7 @@ static size_t writeData(void* ptr, size_t size, size_t nmemb, void* userData)
 
 static int GetAASVersion(BOOL preview, char* outVersion, char* outURL)
 {
+    preview = 1;
     CURL* curl = NULL;
     CURLcode res;
     curl_global_init(CURL_GLOBAL_ALL);
@@ -47,7 +48,7 @@ static int GetAASVersion(BOOL preview, char* outVersion, char* outURL)
     }
 
     DynMem response = {};
-    curl_easy_setopt(curl, CURLOPT_URL, "https://api.github.com/repos/hdlx/altappswitcher/releases/latest");
+    curl_easy_setopt(curl, CURLOPT_URL, "https://api.github.com/repos/hdlx/altappswitcher/releases");
     struct curl_slist *list = NULL;
     char userAgent[256] = {};
     sprintf(userAgent,  "User-Agent: AltAppSwitcher_v%i.%i", MAJOR, MINOR);
@@ -72,7 +73,17 @@ static int GetAASVersion(BOOL preview, char* outVersion, char* outURL)
 
     cJSON* json = cJSON_Parse(response._Data);
     free(response._Data);
-    const cJSON* tagName = cJSON_GetObjectItem(json, "tag_name");
+
+    const cJSON* release = NULL;
+    for (int i = 0; i < cJSON_GetArraySize(json); i++)
+    {
+        release = cJSON_GetArrayItem(json, i);
+        const cJSON* preRelease = cJSON_GetObjectItem(release, "prerelease");
+        if (preview == cJSON_IsTrue(preRelease))
+            break;
+    }
+
+    const cJSON* tagName = cJSON_GetObjectItem(release, "tag_name");
     const char* tag = cJSON_GetStringValue(tagName);
     int major = 0; int minor = 0;
     strcpy(outVersion, tag);
@@ -93,7 +104,7 @@ static int GetAASVersion(BOOL preview, char* outVersion, char* outURL)
 #error
 #endif
 
-    const cJSON* assets = cJSON_GetObjectItem(json, "assets");
+    const cJSON* assets = cJSON_GetObjectItem(release, "assets");
     for (int i = 0; i < cJSON_GetArraySize(assets); i++)
     {
         const cJSON* item = cJSON_GetArrayItem(assets, i);
