@@ -25,7 +25,7 @@ Run `RemoveFromStartup.bat` to revert this.
 
 ## Known issues
 - Alt tab popup is behind start menu.
-- On some releases, .exe might be flagged as malicious by Windows Defender. This is a false positive (detection relies on machine learning).
+- Releases might be flagged as malicious by antiviruses. This is a false positive (detection relies on machine learning).
 
 ## Building from source
 This is a C project relying on C standard library and Windows API. I'm using [Clang (mingw)](https://github.com/mstorsjo/llvm-mingw) and VS Code / VS Codium.
