@@ -1,55 +1,99 @@
-#include <psdk_inc/_ip_types.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
 #include <string.h>
-#include <winsock2.h>
-#include <ws2tcpip.h>
 #include <fileapi.h>
 #include <dirent.h>
+#include <windef.h>
+#include <processthreadsapi.h>
+#include <winbase.h>
+#include <winuser.h>
 #include <shellapi.h>
+#include <sys/stat.h>
 #include "libzip/zip.h"
+#include "curl/curl/curl.h"
+#include "cJSON/cJSON.h"
 #include "Utils/File.h"
 #include "Utils/Error.h"
 #include "Utils/Version.h"
 #include "Utils/Message.h"
 
-static void GetAASVersion(int* major, int* minor, SOCKET sock, BOOL preview)
+typedef struct DynMem
 {
-    *major = 0;
-    *minor = 0;
-    const char message[] =
-       "GET /aasversion HTTP/1.1\r\nHost: www.hamtarodeluxe.com\r\n\r\n";
+  char* _Data;
+  size_t _Size;
+} DynMem;
 
-    if (SOCKET_ERROR == send(sock, message, strlen(message), 0))
-        return;
-
-    char response[1024];
-    memset(response, 0, sizeof(response));
-    if (SOCKET_ERROR == recv(sock, response, sizeof(response), 0))
-        return;
-
-    if (preview)
-    {
-        const char version[] = "\"PreviewVersion\": ";
-        char* at = strstr(response, version);
-        if (at == NULL)
-            return;
-        sscanf(at, "\"PreviewVersion\": %i.%i", major, minor);
-    }
-    else
-    {
-        const char version[] = "\"Version\": ";
-        char* at = strstr(response, version);
-        if (at == NULL)
-            return;
-        sscanf(at, "\"Version\": %i.%i", major, minor);
-    }
-    return;
+static size_t writeData(void* ptr, size_t size, size_t nmemb, void* userData)
+{
+    (void)size;
+    DynMem* mem = (DynMem*)userData;
+    mem->_Data = realloc(mem->_Data, mem->_Size + nmemb);
+    memcpy(mem->_Data + mem->_Size, ptr, nmemb);
+    mem->_Size += nmemb;
+    return nmemb;
 }
 
-static void DownloadArchive(SOCKET sock, int major, int minor, const char* dstFile)
+static int GetLastAASVersion(BOOL preview, char* outVersion, char* assetURL)
 {
+    CURL* curl = NULL;
+    CURLcode res;
+    curl_global_init(CURL_GLOBAL_ALL);
+    curl = curl_easy_init();
+    if (!curl)
+    {
+        curl_global_cleanup();
+        return 0;
+    }
+
+    DynMem response = {};
+    curl_easy_setopt(curl, CURLOPT_URL, "https://api.github.com/repos/hdlx/altappswitcher/releases");
+    struct curl_slist *list = NULL;
+    char userAgent[256] = {};
+    sprintf(userAgent,  "User-Agent: AltAppSwitcher_v%i.%i", MAJOR, MINOR);
+    list = curl_slist_append(list, userAgent);
+    list = curl_slist_append(list, "Accept: application/vnd.github+json");
+    curl_easy_setopt(curl, CURLOPT_HTTPHEADER, list);
+    curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, 0L);
+    curl_easy_setopt(curl, CURLOPT_SSL_VERIFYHOST, 0L);
+    curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, writeData);
+    curl_easy_setopt(curl, CURLOPT_WRITEDATA, &response);
+    curl_easy_setopt(curl, CURLOPT_CA_CACHE_TIMEOUT, 604800L);
+    res = curl_easy_perform(curl);
+    ASSERT(res == CURLE_OK)
+    {
+        response._Data = realloc(response._Data, response._Size + 1);
+        response._Data[response._Size] = '\0';
+        response._Size += 1;
+    }
+    curl_slist_free_all(list);
+    curl_easy_cleanup(curl);
+    curl_global_cleanup();
+
+    cJSON* json = cJSON_Parse(response._Data);
+    free(response._Data);
+
+    const cJSON* release = NULL;
+    for (int i = 0; i < cJSON_GetArraySize(json); i++)
+    {
+        release = cJSON_GetArrayItem(json, i);
+        const cJSON* preRelease = cJSON_GetObjectItem(release, "prerelease");
+        if (preview == cJSON_IsTrue(preRelease))
+            break;
+    }
+
+    const cJSON* tagName = cJSON_GetObjectItem(release, "tag_name");
+    const char* tag = cJSON_GetStringValue(tagName);
+    int major = 0; int minor = 0;
+    strcpy(outVersion, tag);
+    sscanf(outVersion, "v%i.%i", &major, &minor);
+
+    if (MAJOR >= major &&  MINOR >= minor)
+    {
+        cJSON_Delete(json);
+        return 1;
+    }
+
     const char arch[] =
 #if defined(ARCH_x86_64)
        "x86_64";
@@ -59,54 +103,63 @@ static void DownloadArchive(SOCKET sock, int major, int minor, const char* dstFi
 #error
 #endif
 
-    char msg[512] = {};
-    sprintf(msg, "GET /aasarchive-%i-%i/AltAppSwitcher_%s.zip HTTP/1.1\r\nHost: www.hamtarodeluxe.com\r\n\r\n", major, minor, arch);
-
-    if (SOCKET_ERROR == send(sock, msg, strlen(msg), 0))
+    const cJSON* assets = cJSON_GetObjectItem(release, "assets");
+    for (int i = 0; i < cJSON_GetArraySize(assets); i++)
     {
-        close(sock);
-        WSACleanup();
+        const cJSON* asset = cJSON_GetArrayItem(assets, i);
+        const cJSON* name = cJSON_GetObjectItem(asset, "name");
+        const char* nameStr = cJSON_GetStringValue(name);
+        if (strstr(nameStr, arch) == NULL)
+            continue;
+        strcpy(assetURL, cJSON_GetStringValue(cJSON_GetObjectItem(asset, "url")));
+    }
+    cJSON_Delete(json);
+    return 1;
+}
+
+static size_t CurlWriteFile(void* ptr, size_t size, size_t nmemb, void* userData)
+{
+    (void)size;
+    FILE* f = (FILE*)userData;
+    fwrite(ptr, 1, nmemb, f);
+    return nmemb;
+}
+
+static void DownloadArchive(const char* dstFile, const char* url)
+{
+    CURL* curl = NULL;
+    CURLcode res;
+    curl_global_init(CURL_GLOBAL_ALL);
+    curl = curl_easy_init();
+    if (!curl)
+    {
+        curl_global_cleanup();
         return;
     }
 
-    int fileSize = 0;
-    {
-        char buf[1024];
-        memset(buf, '\0', sizeof(buf));
-        char* p = buf + 4;
-        while (1)
-        {
-            if (SOCKET_ERROR == recv(sock, p, 1, 0))
-                return;
-            if (!strncmp(p - 3, "\r\n\r\n", 4))
-                break;
-            p++;
-        }
-        p = buf + 4;
-        // printf("%s", p);
-        ASSERT(strstr(p, "404 Not Found") == NULL);
-        char* at = strstr(p, "content-length");
-        if (at == NULL)
-            return;
-        const int ret = sscanf(at, "content-length: %i", &fileSize);
-        ASSERT(ret != -1);
-        ASSERT(fileSize > 0)
-    }
-
-    int bytes = 0;
     FILE* file = fopen(dstFile,"wb");
-    while (1)
-    {
-        static char response[1024];
-        memset(response, 0, sizeof(response));
-        const int bytesRecv = recv(sock, response, 1024, 0);
-        if (bytesRecv == -1)
-            return;
-        fwrite(response, 1, bytesRecv, file);
-        bytes += bytesRecv;
-        if (bytes == fileSize)
-            break;
-    }
+    curl_easy_setopt(curl, CURLOPT_URL, url);
+    struct curl_slist *list = NULL;
+    char userAgent[256] = {};
+    sprintf(userAgent,  "User-Agent: AltAppSwitcher_v%i.%i", MAJOR, MINOR);
+    list = curl_slist_append(list, userAgent);
+    //list = curl_slist_append(list, "Accept: application/vnd.github+json");
+    list = curl_slist_append(list, "Accept: application/octet-stream");
+
+    curl_easy_setopt(curl, CURLOPT_HTTPHEADER, list);
+    curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, 0L);
+    curl_easy_setopt(curl, CURLOPT_SSL_VERIFYHOST, 0L);
+    curl_easy_setopt(curl, CURLOPT_FOLLOWLOCATION, 1L);
+    // curl_easy_setopt(curl, CURLOPT_VERBOSE, 1L);
+    curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, CurlWriteFile);
+    curl_easy_setopt(curl, CURLOPT_WRITEDATA, file);
+    curl_easy_setopt(curl, CURLOPT_CA_CACHE_TIMEOUT, 604800L);
+    res = curl_easy_perform(curl);
+    ASSERT(res == CURLE_OK)
+    curl_slist_free_all(list);
+    curl_easy_cleanup(curl);
+    curl_global_cleanup();
+
     fclose(file);
 }
 
@@ -120,7 +173,7 @@ static void Extract(const char* targetDir)
     {
         struct zip_stat zs = {};
         zip_stat_index(z, i, 0, &zs);
-        printf("Name: [%s], ", zs.name);
+        // printf("Name: [%s], ", zs.name);
         if (!strcmp(zs.name, "AltAppSwitcherConfig.txt"))
             continue;
         struct zip_file* zf = zip_fopen_index(z, i, 0);
@@ -174,82 +227,20 @@ int main(int argc, char *argv[])
         return 0;
     }
 
-    SOCKET sock = 0;
-    // Connects to hamtarodeluxe.com
-    {
-        WSADATA wsaData;
-        ZeroMemory(&wsaData, sizeof(WSADATA));
-        if (WSAStartup(MAKEWORD(2, 2), &wsaData) != 0)
-            return 0;
-
-        struct addrinfo *res = NULL, hints;
-
-        ZeroMemory(&hints, sizeof(hints));
-        hints.ai_family = AF_INET;
-        hints.ai_socktype = SOCK_STREAM;
-        hints.ai_protocol = IPPROTO_TCP;
-        hints.ai_flags = AI_PASSIVE;
-        #define DEFAULT_PORT "80"
-
-        // Resolve the local address and port to be used by the server
-        int iResult = getaddrinfo("hamtarodeluxe.com", "http", &hints, &res);
-        if (iResult != 0)
-        {
-            WSACleanup();
-            return 0;
-        }
-
-        sock = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
-        if (sock < 0)
-            return 0;
-
-        void* sockAddr;
-        int sizeOfSockAddr = 0;
-        while (res)
-        {
-            char addressStr[64];
-            inet_ntop(res->ai_family, res->ai_addr->sa_data, addressStr, 100);
-            switch (res->ai_family)
-            {
-            case AF_INET:
-                sockAddr = (struct sockaddr_in*)res->ai_addr;
-                sizeOfSockAddr = sizeof(struct sockaddr_in);
-                break;
-            case AF_INET6:
-                sockAddr = (struct sockaddr_in6*) res->ai_addr;
-                sizeOfSockAddr = sizeof(struct sockaddr_in6);
-                break;
-            }
-            res = res->ai_next;
-        }
-
-        if (connect(sock, sockAddr, sizeOfSockAddr))
-        {
-            WSACleanup();
-            return 0;
-        }
-    }
-
-    int major, minor;
-    GetAASVersion(&major, &minor, sock, preview);
-    if ((MAJOR >= major) && (MINOR >= minor))
-    {
-        close(sock);
-        WSACleanup();
+    char version[64] = {};
+    char assetURL[512] = {};
+    GetLastAASVersion(preview, version, assetURL);
+    if (assetURL[0] == '\0')
         return 0;
-    }
+    
     {
         char msg[256];
         sprintf(msg,
-            "A new version of AltAppSwitcher is available (%u.%u).\nDo you want to update now?",
-            major, minor);
+            "A new version of AltAppSwitcher is available (%s).\nDo you want to update now?",
+            version);
         DWORD res = MessageBox(0, msg, "AltAppSwitcher updater", MB_YESNO);
         if (res == IDNO)
-        {
-            close(sock);
-            WSACleanup();
             return 0;
-        }
     }
 
     // Make temp dir
@@ -271,30 +262,19 @@ int main(int argc, char *argv[])
     {
         strcpy(archivePath, tempDir);
         strcat(archivePath, "/AltAppSwitcher.zip");
-        DownloadArchive(sock, major, minor, archivePath);
+        DownloadArchive(archivePath, assetURL);
     }
-
-    close(sock);
-    WSACleanup();
 
     // Copy updater to temp
     char updaterPath[256] = {};
     {
-        strcpy(updaterPath, tempDir);
-        strcat(updaterPath, "/Updater.exe");
-        char currentExe[256];
+        char currentExe[256] = {};
         GetModuleFileName(NULL, currentExe, 256);
-        FILE* dst = fopen(updaterPath, "wb");
-        FILE* src = fopen(currentExe, "rb");
-        unsigned char buf[1024];
-        int size = 1;
-        while (size)
-        {
-            size = fread(buf, sizeof(char), sizeof(buf), src);
-            fwrite(buf, sizeof(char), size, dst);
-        }
-        fclose(src);
-        fclose(dst);
+        char currentDir[256] = {};
+        ParentDir(currentExe, currentDir);
+        CopyDirContent(currentDir, tempDir);
+        strcat(updaterPath, tempDir);
+        strcat(updaterPath, "/Updater.exe");
     }
 
     // Run copied updater
