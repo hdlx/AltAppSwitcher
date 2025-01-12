@@ -34,9 +34,8 @@ static size_t writeData(void* ptr, size_t size, size_t nmemb, void* userData)
     return nmemb;
 }
 
-static int GetAASVersion(BOOL preview, char* outVersion, char* outURL)
+static int GetLastAASVersion(BOOL preview, char* outVersion, char* assetURL)
 {
-    preview = 1;
     CURL* curl = NULL;
     CURLcode res;
     curl_global_init(CURL_GLOBAL_ALL);
@@ -107,13 +106,12 @@ static int GetAASVersion(BOOL preview, char* outVersion, char* outURL)
     const cJSON* assets = cJSON_GetObjectItem(release, "assets");
     for (int i = 0; i < cJSON_GetArraySize(assets); i++)
     {
-        const cJSON* item = cJSON_GetArrayItem(assets, i);
-        const cJSON* name = cJSON_GetObjectItem(item, "name");
+        const cJSON* asset = cJSON_GetArrayItem(assets, i);
+        const cJSON* name = cJSON_GetObjectItem(asset, "name");
         const char* nameStr = cJSON_GetStringValue(name);
         if (strstr(nameStr, arch) == NULL)
             continue;
-        const cJSON* url = cJSON_GetObjectItem(item, "browser_download_url");
-        strcpy(outURL, cJSON_GetStringValue(url));
+        strcpy(assetURL, cJSON_GetStringValue(cJSON_GetObjectItem(asset, "url")));
     }
     cJSON_Delete(json);
     return 1;
@@ -127,7 +125,7 @@ static size_t CurlWriteFile(void* ptr, size_t size, size_t nmemb, void* userData
     return nmemb;
 }
 
-static void DownloadArchive(char* url, char* dstFile)
+static void DownloadArchive(const char* dstFile, const char* url)
 {
     CURL* curl = NULL;
     CURLcode res;
@@ -140,12 +138,19 @@ static void DownloadArchive(char* url, char* dstFile)
     }
 
     FILE* file = fopen(dstFile,"wb");
-
     curl_easy_setopt(curl, CURLOPT_URL, url);
     struct curl_slist *list = NULL;
+    char userAgent[256] = {};
+    sprintf(userAgent,  "User-Agent: AltAppSwitcher_v%i.%i", MAJOR, MINOR);
+    list = curl_slist_append(list, userAgent);
+    //list = curl_slist_append(list, "Accept: application/vnd.github+json");
+    list = curl_slist_append(list, "Accept: application/octet-stream");
+
     curl_easy_setopt(curl, CURLOPT_HTTPHEADER, list);
     curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, 0L);
     curl_easy_setopt(curl, CURLOPT_SSL_VERIFYHOST, 0L);
+    curl_easy_setopt(curl, CURLOPT_FOLLOWLOCATION, 1L);
+    // curl_easy_setopt(curl, CURLOPT_VERBOSE, 1L);
     curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, CurlWriteFile);
     curl_easy_setopt(curl, CURLOPT_WRITEDATA, file);
     curl_easy_setopt(curl, CURLOPT_CA_CACHE_TIMEOUT, 604800L);
@@ -157,6 +162,7 @@ static void DownloadArchive(char* url, char* dstFile)
 
     fclose(file);
 }
+
 static void Extract(const char* targetDir)
 {
     CloseAASBlocking();
@@ -167,7 +173,7 @@ static void Extract(const char* targetDir)
     {
         struct zip_stat zs = {};
         zip_stat_index(z, i, 0, &zs);
-        printf("Name: [%s], ", zs.name);
+        // printf("Name: [%s], ", zs.name);
         if (!strcmp(zs.name, "AltAppSwitcherConfig.txt"))
             continue;
         struct zip_file* zf = zip_fopen_index(z, i, 0);
@@ -222,9 +228,9 @@ int main(int argc, char *argv[])
     }
 
     char version[64] = {};
-    char archiveURL[512] = {};
-    GetAASVersion(preview, version, archiveURL);
-    if (archiveURL[0] == '\0')
+    char assetURL[512] = {};
+    GetLastAASVersion(preview, version, assetURL);
+    if (assetURL[0] == '\0')
         return 0;
     
     {
@@ -256,7 +262,7 @@ int main(int argc, char *argv[])
     {
         strcpy(archivePath, tempDir);
         strcat(archivePath, "/AltAppSwitcher.zip");
-        DownloadArchive(archiveURL, archivePath);
+        DownloadArchive(archivePath, assetURL);
     }
 
     // Copy updater to temp
