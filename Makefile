@@ -28,7 +28,7 @@ INCLUDEDIR = $(ROOTDIR)/Sources
 # Common var
 CC = $(ARCH)-w64-mingw32-clang
 IDIRS = -I $(ROOTDIR)/SDK/Headers -I $(ROOTDIR)/Sources -I $(ROOTDIR)/SDK/Sources
-LDIRS = -L $(LIBDIR)
+LDIRS = -L $(LIBDIR) -L $(LIBDIR)/curl
 LFLAGS = -static -static-libgcc -Werror
 CFLAGS = -Wall -D ARCH_$(ARCH)=1 -target $(ARCH)-mingw64 -Werror
 
@@ -62,7 +62,7 @@ COMMONOBJECTS = $(ERROROBJECTS) $(FILEOBJECTS) $(MSGOBJECTS) $(SDKOBJECTS)
 
 AASLIBS = -l dwmapi -l User32 -l Gdi32 -l Gdiplus -l shlwapi -l pthread -l Ole32 -l Comctl32
 SETTINGSLIB = -l Comctl32 -l Gdi32
-UPDATERLIBS = -l libzip -l zlib -l bcrypt -l curl/libcurl -l curl/libcurl.dll
+UPDATERLIBS = -l zip -l zlib -l bcrypt -l curl -l curl.dll
 
 AASASSETS = $(patsubst $(ROOTDIR)/Assets/AAS/%, $(AASBUILDDIR)/%, $(wildcard $(ROOTDIR)/Assets/AAS/*))
 DLL = $(patsubst $(ROOTDIR)/SDK/Dll/$(ARCH)/%, $(AASBUILDDIR)/%, $(wildcard $(ROOTDIR)/SDK/Dll/$(ARCH)/*))

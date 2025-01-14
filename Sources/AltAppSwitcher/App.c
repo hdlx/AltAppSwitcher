@@ -18,6 +18,8 @@
 #include <winreg.h>
 #include <windowsx.h>
 #include <unistd.h>
+// https://stackoverflow.com/questions/71437203/proper-way-of-activating-a-window-using-winapi
+#include <uiautomationclient.h>
 #include "AppxPackaging.h"
 #undef COBJMACROS
 #include "Config/Config.h"
@@ -478,12 +480,15 @@ static void GetUWPIcon(HANDLE process, wchar_t* outIconPath, SAppData* appData)
         if (!SUCCEEDED(res))
             return;
 
-        // Appxfactory
+        // Appxfactory:
+        // CLSID_AppxFactory and IID_IAppxFactory are declared in "AppxPackaging.h"
+        // but I don't know where the symbols are defined, thus the hardcoded GUIDs here.
+        // "AppxPackaging.h".
         IAppxFactory* appxfac = NULL;
         GUID clsid;
         CLSIDFromString(L"{5842a140-ff9f-4166-8f5c-62f5b7b0c781}", &clsid);
         GUID iid;
-        IIDFromString(L"{beb94909-e451-438b-b5a7-d79e767b75d8}", &iid);
+        IIDFromString(L"{beb94909-e451-438b-b5a7-d79e767b75d8}", &iid); 
         res = CoCreateInstance(&clsid, NULL, CLSCTX_INPROC_SERVER, &iid, (void**)&appxfac);
         if (!SUCCEEDED(res))
             return;
@@ -1017,8 +1022,22 @@ static void ApplySwitchApp(const SWinGroup* winGroup)
     {
         return;
     }
-    SetForegroundWindow(winGroup->_Windows[0]);
-   // ASSERT(ForceSetForeground(winArr->_Data[0]));
+
+    // IUIAutomation* UIAutomation = NULL;
+    // DWORD res = CoCreateInstance(&CLSID_CUIAutomation, NULL, CLSCTX_INPROC_SERVER, &IID_IUIAutomation, (void**)&UIAutomation);
+    // ASSERT(SUCCEEDED(res))
+
+    // SetForegroundWindow for all win, not only the last one. This way when the active window is closed,
+    // the second to last window of the group becomes the active one.
+    for (int i = ((int)winGroup->_WindowCount) - 1; i >= 0 ; i--)
+    {
+        const HWND win = winGroup->_Windows[i];
+        if (!IsWindow(win))
+            continue;
+        SetForegroundWindow(win);
+    }
+    // SetForegroundWindow(winGroup->_Windows[0]);
+    // ASSERT(ForceSetForeground(winArr->_Data[0]));
 }
 
 static void ApplySwitchWin(HWND win)
