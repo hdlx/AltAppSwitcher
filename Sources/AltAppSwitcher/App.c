@@ -19,6 +19,7 @@
 #include <windowsx.h>
 #include <unistd.h>
 // https://stackoverflow.com/questions/71437203/proper-way-of-activating-a-window-using-winapi
+#include <Initguid.h>
 #include <uiautomationclient.h>
 #include "AppxPackaging.h"
 #undef COBJMACROS
@@ -483,7 +484,6 @@ static void GetUWPIcon(HANDLE process, wchar_t* outIconPath, SAppData* appData)
         // Appxfactory:
         // CLSID_AppxFactory and IID_IAppxFactory are declared in "AppxPackaging.h"
         // but I don't know where the symbols are defined, thus the hardcoded GUIDs here.
-        // "AppxPackaging.h".
         IAppxFactory* appxfac = NULL;
         GUID clsid;
         CLSIDFromString(L"{5842a140-ff9f-4166-8f5c-62f5b7b0c781}", &clsid);
@@ -1004,28 +1004,19 @@ static void ApplySwitchApp(const SWinGroup* winGroup)
         }
         EndDeferWindowPos(winPosHandle);
     }
-/*
-    const UINT winFlags = SWP_SHOWWINDOW | SWP_NOSIZE | SWP_NOMOVE;
-    {
-        for (int i = ((int)winArr->_Size) - 1; i >= 0 ; i--)
-        {
-            const HWND win = winArr->_Data[i];
-            if (!IsWindow(win))
-                continue;
-            SetWindowPos(win, _AppData._MainWin, 0, 0, 0, 0, winFlags);
-            //BringWindowToTop(win);
-        }
-    }
-*/
+
     // Setting focus to the first window of the group
     if (!IsWindow(winGroup->_Windows[0]))
     {
         return;
     }
 
-    // IUIAutomation* UIAutomation = NULL;
-    // DWORD res = CoCreateInstance(&CLSID_CUIAutomation, NULL, CLSCTX_INPROC_SERVER, &IID_IUIAutomation, (void**)&UIAutomation);
-    // ASSERT(SUCCEEDED(res))
+    CoInitializeEx(NULL, COINIT_APARTMENTTHREADED);
+    IUIAutomation* UIAutomation = NULL;
+    {
+        DWORD res = CoCreateInstance(&CLSID_CUIAutomation, NULL, CLSCTX_INPROC_SERVER, &IID_IUIAutomation, (void**)&UIAutomation);
+        ASSERT(SUCCEEDED(res))
+    }
 
     // SetForegroundWindow for all win, not only the last one. This way when the active window is closed,
     // the second to last window of the group becomes the active one.
@@ -1034,7 +1025,12 @@ static void ApplySwitchApp(const SWinGroup* winGroup)
         const HWND win = winGroup->_Windows[i];
         if (!IsWindow(win))
             continue;
-        SetForegroundWindow(win);
+        IUIAutomationElement* UIAWin = NULL;
+        DWORD res = IUIAutomation_ElementFromHandle(UIAutomation, win, &UIAWin);
+        ASSERT(SUCCEEDED(res));
+        res = IUIAutomationElement_SetFocus(UIAWin);
+        ASSERT(SUCCEEDED(res));
+        //SetForegroundWindow(win);
     }
     // SetForegroundWindow(winGroup->_Windows[0]);
     // ASSERT(ForceSetForeground(winArr->_Data[0]));
