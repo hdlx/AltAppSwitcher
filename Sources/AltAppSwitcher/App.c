@@ -416,6 +416,8 @@ static bool IsAltTabWindow(HWND hwnd)
     GetWindowInfo(hwnd, &wi);
     if ((wi.dwExStyle & WS_EX_TOOLWINDOW) != 0)
         return false;
+    if ((wi.dwExStyle & WS_EX_TOPMOST) != 0)
+        return false;
     return true;
 }
 
@@ -972,6 +974,15 @@ static void RestoreWin(HWND win)
 
 static void ApplySwitchApp(const SWinGroup* winGroup)
 {
+// Disable window updates
+//SendMessage(hWnd, WM_SETREDRAW, FALSE, 0);
+
+// Perform your layout here
+// ...
+
+// Re-enable window updates
+//SendMessage(hWnd, WM_SETREDRAW, TRUE, 0
+
     for (int i = ((int)winGroup->_WindowCount) - 1; i >= 0 ; i--)
         RestoreWin(winGroup->_Windows[i]);
 
