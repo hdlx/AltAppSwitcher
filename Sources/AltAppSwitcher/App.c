@@ -975,42 +975,6 @@ static void ApplySwitchApp(const SWinGroup* winGroup)
         }
     }
 
-    // Bringing window to top by setting HWND_TOPMOST, then HWND_NOTOPMOST
-    // It feels hacky but this is most consistent solution I have found.
-
-    const UINT winFlags = SWP_SHOWWINDOW | SWP_NOSIZE | SWP_NOMOVE | SWP_NOREPOSITION | SWP_NOACTIVATE;
-    {
-        HDWP winPosHandle = BeginDeferWindowPos(winGroup->_WindowCount);
-        for (int i = ((int)winGroup->_WindowCount) - 1; i >= 0 ; i--)
-        {
-            const HWND win = winGroup->_Windows[i];
-            if (!IsWindow(win))
-                continue;
-            DeferWindowPos(winPosHandle, win, HWND_TOPMOST, 0, 0, 0, 0, winFlags);
-        }
-        EndDeferWindowPos(winPosHandle);
-    }
-
-    Sleep(50);
-
-    {
-        HDWP winPosHandle = BeginDeferWindowPos(winGroup->_WindowCount);
-        for (int i = ((int)winGroup->_WindowCount) - 1; i >= 0 ; i--)
-        {
-            const HWND win = winGroup->_Windows[i];
-            if (!IsWindow(win))
-                continue;
-            DeferWindowPos(winPosHandle, win, HWND_NOTOPMOST, 0, 0, 0, 0, winFlags);
-        }
-        EndDeferWindowPos(winPosHandle);
-    }
-
-    // Setting focus to the first window of the group
-    if (!IsWindow(winGroup->_Windows[0]))
-    {
-        return;
-    }
-
     CoInitializeEx(NULL, COINIT_APARTMENTTHREADED);
     IUIAutomation* UIAutomation = NULL;
     {
@@ -1018,22 +982,25 @@ static void ApplySwitchApp(const SWinGroup* winGroup)
         ASSERT(SUCCEEDED(res))
     }
 
-    // SetForegroundWindow for all win, not only the last one. This way when the active window is closed,
+    // Set focu for all win, not only the last one. This way when the active window is closed,
     // the second to last window of the group becomes the active one.
     for (int i = ((int)winGroup->_WindowCount) - 1; i >= 0 ; i--)
     {
         const HWND win = winGroup->_Windows[i];
         if (!IsWindow(win))
             continue;
-        IUIAutomationElement* UIAWin = NULL;
-        DWORD res = IUIAutomation_ElementFromHandle(UIAutomation, win, &UIAWin);
+
+        IUIAutomationElement* el = NULL;
+        DWORD res = IUIAutomation_ElementFromHandle(UIAutomation, win, &el);
         ASSERT(SUCCEEDED(res));
-        res = IUIAutomationElement_SetFocus(UIAWin);
-        ASSERT(SUCCEEDED(res));
-        //SetForegroundWindow(win);
+
+        res = IUIAutomationElement_SetFocus(el);
+
+        IUIAutomationElement_Release(el);
     }
-    // SetForegroundWindow(winGroup->_Windows[0]);
-    // ASSERT(ForceSetForeground(winArr->_Data[0]));
+    IUIAutomation_Release(UIAutomation);
+
+    CoUninitialize();
 }
 
 static void ApplySwitchWin(HWND win)
