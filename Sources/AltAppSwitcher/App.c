@@ -959,21 +959,21 @@ static void ClearWinGroupArr(SWinGroupArr* winGroups)
     winGroups->_Size = 0;
 }
 
+static void RestoreWin(HWND win)
+{
+    if (!IsWindow(win))
+        return;
+    WINDOWPLACEMENT placement;
+    GetWindowPlacement(win, &placement);
+    placement.length = sizeof(WINDOWPLACEMENT);
+    if (placement.showCmd == SW_SHOWMINIMIZED)
+        ShowWindowAsync(win, SW_RESTORE);
+}
+
 static void ApplySwitchApp(const SWinGroup* winGroup)
 {
-    {
-        for (int i = ((int)winGroup->_WindowCount) - 1; i >= 0 ; i--)
-        {
-            const HWND win = winGroup->_Windows[i];
-            if (!IsWindow(win))
-                continue;
-            WINDOWPLACEMENT placement;
-            GetWindowPlacement(win, &placement);
-            placement.length = sizeof(WINDOWPLACEMENT);
-            if (placement.showCmd == SW_SHOWMINIMIZED)
-                ShowWindowAsync(win, SW_RESTORE);
-        }
-    }
+    for (int i = ((int)winGroup->_WindowCount) - 1; i >= 0 ; i--)
+        RestoreWin(winGroup->_Windows[i]);
 
     CoInitializeEx(NULL, COINIT_APARTMENTTHREADED);
     IUIAutomation* UIAutomation = NULL;
@@ -982,44 +982,39 @@ static void ApplySwitchApp(const SWinGroup* winGroup)
         ASSERT(SUCCEEDED(res))
     }
 
-    // Set focu for all win, not only the last one. This way when the active window is closed,
+    // Set focus for all win, not only the last one. This way when the active window is closed,
     // the second to last window of the group becomes the active one.
     for (int i = ((int)winGroup->_WindowCount) - 1; i >= 0 ; i--)
     {
         const HWND win = winGroup->_Windows[i];
         if (!IsWindow(win))
             continue;
-
         IUIAutomationElement* el = NULL;
         DWORD res = IUIAutomation_ElementFromHandle(UIAutomation, win, &el);
         ASSERT(SUCCEEDED(res));
-
         res = IUIAutomationElement_SetFocus(el);
-
+        ASSERT(SUCCEEDED(res));
         IUIAutomationElement_Release(el);
     }
     IUIAutomation_Release(UIAutomation);
-
     CoUninitialize();
 }
 
 static void ApplySwitchWin(HWND win)
 {
-  //  const UINT winFlags = SWP_SHOWWINDOW | SWP_NOSIZE | SWP_NOMOVE | SWP_NOREPOSITION | SWP_NOACTIVATE;
-    /*
-    {
-        HDWP winPosHandle = BeginDeferWindowPos(1);
-        winPosHandle = DeferWindowPos(winPosHandle, win, HWND_TOPMOST, 0, 0, 0, 0, winFlags);
-        EndDeferWindowPos(winPosHandle);
-    }
-    {
-        HDWP winPosHandle = BeginDeferWindowPos(1);
-        winPosHandle = DeferWindowPos(winPosHandle, win, HWND_NOTOPMOST, 0, 0, 0, 0, winFlags);
-        EndDeferWindowPos(winPosHandle);
-    }*/
-    BringWindowToTop(win);
-    SetForegroundWindow(win);
-    //ForceSetForeground(win);
+    RestoreWin(win);
+    CoInitializeEx(NULL, COINIT_APARTMENTTHREADED);
+    IUIAutomation* UIA = NULL;
+    DWORD res = CoCreateInstance(&CLSID_CUIAutomation, NULL, CLSCTX_INPROC_SERVER, &IID_IUIAutomation, (void**)&UIA);
+    ASSERT(SUCCEEDED(res))
+    IUIAutomationElement* el = NULL;
+    res = IUIAutomation_ElementFromHandle(UIA, win, &el);
+    ASSERT(SUCCEEDED(res));
+    res = IUIAutomationElement_SetFocus(el);
+    ASSERT(SUCCEEDED(res));
+    IUIAutomationElement_Release(el);
+    IUIAutomation_Release(UIA);
+    CoUninitialize();
 }
 
 static LRESULT KbProc(int nCode, WPARAM wParam, LPARAM lParam)
