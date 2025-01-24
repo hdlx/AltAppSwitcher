@@ -969,27 +969,28 @@ static void RestoreWin(HWND win)
     GetWindowPlacement(win, &placement);
     placement.length = sizeof(WINDOWPLACEMENT);
     if (placement.showCmd == SW_SHOWMINIMIZED)
-        ShowWindowAsync(win, SW_RESTORE);
+        ShowWindow(win, SW_RESTORE);
+}
+
+static void UIASetFocus(HWND win, IUIAutomation* UIA)
+{
+    IUIAutomationElement* el = NULL;
+    DWORD res = IUIAutomation_ElementFromHandle(UIA, win, &el);
+    ASSERT(SUCCEEDED(res));
+    res = IUIAutomationElement_SetFocus(el);
+    ASSERT(SUCCEEDED(res));
+    IUIAutomationElement_Release(el);
 }
 
 static void ApplySwitchApp(const SWinGroup* winGroup)
 {
-// Disable window updates
-//SendMessage(hWnd, WM_SETREDRAW, FALSE, 0);
-
-// Perform your layout here
-// ...
-
-// Re-enable window updates
-//SendMessage(hWnd, WM_SETREDRAW, TRUE, 0
-
     for (int i = ((int)winGroup->_WindowCount) - 1; i >= 0 ; i--)
         RestoreWin(winGroup->_Windows[i]);
 
     CoInitializeEx(NULL, COINIT_APARTMENTTHREADED);
-    IUIAutomation* UIAutomation = NULL;
+    IUIAutomation* UIA = NULL;
     {
-        DWORD res = CoCreateInstance(&CLSID_CUIAutomation, NULL, CLSCTX_INPROC_SERVER, &IID_IUIAutomation, (void**)&UIAutomation);
+        DWORD res = CoCreateInstance(&CLSID_CUIAutomation, NULL, CLSCTX_INPROC_SERVER, &IID_IUIAutomation, (void**)&UIA);
         ASSERT(SUCCEEDED(res))
     }
 
@@ -1000,14 +1001,10 @@ static void ApplySwitchApp(const SWinGroup* winGroup)
         const HWND win = winGroup->_Windows[i];
         if (!IsWindow(win))
             continue;
-        IUIAutomationElement* el = NULL;
-        DWORD res = IUIAutomation_ElementFromHandle(UIAutomation, win, &el);
-        ASSERT(SUCCEEDED(res));
-        res = IUIAutomationElement_SetFocus(el);
-        ASSERT(SUCCEEDED(res));
-        IUIAutomationElement_Release(el);
+        RestoreWin(win);
+        UIASetFocus(win, UIA);
     }
-    IUIAutomation_Release(UIAutomation);
+    IUIAutomation_Release(UIA);
     CoUninitialize();
 }
 
@@ -1018,12 +1015,7 @@ static void ApplySwitchWin(HWND win)
     IUIAutomation* UIA = NULL;
     DWORD res = CoCreateInstance(&CLSID_CUIAutomation, NULL, CLSCTX_INPROC_SERVER, &IID_IUIAutomation, (void**)&UIA);
     ASSERT(SUCCEEDED(res))
-    IUIAutomationElement* el = NULL;
-    res = IUIAutomation_ElementFromHandle(UIA, win, &el);
-    ASSERT(SUCCEEDED(res));
-    res = IUIAutomationElement_SetFocus(el);
-    ASSERT(SUCCEEDED(res));
-    IUIAutomationElement_Release(el);
+    UIASetFocus(win, UIA);
     IUIAutomation_Release(UIA);
     CoUninitialize();
 }
