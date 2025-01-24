@@ -969,7 +969,7 @@ static void RestoreWin(HWND win)
     GetWindowPlacement(win, &placement);
     placement.length = sizeof(WINDOWPLACEMENT);
     if (placement.showCmd == SW_SHOWMINIMIZED)
-        ShowWindow(win, SW_RESTORE);
+        ShowWindowAsync(win, SW_RESTORE);
 }
 
 static void UIASetFocus(HWND win, IUIAutomation* UIA)
@@ -993,7 +993,6 @@ static void ApplySwitchApp(const SWinGroup* winGroup)
         DWORD res = CoCreateInstance(&CLSID_CUIAutomation, NULL, CLSCTX_INPROC_SERVER, &IID_IUIAutomation, (void**)&UIA);
         ASSERT(SUCCEEDED(res))
     }
-
     // Set focus for all win, not only the last one. This way when the active window is closed,
     // the second to last window of the group becomes the active one.
     for (int i = ((int)winGroup->_WindowCount) - 1; i >= 0 ; i--)
