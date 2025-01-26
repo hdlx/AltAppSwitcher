@@ -63,11 +63,9 @@ typedef struct KeyState
 
 typedef struct SGraphicsResources
 {
-    uint32_t _FontSize;
     GpSolidFill* _pBrushText;
     GpSolidFill* _pBrushBg;
     GpSolidFill* _pBrushBgHighlight;
-    GpFont* _pFont;
     GpStringFormat* _pFormat;
     COLORREF _BackgroundColor;
     COLORREF _HighlightBackgroundColor;
@@ -149,14 +147,10 @@ static void InitGraphicsResources(SGraphicsResources* pRes, const Config* config
     // Text
     {
         GpStringFormat* pGenericFormat;
-        GpFontFamily* pFontFamily;
         ASSERT(Ok == GdipStringFormatGetGenericDefault(&pGenericFormat));
         ASSERT(Ok == GdipCloneStringFormat(pGenericFormat, &pRes->_pFormat));
         ASSERT(Ok == GdipSetStringFormatAlign(pRes->_pFormat, StringAlignmentCenter));
         ASSERT(Ok == GdipSetStringFormatLineAlign(pRes->_pFormat, StringAlignmentCenter));
-        ASSERT(Ok == GdipGetGenericFontFamilySansSerif(&pFontFamily));
-        pRes->_FontSize = 10;
-        ASSERT(Ok == GdipCreateFont(pFontFamily, pRes->_FontSize, FontStyleBold, (int)MetafileFrameUnitPixel, &pRes->_pFont));
     }
     // Colors
     {
@@ -239,7 +233,6 @@ static void DeInitGraphicsResources(SGraphicsResources* pRes)
     ASSERT(Ok == GdipDeleteBrush(pRes->_pBrushBg));
     ASSERT(Ok == GdipDeleteBrush(pRes->_pBrushBgHighlight));
     ASSERT(Ok == GdipDeleteStringFormat(pRes->_pFormat));
-    ASSERT(Ok == GdipDeleteFont(pRes->_pFont));
 }
 
 static const char* WindowsClassNamesToSkip[] =
@@ -1172,15 +1165,15 @@ static LRESULT KbProc(int nCode, WPARAM wParam, LPARAM lParam)
     return CallNextHookEx(NULL, nCode, wParam, lParam);
 }
 
-static void DrawRoundedRect(GpGraphics* pGraphics, GpPen* pPen, GpBrush* pBrush, uint32_t l, uint32_t t, uint32_t r, uint32_t d, uint32_t di)
+static void DrawRoundedRect(GpGraphics* pGraphics, GpPen* pPen, GpBrush* pBrush, uint32_t l, uint32_t t, uint32_t r, uint32_t b, uint32_t di)
 {
     GpPath* pPath;
     GdipCreatePath(0, &pPath);
     GdipAddPathArcI(pPath, l, t, di, di, 180, 90);
     GdipAddPathArcI(pPath, r - di, t, di, di, 270, 90);
-    GdipAddPathArcI(pPath, r - di, d - di, di, di, 360, 90);
-    GdipAddPathArcI(pPath, l, d - di, di, di, 90, 90);
-    GdipAddPathLineI(pPath, l, d - di / 2, l, t + di / 2);
+    GdipAddPathArcI(pPath, r - di, b - di, di, di, 360, 90);
+    GdipAddPathArcI(pPath, l, b - di, di, di, 90, 90);
+    GdipAddPathLineI(pPath, l, b - di / 2, l, t + di / 2);
     GdipClosePathFigure(pPath);
     if (pBrush)
         GdipFillPath(pGraphics, pBrush, pPath);
@@ -1294,17 +1287,31 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
         GdipSetInterpolationMode(pGraphics, 7); // InterpolationModeHighQualityBicubic
 
         const uint32_t iconSize = appData->_Metrics._Icon;
-        const uint32_t iconContainerSize = 2.0 * iconSize;
-        const uint32_t padding = (iconContainerSize - iconSize) / 2;
-        uint32_t x = padding;
+        const uint32_t containerSize = 2.0 * iconSize;
+        const uint32_t pad0 = (containerSize - iconSize) / 4;
+        const uint32_t selectSize = containerSize - pad0 * 2;
+        const uint32_t pad1 = pad0 * 2 / 10;
+        const uint32_t strBoxSize = pad0 - 2 * pad1;
+
+        uint32_t x = 0;
+
+        // Resources
+        GpFont* font = NULL;
+        {
+            GpFontFamily* pFontFamily;
+            ASSERT(Ok == GdipGetGenericFontFamilySansSerif(&pFontFamily));
+            ASSERT(Ok == GdipCreateFont(pFontFamily, 10, FontStyleBold, (int)MetafileFrameUnitPixel, &font));
+        }
+
         for (uint32_t i = 0; i < appData->_WinGroups._Size; i++)
         {
             const SWinGroup* pWinGroup = &appData->_WinGroups._Data[i];
 
+            RECT selRect = { x + pad0, pad0, x + pad0 + selectSize, pad0 + selectSize };
+
             if (i == (uint32_t)appData->_MouseSelection)
             {
-                RECT rect = {x - padding / 2, padding / 2, x + iconSize + padding/2, padding + iconSize + padding/2 };
-                DrawRoundedRect(pGraphics, NULL, pGraphRes->_pBrushBgHighlight, rect.left, rect.top, rect.right, rect.bottom, 10);
+                DrawRoundedRect(pGraphics, NULL, pGraphRes->_pBrushBgHighlight, selRect.left, selRect.top, selRect.right, selRect.bottom, 10);
             }
 
             if (i == (uint32_t)appData->_Selection)
@@ -1313,8 +1320,7 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
                 ARGB gdipColor = cr | 0xFF000000;
                 GpPen* pPen;
                 GdipCreatePen1(gdipColor, 3, 2, &pPen);
-                RECT rect = {x - padding / 2, padding / 2, x + iconSize + padding/2, padding + iconSize + padding/2 };
-                DrawRoundedRect(pGraphics, pPen, NULL, rect.left, rect.top, rect.right, rect.bottom, 10);
+                DrawRoundedRect(pGraphics, pPen, NULL, selRect.left, selRect.top, selRect.right, selRect.bottom, 10);
                 GdipDeletePen(pPen);
             }
 
@@ -1326,46 +1332,52 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
             // Also check palette to see if monochrome
             if (pWinGroup->_IconBitmap)
             {
-                GdipDrawImageRectI(pGraphics, pWinGroup->_IconBitmap, x, padding, iconSize, iconSize);
+                GdipDrawImageRectI(pGraphics, pWinGroup->_IconBitmap, x + pad0 * 2, pad0 * 2, iconSize, iconSize);
             }
 
             {
                 WCHAR count[4]; 
                 const uint32_t winCount = pWinGroup->_WindowCount;
                 const uint32_t digitsCount = winCount > 99 ? 3 : winCount > 9 ? 2 : 1;
-                const uint32_t width = digitsCount * (uint32_t)(0.7 * (float)pGraphRes->_FontSize) + 5;
-                const uint32_t height = (pGraphRes->_FontSize + 4);
+                const uint32_t width = digitsCount * 10;
+                const uint32_t height = strBoxSize;
                 uint32_t rect[4] = {
-                    x + iconSize + padding / 2 - width - 3, 
-                    padding + iconSize + padding / 2 - height - 3,
+                    x + pad0 + selectSize - pad1 - width,
+                    pad0 + selectSize - pad1 - height,
                     width,
                     height };
                 RectF rectf = { (float)rect[0], (float)rect[1], (float)rect[2], (float)rect[3] };
                 swprintf(count, 4, L"%i", winCount);
                 // Invert text / bg brushes
                 DrawRoundedRect(pGraphics, NULL, pGraphRes->_pBrushText, rect[0], rect[1], rect[0] + rect[2], rect[1] + rect[3], 5);
-                ASSERT(!GdipDrawString(pGraphics, count, digitsCount, pGraphRes->_pFont, &rectf, pGraphRes->_pFormat, pGraphRes->_pBrushBg));
+                ASSERT(!GdipDrawString(pGraphics, count, digitsCount, font, &rectf, pGraphRes->_pFormat, pGraphRes->_pBrushBg));
             }
 
-            // {
-            //     //https://learn.microsoft.com/en-us/windows/win32/gdiplus/-gdiplus-obtaining-font-metrics-use
-            //     uint32_t r[4] = {
-            //         x - padding,
-            //         iconContainerSize - padding,
-            //         iconContainerSize,
-            //         padding };
-            //     RectF rf = { (float)r[0], (float)r[1], (float)r[2], (float)r[3] };
-            //     wchar_t name[] = L"Some application";
-            //     DrawRoundedRect(pGraphics, NULL, pGraphRes->_pBrushText, r[0], r[1], r[0] + r[2], r[1] + r[3], 5);
-            //     GdipDrawString(pGraphics, name, wcslen(name), pGraphRes->_pFont, &rf, pGraphRes->_pFormat, pGraphRes->_pBrushBg);
-            // }
+            // if (false)
+            {
+                //https://learn.microsoft.com/en-us/windows/win32/gdiplus/-gdiplus-obtaining-font-metrics-use
+                const uint32_t w = 100;
+                const uint32_t h = strBoxSize;
+                uint32_t r[4] = {
+                    x + pad0 + (selectSize - w) / 2,
+                    pad0 + selectSize + pad1,
+                    w,
+                    h };
+                RectF rf = { (float)r[0], (float)r[1], (float)r[2], (float)r[3] };
+                wchar_t name[] = L"Some application";
+                DrawRoundedRect(pGraphics, NULL, pGraphRes->_pBrushText, r[0], r[1], r[0] + r[2], r[1] + r[3], 5);
+                GdipDrawString(pGraphics, name, wcslen(name), font, &rf, pGraphRes->_pFormat, pGraphRes->_pBrushBg);
+            }
 
-            x += iconContainerSize;
+            x += containerSize;
         }
         BitBlt(ps.hdc, clientRect.left, clientRect.top, clientRect.right - clientRect.left, clientRect.bottom - clientRect.top, pGraphRes->_DC, 0, 0, SRCCOPY);
 
         // Always restore old bitmap (see fn doc)
         SelectObject(pGraphRes->_DC, oldBitmap);
+
+        // Delete res.
+        GdipDeleteFont(font);
 
         GdipDeleteGraphics(pGraphics);
         EndPaint(hwnd, &ps);
