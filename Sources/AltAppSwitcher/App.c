@@ -850,7 +850,8 @@ static void ComputeMetrics(uint32_t iconCount, float scale, Metrics *metrics)
     const int centerY = GetSystemMetrics(SM_CYSCREEN) / 2;
     const int centerX = GetSystemMetrics(SM_CXSCREEN) / 2;
     const int screenWidth = GetSystemMetrics(SM_CXFULLSCREEN);
-    const uint32_t iconContainerSize = min(max(scale, 0.5) * 2 * GetSystemMetrics(SM_CXICON), (screenWidth * 0.9) / iconCount);
+    const float ratio = 1.5;
+    const uint32_t iconContainerSize = min(max(scale, 0.5) * ratio * GetSystemMetrics(SM_CXICON), (screenWidth * 0.9) / iconCount);
     const uint32_t sizeX = iconCount * iconContainerSize;
     const uint32_t halfSizeX = sizeX / 2;
     const uint32_t sizeY = 1 * iconContainerSize;
@@ -859,7 +860,7 @@ static void ComputeMetrics(uint32_t iconCount, float scale, Metrics *metrics)
     metrics->_WinPosY = centerY - halfSizeY;
     metrics->_WinX = sizeX;
     metrics->_WinY = sizeY;
-    metrics->_Icon = iconContainerSize / 2;
+    metrics->_Icon = iconContainerSize / ratio;
     metrics->_IconContainer = iconContainerSize;
 }
 
@@ -1287,11 +1288,12 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
         GdipSetInterpolationMode(pGraphics, 7); // InterpolationModeHighQualityBicubic
 
         const uint32_t iconSize = appData->_Metrics._Icon;
-        const uint32_t containerSize = 2.0 * iconSize;
-        const uint32_t pad0 = (containerSize - iconSize) / 4;
-        const uint32_t selectSize = containerSize - pad0 * 2;
-        const uint32_t pad1 = pad0 * 2 / 10;
-        const uint32_t strBoxSize = pad0 - 2 * pad1;
+        const uint32_t containerSize = appData->_Metrics._IconContainer;
+        const uint32_t selectSize = iconSize * 1.1;
+        const uint32_t pad0 = (containerSize - selectSize) / 2;
+        const uint32_t pad1 = (containerSize - iconSize) / 2;
+        const uint32_t strBoxSize = pad0 * 8 / 10;
+        const uint32_t pad2 = pad0 * 1 / 10;
 
         uint32_t x = 0;
 
@@ -1332,20 +1334,20 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
             // Also check palette to see if monochrome
             if (pWinGroup->_IconBitmap)
             {
-                GdipDrawImageRectI(pGraphics, pWinGroup->_IconBitmap, x + pad0 * 2, pad0 * 2, iconSize, iconSize);
+                GdipDrawImageRectI(pGraphics, pWinGroup->_IconBitmap, x + pad1, pad1, iconSize, iconSize);
             }
 
             {
                 WCHAR count[4]; 
                 const uint32_t winCount = pWinGroup->_WindowCount;
                 const uint32_t digitsCount = winCount > 99 ? 3 : winCount > 9 ? 2 : 1;
-                const uint32_t width = digitsCount * 10;
-                const uint32_t height = strBoxSize;
+                const uint32_t w = digitsCount * 10;
+                const uint32_t h = strBoxSize;
                 uint32_t rect[4] = {
-                    x + pad0 + selectSize - pad1 - width,
-                    pad0 + selectSize - pad1 - height,
-                    width,
-                    height };
+                    x + pad0 + selectSize - pad1 - w,
+                    pad0 + selectSize - pad1 - h,
+                    w,
+                    h };
                 RectF rectf = { (float)rect[0], (float)rect[1], (float)rect[2], (float)rect[3] };
                 swprintf(count, 4, L"%i", winCount);
                 // Invert text / bg brushes
@@ -1359,8 +1361,8 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
                 const uint32_t w = 100;
                 const uint32_t h = strBoxSize;
                 uint32_t r[4] = {
-                    x + pad0 + (selectSize - w) / 2,
-                    pad0 + selectSize + pad1,
+                    x + pad0,
+                    containerSize - pad2 - h,
                     w,
                     h };
                 RectF rf = { (float)r[0], (float)r[1], (float)r[2], (float)r[3] };
@@ -1449,7 +1451,7 @@ int StartAltAppSwitcher(HINSTANCE hInstance)
         _AppData._Config._CheckForUpdates = true;
         _AppData._Config._ThemeMode = ThemeModeAuto;
         _AppData._Config._AppSwitcherMode = AppSwitcherModeApp;
-        _AppData._Config._Scale = 1.5;
+        _AppData._Config._Scale = 1.75;
         LoadConfig(&_AppData._Config);
 
         if (_AppData._Config._CheckForUpdates && access(".\\Updater.exe", F_OK) == 0)
