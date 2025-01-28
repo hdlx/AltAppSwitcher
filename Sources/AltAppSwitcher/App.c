@@ -894,8 +894,16 @@ static void CreateWin(SAppData* appData)
         appData->_Instance, // Instance handle
         appData // Additional application data
     );
-
     ASSERT(hwnd);
+
+    // Needed for exact client area.
+    RECT r = { appData->_Metrics._WinPosX,
+        appData->_Metrics._WinPosY, 
+        appData->_Metrics._WinPosX + appData->_Metrics._WinX,
+        appData->_Metrics._WinPosY + appData->_Metrics._WinY };
+    AdjustWindowRect(&r, (DWORD)GetWindowLong(hwnd, GWL_STYLE), false);
+    SetWindowPos(hwnd, 0, r.left, r.top, r.right - r.left, r.bottom - r.top, 0);
+
     // Rounded corners for Win 11
     // Values are from cpp enums DWMWINDOWATTRIBUTE and DWM_WINDOW_CORNER_PREFERENCE
     const uint32_t rounded = 2;
@@ -1363,7 +1371,7 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
                 ASSERT(!GdipDrawString(pGraphics, count, digitsCount, font, &r, pGraphRes->_pFormat, pGraphRes->_pBrushBg));
             }
 
-            // if (false)
+            if (false)
             {
                 //https://learn.microsoft.com/en-us/windows/win32/gdiplus/-gdiplus-obtaining-font-metrics-use
                 const uint32_t w = selectSize;
