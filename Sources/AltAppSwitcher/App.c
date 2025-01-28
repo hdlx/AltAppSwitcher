@@ -852,7 +852,7 @@ static void ComputeMetrics(uint32_t iconCount, float scale, Metrics *metrics)
     const int centerX = GetSystemMetrics(SM_CXSCREEN) / 2;
     const int screenWidth = GetSystemMetrics(SM_CXFULLSCREEN);
     const float iconRatio = 0.6f;
-    const float selectRatio = 0.73f;
+    const float selectRatio = 0.725f;
     const float iconContainerSize = min(max(scale, 0.5) * (1.0f / iconRatio) * GetSystemMetrics(SM_CXICON), (screenWidth * 0.9) / iconCount);
     const uint32_t sizeX = iconCount * iconContainerSize;
     const uint32_t halfSizeX = sizeX / 2;
@@ -1343,7 +1343,7 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
             // Also check palette to see if monochrome
             if (pWinGroup->_IconBitmap)
             {
-                GdipDrawImageRect(pGraphics, pWinGroup->_IconBitmap, x + padIcon, padIcon, iconSize, iconSize);
+                GdipDrawImageRectI(pGraphics, pWinGroup->_IconBitmap, x + padIcon, padIcon, iconSize, iconSize);
             }
 
             {
