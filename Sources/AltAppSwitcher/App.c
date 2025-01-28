@@ -82,7 +82,8 @@ typedef struct Metrics
     uint32_t _WinPosY;
     uint32_t _WinX;
     uint32_t _WinY;
-    uint32_t _IconContainer;
+    float _Container;
+    float _Selection;
     float _Icon;
 } Metrics;
 
@@ -850,8 +851,9 @@ static void ComputeMetrics(uint32_t iconCount, float scale, Metrics *metrics)
     const int centerY = GetSystemMetrics(SM_CYSCREEN) / 2;
     const int centerX = GetSystemMetrics(SM_CXSCREEN) / 2;
     const int screenWidth = GetSystemMetrics(SM_CXFULLSCREEN);
-    const float icon = 2.0f/3.0f;
-    const uint32_t iconContainerSize = min(max(scale, 0.5) * (1.0f / icon) * GetSystemMetrics(SM_CXICON), (screenWidth * 0.9) / iconCount);
+    const float iconRatio = 0.6f;
+    const float selectRatio = 0.73f;
+    const float iconContainerSize = min(max(scale, 0.5) * (1.0f / iconRatio) * GetSystemMetrics(SM_CXICON), (screenWidth * 0.9) / iconCount);
     const uint32_t sizeX = iconCount * iconContainerSize;
     const uint32_t halfSizeX = sizeX / 2;
     const uint32_t sizeY = 1 * iconContainerSize;
@@ -860,8 +862,9 @@ static void ComputeMetrics(uint32_t iconCount, float scale, Metrics *metrics)
     metrics->_WinPosY = centerY - halfSizeY;
     metrics->_WinX = sizeX;
     metrics->_WinY = sizeY;
-    metrics->_Icon = icon;
-    metrics->_IconContainer = iconContainerSize;
+    metrics->_Icon = ceil(iconContainerSize * iconRatio);
+    metrics->_Container = iconContainerSize;
+    metrics->_Selection = iconContainerSize * selectRatio;
 }
 
 static const char CLASS_NAME[] = "AltAppSwitcher";
@@ -1203,7 +1206,7 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
     {
         if (!appData->_Config._Mouse)
             return 0;
-        const int iconContainerSize = (int)appData->_Metrics._IconContainer;
+        const int iconContainerSize = (int)appData->_Metrics._Container;
         const int posX = GET_X_LPARAM(lParam);
         appData->_MouseSelection = min(max(0, posX / iconContainerSize), (int)appData->_WinGroups._Size);
         InvalidateRect(appData->_MainWin, 0, FALSE);
@@ -1291,9 +1294,9 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
         GdipSetPixelOffsetMode(pGraphics, 2);
         GdipSetInterpolationMode(pGraphics, 7); // InterpolationModeHighQualityBicubic
 
-        const float containerSize = (float)appData->_Metrics._IconContainer;
-        const float iconSize = containerSize * appData->_Metrics._Icon;
-        const float selectSize = iconSize * 1.1;
+        const float containerSize = appData->_Metrics._Container;
+        const float iconSize = appData->_Metrics._Icon;
+        const float selectSize = appData->_Metrics._Selection;
         const float padSelect = (containerSize - selectSize) * 0.5f;
         const float padIcon = (containerSize - iconSize) * 0.5f;
         const float strSize = padSelect * 0.8f;
