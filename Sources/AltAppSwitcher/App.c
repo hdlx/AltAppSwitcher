@@ -1294,10 +1294,10 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
         const float containerSize = (float)appData->_Metrics._IconContainer;
         const float iconSize = containerSize * appData->_Metrics._Icon;
         const float selectSize = iconSize * 1.1;
-        const float pad0 = (containerSize - selectSize) * 0.5f;
-        const float pad1 = (containerSize - iconSize) * 0.5f;
-        const float strBoxSize = pad0 * 0.8f;
-        const float pad2 = pad0 * 0.1f;
+        const float padSelect = (containerSize - selectSize) * 0.5f;
+        const float padIcon = (containerSize - iconSize) * 0.5f;
+        const float strSize = padSelect * 0.8f;
+        const float padStr = padSelect * 0.1f;
 
         float x = 0;
 
@@ -1313,21 +1313,23 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
         {
             const SWinGroup* pWinGroup = &appData->_WinGroups._Data[i];
 
-            RectF selRect = { x + pad0, pad0, selectSize, selectSize };
-
-            if (i == (uint32_t)appData->_MouseSelection)
             {
-                DrawRoundedRect(pGraphics, NULL, pGraphRes->_pBrushBgHighlight, &selRect, 10);
-            }
+                RectF selRect = { x + padSelect, padSelect, selectSize, selectSize };
 
-            if (i == (uint32_t)appData->_Selection)
-            {
-                COLORREF cr = pGraphRes->_TextColor;
-                ARGB gdipColor = cr | 0xFF000000;
-                GpPen* pPen;
-                GdipCreatePen1(gdipColor, 3, 2, &pPen);
-                DrawRoundedRect(pGraphics, pPen, NULL, &selRect, 10);
-                GdipDeletePen(pPen);
+                if (i == (uint32_t)appData->_MouseSelection)
+                {
+                    DrawRoundedRect(pGraphics, NULL, pGraphRes->_pBrushBgHighlight, &selRect, 10);
+                }
+
+                if (i == (uint32_t)appData->_Selection)
+                {
+                    COLORREF cr = pGraphRes->_TextColor;
+                    ARGB gdipColor = cr | 0xFF000000;
+                    GpPen* pPen;
+                    GdipCreatePen1(gdipColor, 1, 2, &pPen);
+                    DrawRoundedRect(pGraphics, pPen, NULL, &selRect, 10);
+                    GdipDeletePen(pPen);
+                }
             }
 
             // TODO: Check histogram and invert (or another filter) if background
@@ -1338,7 +1340,7 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
             // Also check palette to see if monochrome
             if (pWinGroup->_IconBitmap)
             {
-                GdipDrawImageRect(pGraphics, pWinGroup->_IconBitmap, x + pad1, pad1, iconSize, iconSize);
+                GdipDrawImageRect(pGraphics, pWinGroup->_IconBitmap, x + padIcon, padIcon, iconSize, iconSize);
             }
 
             {
@@ -1346,10 +1348,10 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
                 const uint32_t winCount = pWinGroup->_WindowCount;
                 const uint32_t digitsCount = winCount > 99 ? 3 : winCount > 9 ? 2 : 1;
                 const uint32_t w = digitsCount * 10;
-                const uint32_t h = strBoxSize;
+                const uint32_t h = strSize;
                 RectF r = {
-                    x + pad0 + selectSize - (selectSize * 1 / 20) - w,
-                    pad0 + selectSize - (selectSize * 1 / 20) - h,
+                    x + padSelect + selectSize - padStr - w,
+                    padSelect + selectSize - padStr - h,
                     w,
                     h };
                 swprintf(count, 4, L"%i", winCount);
@@ -1362,10 +1364,10 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
             {
                 //https://learn.microsoft.com/en-us/windows/win32/gdiplus/-gdiplus-obtaining-font-metrics-use
                 const uint32_t w = selectSize;
-                const uint32_t h = strBoxSize;
+                const uint32_t h = strSize;
                 RectF r = {
-                    x + pad0,
-                    containerSize - pad2 - h,
+                    x + padSelect,
+                    containerSize - padStr - h,
                     w,
                     h };
                 wchar_t name[] = L"Some application";
