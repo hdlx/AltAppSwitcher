@@ -21,6 +21,7 @@
 // https://stackoverflow.com/questions/71437203/proper-way-of-activating-a-window-using-winapi
 #include <Initguid.h>
 #include <uiautomationclient.h>
+#include <gdiplus/gdiplusenums.h>
 #include "AppxPackaging.h"
 #undef COBJMACROS
 #include "Config/Config.h"
@@ -1298,26 +1299,36 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
         GpGraphics* pGraphics = NULL;
         ASSERT(Ok == GdipCreateFromHDC(pGraphRes->_DC, &pGraphics));
         // gdiplus/gdiplusenums.h
-        GdipSetSmoothingMode(pGraphics, 5);
-        GdipSetPixelOffsetMode(pGraphics, 2);
-        GdipSetInterpolationMode(pGraphics, 7); // InterpolationModeHighQualityBicubic
+        GdipSetSmoothingMode(pGraphics, SmoothingModeAntiAlias);
+        GdipSetPixelOffsetMode(pGraphics, PixelOffsetModeHighQuality);
+        GdipSetInterpolationMode(pGraphics, InterpolationModeHighQualityBicubic); // InterpolationModeHighQualityBicubic
+        GdipSetTextRenderingHint(pGraphics, TextRenderingHintAntiAlias);
+        GdipSetTextRenderingHint(pGraphics, TextRenderingHintAntiAlias);
 
         const float containerSize = appData->_Metrics._Container;
         const float iconSize = appData->_Metrics._Icon;
         const float selectSize = appData->_Metrics._Selection;
         const float padSelect = (containerSize - selectSize) * 0.5f;
         const float padIcon = (containerSize - iconSize) * 0.5f;
-        const float strSize = padSelect * 0.8f;
-        const float padStr = padSelect * 0.1f;
+        const float digitHeight = selectSize * 0.15f;
+        const float digitPad = digitHeight * 0.2f;
+        const float nameHeight = padSelect * 0.7f;
+        const float namePad = padSelect * 0.15f;
+        const float pathThickness = 2.0f;
 
         float x = 0;
 
         // Resources
-        GpFont* font = NULL;
+        GpFont* fontName = NULL;
+        GpFont* fontDigit = NULL;
         {
+            GpFontCollection* fc = NULL;
+            ASSERT(Ok == GdipNewInstalledFontCollection(&fc));
             GpFontFamily* pFontFamily;
-            ASSERT(Ok == GdipGetGenericFontFamilySansSerif(&pFontFamily));
-            ASSERT(Ok == GdipCreateFont(pFontFamily, 10, FontStyleBold, (int)MetafileFrameUnitPixel, &font));
+            ASSERT(Ok == GdipCreateFontFamilyFromName(L"Arial", fc, &pFontFamily));
+            ASSERT(Ok == GdipCreateFont(pFontFamily, nameHeight, FontStyleRegular, (int)MetafileFrameUnitPixel, &fontName));
+            ASSERT(Ok == GdipCreateFont(pFontFamily, digitHeight, FontStyleRegular, (int)MetafileFrameUnitPixel, &fontDigit));
+            ASSERT(Ok == GdipDeleteFontFamily(pFontFamily));
         }
 
         for (uint32_t i = 0; i < appData->_WinGroups._Size; i++)
@@ -1337,7 +1348,7 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
                     COLORREF cr = pGraphRes->_TextColor;
                     ARGB gdipColor = cr | 0xFF000000;
                     GpPen* pPen;
-                    GdipCreatePen1(gdipColor, 1, 2, &pPen);
+                    GdipCreatePen1(gdipColor, pathThickness, 2, &pPen);
                     DrawRoundedRect(pGraphics, pPen, NULL, &selRect, 10);
                     GdipDeletePen(pPen);
                 }
@@ -1354,36 +1365,45 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
                 GdipDrawImageRectI(pGraphics, pWinGroup->_IconBitmap, x + padIcon, padIcon, iconSize, iconSize);
             }
 
+            // Digit
             {
                 WCHAR count[4]; 
                 const uint32_t winCount = pWinGroup->_WindowCount;
                 const uint32_t digitsCount = winCount > 99 ? 3 : winCount > 9 ? 2 : 1;
                 const uint32_t w = digitsCount * 10;
-                const uint32_t h = strSize;
+                const uint32_t h = digitHeight;
+                const uint32_t p = digitPad + pathThickness;
                 RectF r = {
-                    x + padSelect + selectSize - padStr - w,
-                    padSelect + selectSize - padStr - h,
+                    x + padSelect + selectSize - p - w,
+                    padSelect + selectSize - p - h,
                     w,
                     h };
                 swprintf(count, 4, L"%i", winCount);
                 // Invert text / bg brushes
                 DrawRoundedRect(pGraphics, NULL, pGraphRes->_pBrushText, &r, 5);
-                ASSERT(!GdipDrawString(pGraphics, count, digitsCount, font, &r, pGraphRes->_pFormat, pGraphRes->_pBrushBg));
+                ASSERT(!GdipDrawString(pGraphics, count, digitsCount, fontDigit, &r, pGraphRes->_pFormat, pGraphRes->_pBrushBg));
             }
 
-            if (false)
+            // Name
             {
                 //https://learn.microsoft.com/en-us/windows/win32/gdiplus/-gdiplus-obtaining-font-metrics-use
                 const uint32_t w = selectSize;
-                const uint32_t h = strSize;
+                const uint32_t h = nameHeight;
+                const uint32_t p = namePad;
                 RectF r = {
                     x + padSelect,
-                    containerSize - padStr - h,
+                    containerSize - p - h,
                     w,
                     h };
                 wchar_t name[] = L"Some application";
-                DrawRoundedRect(pGraphics, NULL, pGraphRes->_pBrushText, &r, 5);
-                GdipDrawString(pGraphics, name, wcslen(name), font, &r, pGraphRes->_pFormat, pGraphRes->_pBrushBg);
+
+                //if (i == (uint32_t)appData->_Selection)
+                //{
+                //    DrawRoundedRect(pGraphics, NULL, pGraphRes->_pBrushText, &r, 5);
+                //    GdipDrawString(pGraphics, name, wcslen(name), fontName, &r, pGraphRes->_pFormat, pGraphRes->_pBrushBg);
+                //}
+                //else
+                    GdipDrawString(pGraphics, name, wcslen(name), fontName, &r, pGraphRes->_pFormat, pGraphRes->_pBrushText);
             }
 
             x += containerSize;
@@ -1394,7 +1414,8 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
         SelectObject(pGraphRes->_DC, oldBitmap);
 
         // Delete res.
-        GdipDeleteFont(font);
+        GdipDeleteFont(fontName);
+        GdipDeleteFont(fontDigit);
 
         GdipDeleteGraphics(pGraphics);
         EndPaint(hwnd, &ps);
