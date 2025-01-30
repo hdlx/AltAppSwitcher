@@ -1318,7 +1318,7 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
         // gdiplus/gdiplusenums.h
         GdipSetSmoothingMode(pGraphics, SmoothingModeAntiAlias);
         GdipSetPixelOffsetMode(pGraphics, PixelOffsetModeHighQuality);
-        GdipSetInterpolationMode(pGraphics, InterpolationModeHighQualityBicubic); // InterpolationModeHighQualityBicubic
+        GdipSetInterpolationMode(pGraphics, InterpolationModeHighQualityBilinear); // InterpolationModeHighQualityBicubic
         GdipSetTextRenderingHint(pGraphics, TextRenderingHintAntiAlias);
         GdipSetTextRenderingHint(pGraphics, TextRenderingHintAntiAlias);
 
@@ -1415,7 +1415,7 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
                 const float p = namePad;
                 RectF r = {
                     (int)(x + padSelect),
-                    (int)(containerSize - p - h),
+                    (int)(containerSize - padSelect + p),
                     (int)(w),
                     (int)(h) };
                 wchar_t name[] = L"\0\0\0\0\0\0\0\0\0\0";
