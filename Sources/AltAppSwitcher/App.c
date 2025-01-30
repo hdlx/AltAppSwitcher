@@ -274,6 +274,8 @@ typedef struct SFindPIDEnumFnParams
 
 static int Modulo(int a, int b)
 {
+    if (b == 0)
+        return 0;
     return (a % b + b) % b;
 }
 
