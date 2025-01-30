@@ -446,7 +446,7 @@ static void GetUWPIcon(HANDLE process, wchar_t* outIconPath, SAppData* appData)
     SUWPIconMap* iconMap = &appData->_UWPIconMap;
     for (uint32_t i = 0; i < iconMap->_Count; i++)
     {
-        const uint32_t i0 = Modulo(iconMap->_Head - 1 - i, UWPICONMAPSIZE) ;
+        const uint32_t i0 = Modulo(iconMap->_Head - 1 - i, UWPICONMAPSIZE);
         if (wcscmp(iconMap->_Data[i0]._UserModelID, userModelID))
             continue;
         wcscpy(outIconPath, iconMap->_Data[i0]._Icon);
@@ -1403,6 +1403,7 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
                     (int)(w),
                     (int)(h) };
                 wchar_t name[] = L"Some application";
+                mbstowcs(name, pWinGroup->_ModuleFileName, 10);
 
                 //if (i == (uint32_t)appData->_Selection)
                 //{
