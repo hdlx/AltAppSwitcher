@@ -33,7 +33,8 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam);
 
 typedef struct SWinGroup
 {
-    char _ModuleFileName[512];
+    char _ModuleFileName[MAX_PATH];
+    wchar_t _AppName[MAX_PATH];
     HWND _Windows[64];
     uint32_t _WindowCount;
     GpBitmap* _IconBitmap;
@@ -99,6 +100,7 @@ typedef struct SUWPIconMapElement
 {
     wchar_t _UserModelID[512];
     wchar_t _Icon[MAX_PATH];
+    wchar_t _AppName[MAX_PATH];
 } SUWPIconMapElement;
 
 #define UWPICONMAPSIZE 16
@@ -437,7 +439,7 @@ void ErrorDescription(HRESULT hr)
 }
 
 //https://github.com/microsoft/Windows-classic-samples/blob/main/Samples/AppxPackingDescribeAppx/cpp/DescribeAppx.cpp
-static void GetUWPIcon(HANDLE process, wchar_t* outIconPath, SAppData* appData)
+static void GetUWPIconAndAppName(HANDLE process, wchar_t* outIconPath, wchar_t* outAppName, SAppData* appData)
 {
     static wchar_t userModelID[512];
     {
@@ -452,6 +454,7 @@ static void GetUWPIcon(HANDLE process, wchar_t* outIconPath, SAppData* appData)
         if (wcscmp(iconMap->_Data[i0]._UserModelID, userModelID))
             continue;
         wcscpy(outIconPath, iconMap->_Data[i0]._Icon);
+        wcscpy(outAppName, iconMap->_Data[i0]._AppName);
         return;
     }
 
@@ -466,6 +469,14 @@ static void GetUWPIcon(HANDLE process, wchar_t* outIconPath, SAppData* appData)
     static wchar_t manifestPath[MAX_PATH];
     wcscpy(manifestPath, packagePath);
     wcscat(manifestPath, L"/AppXManifest.xml");
+    {
+        wchar_t* src = pid[0].name; wchar_t* dst = outAppName;
+        while (*src != L'\0' && *src != L'.' )
+        {
+            *dst = *src; dst++; src++;
+        }
+        *dst = L'\0';
+    }
 
     wchar_t* logoProp = NULL;
     {
@@ -608,6 +619,7 @@ static void GetUWPIcon(HANDLE process, wchar_t* outIconPath, SAppData* appData)
     {
         wcscpy(iconMap->_Data[iconMap->_Head]._UserModelID, userModelID);
         wcscpy(iconMap->_Data[iconMap->_Head]._Icon, outIconPath);
+        wcscpy(iconMap->_Data[iconMap->_Head]._AppName, outAppName);
         iconMap->_Count = min(iconMap->_Count + 1, UWPICONMAPSIZE);
         iconMap->_Head = Modulo(iconMap->_Head + 1, UWPICONMAPSIZE);
     }
@@ -784,12 +796,13 @@ static BOOL FillWinGroups(HWND hwnd, LPARAM lParam)
             if (!isUWP)
             {
                 group->_IconBitmap = GetIconFromExe(group->_ModuleFileName);
+                wcscpy(group->_AppName, L"To do");
             }
             else if (isUWP)
             {
                 static wchar_t iconPath[MAX_PATH];
                 iconPath[0] = L'\0';
-                GetUWPIcon(process, iconPath, appData);
+                GetUWPIconAndAppName(process, iconPath, group->_AppName, appData);
                 GdipLoadImageFromFile(iconPath, &group->_IconBitmap);
             }
 
@@ -966,6 +979,7 @@ static void ClearWinGroupArr(SWinGroupArr* winGroups)
             winGroups->_Data[i]._IconBitmap = NULL;
         }
         winGroups->_Data[i]._WindowCount = 0;
+        winGroups->_Data[i]._AppName[0] = L'\0';
     }
     winGroups->_Size = 0;
 }
@@ -1376,7 +1390,7 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
                 WCHAR count[4];
                 const uint32_t winCount = pWinGroup->_WindowCount;
                 const uint32_t digitsCount = winCount > 99 ? 3 : winCount > 9 ? 2 : 1;
-                const float w = digitsCount * 0.8 * digitHeight; // Font aspect ratio, arbitrary for now
+                const float w = digitsCount * 0.8 * digitBoxHeight; // Font aspect ratio, arbitrary for now
                 // Box
                 const float h = digitBoxHeight;
                 const float p = digitBoxPad + pathThickness;
@@ -1404,8 +1418,9 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
                     (int)(containerSize - p - h),
                     (int)(w),
                     (int)(h) };
-                wchar_t name[] = L"Some application";
+                wchar_t name[] = L"\0\0\0\0\0\0\0\0\0\0";
                 mbstowcs(name, pWinGroup->_ModuleFileName, 10);
+                wcsncpy(name, pWinGroup->_AppName, 10);
 
                 //if (i == (uint32_t)appData->_Selection)
                 //{
