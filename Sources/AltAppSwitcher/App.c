@@ -153,6 +153,7 @@ static void InitGraphicsResources(SGraphicsResources* pRes, const Config* config
         ASSERT(Ok == GdipCloneStringFormat(pGenericFormat, &pRes->_pFormat));
         ASSERT(Ok == GdipSetStringFormatAlign(pRes->_pFormat, StringAlignmentCenter));
         ASSERT(Ok == GdipSetStringFormatLineAlign(pRes->_pFormat, StringAlignmentCenter));
+        ASSERT(Ok == GdipSetStringFormatFlags(pRes->_pFormat, StringFormatFlagsNoClip));
     }
     // Colors
     {
@@ -1180,10 +1181,10 @@ static LRESULT KbProc(int nCode, WPARAM wParam, LPARAM lParam)
 
 static void DrawRoundedRect(GpGraphics* pGraphics, GpPen* pPen, GpBrush* pBrush, const RectF* re, float di)
 {
-    float l = re->X;
-    float t = re->Y;
-    float b = t + re->Height;
-    float r = l + re->Width;
+    float l = (int)(re->X);
+    float t = (int)(re->Y);
+    float b = (int)(t + re->Height);
+    float r = (int)(l + re->Width);
     GpPath* pPath;
     GdipCreatePath(0, &pPath);
     GdipAddPathArc(pPath, l, t, di, di, 180, 90);
@@ -1310,10 +1311,12 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
         const float selectSize = appData->_Metrics._Selection;
         const float padSelect = (containerSize - selectSize) * 0.5f;
         const float padIcon = (containerSize - iconSize) * 0.5f;
-        const float digitHeight = selectSize * 0.15f;
-        const float digitPad = digitHeight * 0.2f;
-        const float nameHeight = padSelect * 0.7f;
-        const float namePad = padSelect * 0.15f;
+        const float digitBoxHeight = selectSize * 0.15f;
+        const float digitBoxPad = digitBoxHeight * 0.1f;
+        const float digitHeight = digitBoxHeight * 0.8f;
+        const float digitPad = digitBoxHeight * 0.1f;
+        const float nameHeight = padSelect * 0.6f;
+        const float namePad = padSelect * 0.2f;
         const float pathThickness = 2.0f;
 
         float x = 0;
@@ -1327,7 +1330,7 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
             GpFontFamily* pFontFamily;
             ASSERT(Ok == GdipCreateFontFamilyFromName(L"Arial", fc, &pFontFamily));
             ASSERT(Ok == GdipCreateFont(pFontFamily, nameHeight, FontStyleRegular, (int)MetafileFrameUnitPixel, &fontName));
-            ASSERT(Ok == GdipCreateFont(pFontFamily, digitHeight, FontStyleRegular, (int)MetafileFrameUnitPixel, &fontDigit));
+            ASSERT(Ok == GdipCreateFont(pFontFamily, digitHeight, FontStyleBold, (int)MetafileFrameUnitPixel, &fontDigit));
             ASSERT(Ok == GdipDeleteFontFamily(pFontFamily));
         }
 
@@ -1335,6 +1338,7 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
         {
             const SWinGroup* pWinGroup = &appData->_WinGroups._Data[i];
 
+            // Selection box
             {
                 RectF selRect = { x + padSelect, padSelect, selectSize, selectSize };
 
@@ -1354,8 +1358,8 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
                 }
             }
 
-            // TODO: Check histogram and invert (or another filter) if background
-            // is similar
+            // Icon
+            // TODO: Check histogram and invert (or another filter) if background is similar
             // https://learn.microsoft.com/en-us/windows/win32/api/gdiplusheaders/nf-gdiplusheaders-bitmap-gethistogram
             // https://learn.microsoft.com/en-us/windows/win32/gdiplus/-gdiplus-using-a-color-remap-table-use
             // https://learn.microsoft.com/en-us/windows/win32/gdiplus/-gdiplus-using-a-color-matrix-to-transform-a-single-color-use
@@ -1367,34 +1371,37 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 
             // Digit
             {
-                WCHAR count[4]; 
+                WCHAR count[4];
                 const uint32_t winCount = pWinGroup->_WindowCount;
                 const uint32_t digitsCount = winCount > 99 ? 3 : winCount > 9 ? 2 : 1;
-                const uint32_t w = digitsCount * 10;
-                const uint32_t h = digitHeight;
-                const uint32_t p = digitPad + pathThickness;
+                const float w = digitsCount * 0.8 * digitHeight; // Font aspect ratio, arbitrary for now
+                // Box
+                const float h = digitBoxHeight;
+                const float p = digitBoxPad + pathThickness;
                 RectF r = {
-                    x + padSelect + selectSize - p - w,
-                    padSelect + selectSize - p - h,
-                    w,
-                    h };
+                    (int)(x + padSelect + selectSize - p - w),
+                    (int)(padSelect + selectSize - p - h),
+                    (int)(w),
+                    (int)(h) };
                 swprintf(count, 4, L"%i", winCount);
                 // Invert text / bg brushes
                 DrawRoundedRect(pGraphics, NULL, pGraphRes->_pBrushText, &r, 5);
+                r.X += (int)digitPad;
+                r.Y += (int)digitPad * 2; // All padding up, digit do not have font descent
                 ASSERT(!GdipDrawString(pGraphics, count, digitsCount, fontDigit, &r, pGraphRes->_pFormat, pGraphRes->_pBrushBg));
             }
 
             // Name
             {
                 //https://learn.microsoft.com/en-us/windows/win32/gdiplus/-gdiplus-obtaining-font-metrics-use
-                const uint32_t w = selectSize;
-                const uint32_t h = nameHeight;
-                const uint32_t p = namePad;
+                const float w = selectSize;
+                const float h = nameHeight;
+                const float p = namePad;
                 RectF r = {
-                    x + padSelect,
-                    containerSize - p - h,
-                    w,
-                    h };
+                    (int)(x + padSelect),
+                    (int)(containerSize - p - h),
+                    (int)(w),
+                    (int)(h) };
                 wchar_t name[] = L"Some application";
 
                 //if (i == (uint32_t)appData->_Selection)
@@ -1406,7 +1413,7 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
                     GdipDrawString(pGraphics, name, wcslen(name), fontName, &r, pGraphRes->_pFormat, pGraphRes->_pBrushText);
             }
 
-            x += containerSize;
+            x += (int)containerSize;
         }
         BitBlt(ps.hdc, clientRect.left, clientRect.top, clientRect.right - clientRect.left, clientRect.bottom - clientRect.top, pGraphRes->_DC, 0, 0, SRCCOPY);
 
