@@ -1520,11 +1520,11 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
                 appData->_Config._DisplayName == DisplayNameAll)
             {
                 //https://learn.microsoft.com/en-us/windows/win32/gdiplus/-gdiplus-obtaining-font-metrics-use
-                const float w = selectSize;
                 const float h = nameHeight;
                 const float p = namePad;
+                const float w = containerSize - 2.0f * p;
                 RectF r = {
-                    (int)(x + padSelect),
+                    (int)(x + p),
                     (int)(containerSize - padSelect + p),
                     (int)(w),
                     (int)(h) };
@@ -1534,7 +1534,7 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
                 {
                     RectF rout;
                     int maxCount = 0;
-                    GdipMeasureString(pGraphics, pWinGroup->_AppName, MAX_PATH, fontName, &r, pGraphRes->_pFormat, &rout, &maxCount, 0);
+                    GdipMeasureString(pGraphics, pWinGroup->_AppName, count, fontName, &r, pGraphRes->_pFormat, &rout, &maxCount, 0);
                     wcsncpy(name, pWinGroup->_AppName, min(maxCount, count));
                     if (count > maxCount)
                     {
