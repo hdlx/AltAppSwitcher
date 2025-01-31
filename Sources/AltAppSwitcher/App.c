@@ -974,10 +974,10 @@ static void ComputeMetrics(uint32_t iconCount, float scale, Metrics *metrics)
     const int centerY = GetSystemMetrics(SM_CYSCREEN) / 2;
     const int centerX = GetSystemMetrics(SM_CXSCREEN) / 2;
     const int screenWidth = GetSystemMetrics(SM_CXFULLSCREEN);
-    const float iconRatio = 0.5f;
-    const float selectRatio = 0.725f;
-    float iconContainerSize = min(max(scale, 0.5) * (1.0f / iconRatio) * GetSystemMetrics(SM_CXICON), (screenWidth * 0.95) / iconCount);
-    // iconContainerSize = max(iconContainerSize, GetSystemMetrics(SM_CXICON) / iconRatio); // Keep space for text if small
+    const float containerRatio = 2.0f;
+    const float selectRatio = 1.25f;
+    const float iconSize = GetSystemMetrics(SM_CXICON) * scale;
+    float iconContainerSize = min(iconSize * containerRatio, (screenWidth * 0.9) / iconCount);
     const uint32_t sizeX = iconCount * iconContainerSize;
     const uint32_t halfSizeX = sizeX / 2;
     const uint32_t sizeY = 1 * iconContainerSize;
@@ -986,9 +986,9 @@ static void ComputeMetrics(uint32_t iconCount, float scale, Metrics *metrics)
     metrics->_WinPosY = centerY - halfSizeY;
     metrics->_WinX = sizeX;
     metrics->_WinY = sizeY;
-    metrics->_Icon = ceil(iconContainerSize * iconRatio);
+    metrics->_Icon = ceil(iconContainerSize / containerRatio);
     metrics->_Container = iconContainerSize;
-    metrics->_Selection = iconContainerSize * selectRatio;
+    metrics->_Selection =  metrics->_Icon * selectRatio;
 }
 
 static const char CLASS_NAME[] = "AltAppSwitcher";
