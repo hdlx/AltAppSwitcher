@@ -883,8 +883,16 @@ static BOOL FillWinGroups(HWND hwnd, LPARAM lParam)
             {
                 static wchar_t iconPath[MAX_PATH];
                 iconPath[0] = L'\0';
+                group->_AppName[0] = L'\0';
                 GetUWPIconAndAppName(process, iconPath, group->_AppName, appData);
                 GdipLoadImageFromFile(iconPath, &group->_IconBitmap);
+            }
+
+            if (appData->_Config._AppSwitcherMode == AppSwitcherModeWindow)
+            {
+                group->_AppName[0] = L'\0';
+                //static char temp[MAX_PATH];
+                GetWindowTextW(hwnd, group->_AppName, MAX_PATH);
             }
 
             if (group->_IconBitmap == NULL)
@@ -1467,6 +1475,7 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
             }
 
             // Digit
+            if (appData->_Config._AppSwitcherMode == AppSwitcherModeApp)
             {
                 WCHAR count[4];
                 const uint32_t winCount = pWinGroup->_WindowCount;
@@ -1502,17 +1511,20 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
                 static wchar_t name[64];
                 const int maxCount = min(selectSize / (0.5 * nameHeight), 64);
                 int count = wcslen(pWinGroup->_AppName);
-                wcsncpy(name, pWinGroup->_AppName, count);
-                if (count > maxCount)
+                if (count != 0)
                 {
-                    wcscpy(&name[maxCount - 3], L"...");
-                    count = maxCount;
-                }
+                    wcsncpy(name, pWinGroup->_AppName, maxCount - 3);
+                    if (count > maxCount)
+                    {
+                        wcscpy(&name[maxCount - 3], L"...");
+                        count = maxCount;
+                    }
 
-                if ((selected && appData->_Config._DisplayName == DisplayNameSel) ||
-                    appData->_Config._DisplayName == DisplayNameAll)
-                {
-                    GdipDrawString(pGraphics, name, count, fontName, &r, pGraphRes->_pFormat, pGraphRes->_pBrushText);
+                    if ((selected && appData->_Config._DisplayName == DisplayNameSel) ||
+                        appData->_Config._DisplayName == DisplayNameAll)
+                    {
+                        GdipDrawString(pGraphics, name, count, fontName, &r, pGraphRes->_pFormat, pGraphRes->_pBrushText);
+                    }
                 }
             }
 
