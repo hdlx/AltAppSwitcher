@@ -39,6 +39,8 @@ static void SetupGUI(GUIData* gui, void* userData)
     CreateText("Scale (\%):", "", gui);
     CreatePercentField("Scale controls icon size, expressed as percentage, 100 being Windows default icon size.",
         &cfg->_Scale, gui);
+    CreateText("Display app name:", "", gui);
+    CreateComboBox("Display app name.", &cfg->_DisplayName, displayNameES, gui);
 
     GridLayout(1, gui);
     CreateText("Other:", "", gui);

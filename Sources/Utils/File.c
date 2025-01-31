@@ -22,6 +22,15 @@ void StrBToF(char* str)
     }
 }
 
+void WStrBToF(wchar_t* str)
+{
+    while (*str++ != L'\0')
+    {
+        if (*str == L'\\')
+            *str = L'/';
+    }
+}
+
 void StrFToB(char* str)
 {
     while (*str++ != '\0')

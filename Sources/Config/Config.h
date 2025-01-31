@@ -19,6 +19,13 @@ typedef enum ThemeMode
     ThemeModeDark
 } ThemeMode;
 
+typedef enum DisplayName
+{
+    DisplayNameSel,
+    DisplayNameAll,
+    DisplayNameNone
+} DisplayName;
+
 typedef enum AppSwitcherMode
 {
     AppSwitcherModeApp,
@@ -31,6 +38,7 @@ typedef struct Config
     bool _Mouse;
     bool _CheckForUpdates;
     ThemeMode _ThemeMode;
+    DisplayName _DisplayName;
     float _Scale;
     AppSwitcherMode _AppSwitcherMode;
 } Config;
@@ -44,6 +52,7 @@ typedef struct EnumString
 extern const EnumString keyES[14];
 extern const EnumString themeES[4];
 extern const EnumString appSwitcherModeES[3];
+extern const EnumString displayNameES[3];
 
 void LoadConfig(Config* config);
 void WriteConfig(const Config* config);
