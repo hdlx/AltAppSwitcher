@@ -1493,7 +1493,7 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
                 // Invert text / bg brushes
                 DrawRoundedRect(pGraphics, NULL, pGraphRes->_pBrushText, &r, 5);
                 //r.X += (int)digitPad;
-                r.Y += (int)digitPad; // All padding up, digit do not have font descent
+                //r.Y += (int)digitPad; // All padding up, digit do not have font descent
                 ASSERT(!GdipDrawString(pGraphics, count, digitsCount, fontDigit, &r, pGraphRes->_pFormat, pGraphRes->_pBrushBg));
             }
 
