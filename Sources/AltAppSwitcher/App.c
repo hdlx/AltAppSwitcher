@@ -1498,6 +1498,8 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
             }
 
             // Name
+            if (((selected || mouseSelected) && appData->_Config._DisplayName == DisplayNameSel) ||
+                appData->_Config._DisplayName == DisplayNameAll)
             {
                 //https://learn.microsoft.com/en-us/windows/win32/gdiplus/-gdiplus-obtaining-font-metrics-use
                 const float w = selectSize;
@@ -1508,23 +1510,20 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
                     (int)(containerSize - padSelect + p),
                     (int)(w),
                     (int)(h) };
-                static wchar_t name[64];
-                const int maxCount = min(selectSize / (0.5 * nameHeight), 64);
+                static wchar_t name[MAX_PATH];
                 int count = wcslen(pWinGroup->_AppName);
                 if (count != 0)
                 {
-                    wcsncpy(name, pWinGroup->_AppName, maxCount - 3);
+                    RectF rout;
+                    int maxCount = 0;
+                    GdipMeasureString(pGraphics, pWinGroup->_AppName, MAX_PATH, fontName, &r, pGraphRes->_pFormat, &rout, &maxCount, 0);
+                    wcsncpy(name, pWinGroup->_AppName, min(maxCount, count));
                     if (count > maxCount)
                     {
                         wcscpy(&name[maxCount - 3], L"...");
                         count = maxCount;
                     }
-
-                    if (((selected || mouseSelected) && appData->_Config._DisplayName == DisplayNameSel) ||
-                        appData->_Config._DisplayName == DisplayNameAll)
-                    {
-                        GdipDrawString(pGraphics, name, count, fontName, &r, pGraphRes->_pFormat, pGraphRes->_pBrushText);
-                    }
+                    GdipDrawString(pGraphics, name, count, fontName, &r, pGraphRes->_pFormat, pGraphRes->_pBrushText);
                 }
             }
 
