@@ -1422,7 +1422,6 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
         const float nameHeight = padSelect * 0.6f;
         const float namePad = padSelect * 0.2f;
         const float pathThickness = 2.0f;
-        const float fontAspectRatio = 0.7f; // Arbitrary
 
         float x = 0;
 
@@ -1443,11 +1442,12 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
         {
             const SWinGroup* pWinGroup = &appData->_WinGroups._Data[i];
             const bool selected = i == (uint32_t)appData->_Selection;
+            const bool mouseSelected = i == (uint32_t)appData->_MouseSelection;
             // Selection box
             {
                 RectF selRect = { x + padSelect, padSelect, selectSize, selectSize };
 
-                if (i == (uint32_t)appData->_MouseSelection)
+                if (mouseSelected)
                 {
                     DrawRoundedRect(pGraphics, NULL, pGraphRes->_pBrushBgHighlight, &selRect, 10);
                 }
@@ -1480,17 +1480,17 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
                 WCHAR count[4];
                 const uint32_t winCount = pWinGroup->_WindowCount;
                 const uint32_t digitsCount = winCount > 99 ? 3 : winCount > 9 ? 2 : 1;
-                const float w = digitsCount * fontAspectRatio * digitBoxHeight; // Font aspect ratio, arbitrary for now
+                const float w = digitsCount * 0.6 * digitBoxHeight + 0.2 * digitBoxHeight; // Font aspect ratio, and constant padding, arbitrary for now
                 // Box
                 const float h = digitBoxHeight;
                 const float p = digitBoxPad + pathThickness;
                 RectF r = {
                     (int)(x + padSelect + selectSize - p - w),
                     (int)(padSelect + selectSize - p - h),
-                    (int)(w),
+                    (int)(w),   
                     (int)(h) };
                 swprintf(count, 4, L"%i", winCount);
-                // Invert text / bg brushes
+                // Invert text / bg brushes 
                 DrawRoundedRect(pGraphics, NULL, pGraphRes->_pBrushText, &r, 5);
                 //r.X += (int)digitPad;
                 //r.Y += (int)digitPad; // All padding up, digit do not have font descent
@@ -1520,7 +1520,7 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
                         count = maxCount;
                     }
 
-                    if ((selected && appData->_Config._DisplayName == DisplayNameSel) ||
+                    if (((selected || mouseSelected) && appData->_Config._DisplayName == DisplayNameSel) ||
                         appData->_Config._DisplayName == DisplayNameAll)
                     {
                         GdipDrawString(pGraphics, name, count, fontName, &r, pGraphRes->_pFormat, pGraphRes->_pBrushText);
