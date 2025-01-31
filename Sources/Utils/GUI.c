@@ -134,7 +134,7 @@ void CreatePercentField(const char* tooltip, float* value, GUIData* guiData)
 {
     HINSTANCE inst = (HINSTANCE)GetWindowLongPtrA(guiData->_Parent, GWLP_HINSTANCE);
     char sval[4] = "000";
-    sprintf(sval, "%3d", (int)(*value * 100));
+    sprintf(sval, "%03d", (int)(*value * 100));
     HWND field = CreateWindow(WC_EDIT, sval,
         WS_CHILD | WS_VISIBLE | ES_LEFT | ES_CENTER | ES_NUMBER | WS_BORDER,
         guiData->_Cell._X, guiData->_Cell._Y, guiData->_Cell._W, guiData->_Cell._H,
