@@ -22,6 +22,8 @@
 #include <Initguid.h>
 #include <uiautomationclient.h>
 #include <gdiplus/gdiplusenums.h>
+#include <Shobjidl.h>
+#include <PropKey.h>
 #include "AppxPackaging.h"
 #undef COBJMACROS
 #include "Config/Config.h"
@@ -438,6 +440,31 @@ void ErrorDescription(HRESULT hr)
          printf( TEXT("[Could not find a description for error # %#x.]\n"), (int)hr); 
 }
 
+static void LoadIndirectString(const wchar_t* packagePath, const wchar_t* packageName, const wchar_t* resource, wchar_t* output)
+{
+    static wchar_t indirectStr[512];
+    indirectStr[0] = L'\0';
+    wcscat(indirectStr, L"@{");
+    wcscat(indirectStr, packagePath);
+    wcscat(indirectStr, L"\\resources.pri? ms-resource://");
+    wcscat(indirectStr, packageName);
+    wcscat(indirectStr, L"/");
+    wcscat(indirectStr, resource);
+    wcscat(indirectStr, L"}");
+    if (S_OK == SHLoadIndirectString(indirectStr, output, 512, NULL))
+        return;
+
+    indirectStr[0] = L'\0';
+    wcscat(indirectStr, L"@{");
+    wcscat(indirectStr, packagePath);
+    wcscat(indirectStr, L"\\resources.pri? ms-resource://");
+    wcscat(indirectStr, packageName);
+    wcscat(indirectStr, L"/resources/"); // Seems needed in some case.
+    wcscat(indirectStr, resource);
+    wcscat(indirectStr, L"}");
+    SHLoadIndirectString(indirectStr, output, 512, NULL);
+}
+
 //https://github.com/microsoft/Windows-classic-samples/blob/main/Samples/AppxPackingDescribeAppx/cpp/DescribeAppx.cpp
 static void GetUWPIconAndAppName(HANDLE process, wchar_t* outIconPath, wchar_t* outAppName, SAppData* appData)
 {
@@ -466,19 +493,24 @@ static void GetUWPIconAndAppName(HANDLE process, wchar_t* outIconPath, wchar_t* 
     static wchar_t packagePath[MAX_PATH];
     uint32_t packagePathLength = MAX_PATH;
     GetPackagePath(pid, 0, &packagePathLength, packagePath);
+    static wchar_t packageFullName[MAX_PATH];
+    uint32_t packageFullNameLength = MAX_PATH;
+    PackageFullNameFromId(pid, &packageFullNameLength, packageFullName);
+
     static wchar_t manifestPath[MAX_PATH];
     wcscpy(manifestPath, packagePath);
     wcscat(manifestPath, L"/AppXManifest.xml");
-    {
-        wchar_t* src = pid[0].name; wchar_t* dst = outAppName;
-        while (*src != L'\0' && *src != L'.' )
-        {
-            *dst = *src; dst++; src++;
-        }
-        *dst = L'\0';
-    }
+    // {
+    //     wchar_t* src = pid[0].name; wchar_t* dst = outAppName;
+    //     while (*src != L'\0' && *src != L'.' )
+    //     {
+    //         *dst = *src; dst++; src++;
+    //     }
+    //     *dst = L'\0';
+    // }
 
     wchar_t* logoProp = NULL;
+    wchar_t* displayName = NULL;
     {
         // Stream
         IStream* inputStream = NULL;
@@ -527,6 +559,7 @@ static void GetUWPIconAndAppName(HANDLE process, wchar_t* outIconPath, wchar_t* 
             if (!wcscmp(aumid, userModelID))
             {
                 IAppxManifestApplication_GetStringValue(app, L"Square44x44Logo", &logoProp);
+                IAppxManifestApplication_GetStringValue(app, L"DisplayName", &displayName);
                 break;
             }
             IAppxManifestApplicationsEnumerator_MoveNext(appEnum, &hasApp);
@@ -537,6 +570,7 @@ static void GetUWPIconAndAppName(HANDLE process, wchar_t* outIconPath, wchar_t* 
         IAppxFactory_Release(appxfac);
         IStream_Release(inputStream);
         ASSERT(logoProp != NULL);
+        ASSERT(displayName != NULL);
     }
     for (uint32_t i = 0; logoProp[i] != L'\0'; i++)
     {
@@ -544,6 +578,14 @@ static void GetUWPIconAndAppName(HANDLE process, wchar_t* outIconPath, wchar_t* 
             logoProp[i] = L'/';
     }
 
+    {
+        if (wcsstr(displayName, L"ms-resource:") == displayName)
+        {
+            LoadIndirectString(packagePath, pid[0].name, &displayName[12], outAppName);
+        }
+        else
+            wcscpy(outAppName, displayName);
+    }
     wchar_t logoPath[MAX_PATH];
     wcscpy(logoPath, packagePath);
     wcscat(logoPath, L"/");
@@ -660,6 +702,24 @@ static BOOL GetIconGroupName(HMODULE hModule, LPCSTR lpType, LPSTR lpName, LONG_
         strcpy(*(char**)lParam, lpName);
     }
     return false;
+}
+
+static void GetAppName(const wchar_t* exePath, wchar_t* out)
+{
+    CoInitializeEx(NULL, COINIT_APARTMENTTHREADED);
+    IShellItem2* shellItem = NULL;
+    {
+        // DWORD res = CoCreateInstance(&CLSID_ShellItem, NULL, CLSCTX_INPROC_SERVER, &IID_IShellItem2, (void**)&IShellItem2);
+        // ASSERT(SUCCEEDED(res))
+    }
+    DWORD res = SHCreateItemFromParsingName(exePath, NULL, &IID_IShellItem2, (void**)&shellItem);
+    ASSERT(SUCCEEDED(res))
+    wchar_t* siStr = NULL;
+    res = IShellItem2_GetString(shellItem, &PKEY_FileDescription, &siStr);
+    ASSERT(SUCCEEDED(res))
+    wcscpy(out, siStr);
+    IShellItem2_Release(shellItem);
+    CoUninitialize();
 }
 
 static GpBitmap* GetIconFromExe(const char* exePath)
@@ -796,7 +856,10 @@ static BOOL FillWinGroups(HWND hwnd, LPARAM lParam)
             if (!isUWP)
             {
                 group->_IconBitmap = GetIconFromExe(group->_ModuleFileName);
-                wcscpy(group->_AppName, L"To do");
+                group->_AppName[0] = L'\0';
+                static wchar_t exePath[MAX_PATH];
+                mbstowcs(exePath, group->_ModuleFileName, MAX_PATH);
+                GetAppName(exePath, group->_AppName);
             }
             else if (isUWP)
             {
@@ -1319,8 +1382,7 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
         GdipSetSmoothingMode(pGraphics, SmoothingModeAntiAlias);
         GdipSetPixelOffsetMode(pGraphics, PixelOffsetModeHighQuality);
         GdipSetInterpolationMode(pGraphics, InterpolationModeHighQualityBilinear); // InterpolationModeHighQualityBicubic
-        GdipSetTextRenderingHint(pGraphics, TextRenderingHintAntiAlias);
-        GdipSetTextRenderingHint(pGraphics, TextRenderingHintAntiAlias);
+        GdipSetTextRenderingHint(pGraphics, TextRenderingHintClearTypeGridFit);
 
         const float containerSize = appData->_Metrics._Container;
         const float iconSize = appData->_Metrics._Icon;
@@ -1330,10 +1392,11 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
         const float digitBoxHeight = selectSize * 0.15f;
         const float digitBoxPad = digitBoxHeight * 0.1f;
         const float digitHeight = digitBoxHeight * 0.8f;
-        const float digitPad = digitBoxHeight * 0.1f;
+        const float digitPad = digitBoxHeight * 0.1f; (void)digitPad; // Implicit as text centering is handled by gdip
         const float nameHeight = padSelect * 0.6f;
         const float namePad = padSelect * 0.2f;
         const float pathThickness = 2.0f;
+        const float fontAspectRatio = 0.7f; // Arbitrary
 
         float x = 0;
 
@@ -1344,7 +1407,7 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
             GpFontCollection* fc = NULL;
             ASSERT(Ok == GdipNewInstalledFontCollection(&fc));
             GpFontFamily* pFontFamily;
-            ASSERT(Ok == GdipCreateFontFamilyFromName(L"Arial", fc, &pFontFamily));
+            ASSERT(Ok == GdipCreateFontFamilyFromName(L"Segoe UI", fc, &pFontFamily));
             ASSERT(Ok == GdipCreateFont(pFontFamily, nameHeight, FontStyleRegular, (int)MetafileFrameUnitPixel, &fontName));
             ASSERT(Ok == GdipCreateFont(pFontFamily, digitHeight, FontStyleBold, (int)MetafileFrameUnitPixel, &fontDigit));
             ASSERT(Ok == GdipDeleteFontFamily(pFontFamily));
@@ -1390,7 +1453,7 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
                 WCHAR count[4];
                 const uint32_t winCount = pWinGroup->_WindowCount;
                 const uint32_t digitsCount = winCount > 99 ? 3 : winCount > 9 ? 2 : 1;
-                const float w = digitsCount * 0.8 * digitBoxHeight; // Font aspect ratio, arbitrary for now
+                const float w = digitsCount * fontAspectRatio * digitBoxHeight; // Font aspect ratio, arbitrary for now
                 // Box
                 const float h = digitBoxHeight;
                 const float p = digitBoxPad + pathThickness;
@@ -1402,8 +1465,8 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
                 swprintf(count, 4, L"%i", winCount);
                 // Invert text / bg brushes
                 DrawRoundedRect(pGraphics, NULL, pGraphRes->_pBrushText, &r, 5);
-                r.X += (int)digitPad;
-                r.Y += (int)digitPad * 2; // All padding up, digit do not have font descent
+                //r.X += (int)digitPad;
+                r.Y += (int)digitPad; // All padding up, digit do not have font descent
                 ASSERT(!GdipDrawString(pGraphics, count, digitsCount, fontDigit, &r, pGraphRes->_pFormat, pGraphRes->_pBrushBg));
             }
 
@@ -1418,9 +1481,15 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
                     (int)(containerSize - padSelect + p),
                     (int)(w),
                     (int)(h) };
-                wchar_t name[] = L"\0\0\0\0\0\0\0\0\0\0";
-                mbstowcs(name, pWinGroup->_ModuleFileName, 10);
-                wcsncpy(name, pWinGroup->_AppName, 10);
+                static wchar_t name[64];
+                const int maxCount = min(selectSize / (0.5 * nameHeight), 64);
+                int count = wcslen(pWinGroup->_AppName);
+                wcsncpy(name, pWinGroup->_AppName, count);
+                if (count > maxCount)
+                {
+                    wcscpy(&name[maxCount - 3], L"...");
+                    count = maxCount;
+                }
 
                 //if (i == (uint32_t)appData->_Selection)
                 //{
@@ -1428,7 +1497,7 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
                 //    GdipDrawString(pGraphics, name, wcslen(name), fontName, &r, pGraphRes->_pFormat, pGraphRes->_pBrushBg);
                 //}
                 //else
-                    GdipDrawString(pGraphics, name, wcslen(name), fontName, &r, pGraphRes->_pFormat, pGraphRes->_pBrushText);
+                GdipDrawString(pGraphics, name, count, fontName, &r, pGraphRes->_pFormat, pGraphRes->_pBrushText);
             }
 
             x += (int)containerSize;
