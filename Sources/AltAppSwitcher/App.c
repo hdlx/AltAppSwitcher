@@ -24,6 +24,7 @@
 #include <gdiplus/gdiplusenums.h>
 #include <Shobjidl.h>
 #include <PropKey.h>
+#include <winnt.h>
 #include "AppxPackaging.h"
 #undef COBJMACROS
 #include "Config/Config.h"
@@ -127,6 +128,7 @@ typedef struct SAppData
     SUWPIconMap _UWPIconMap;
     Config _Config;
     Metrics _Metrics;
+    bool _Elevated;
 } SAppData;
 
 typedef struct SFoundWin
@@ -844,93 +846,108 @@ static BOOL FillWinGroups(HWND hwnd, LPARAM lParam)
             }
         }
     }
+
     if (group == NULL)
     {
+        const HANDLE process = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, FALSE, PID);
+        if (!process)
+        {
+            CloseHandle(process);
+            return true;
+        }
+        HANDLE tok;
+        OpenProcessToken(process, TOKEN_QUERY, &tok);
+        TOKEN_ELEVATION elTok;
+        DWORD cbSize = sizeof(TOKEN_ELEVATION);
+        GetTokenInformation(tok, TokenElevation, &elTok, sizeof(elTok), &cbSize);
+        bool elevated = elTok.TokenIsElevated;
+        CloseHandle(tok);
+
+        if (elevated && !appData->_Elevated)
+            return true;
+
         group = &winAppGroupArr->_Data[winAppGroupArr->_Size++];
         strcpy(group->_ModuleFileName, moduleFileName);
         ASSERT(group->_WindowCount == 0);
         // Icon
-        const HANDLE process = OpenProcess(PROCESS_QUERY_INFORMATION, FALSE, PID);
-        if (process)
+        ASSERT(group->_IconBitmap == NULL);
+        bool stdIcon = false;
+
         {
-            ASSERT(group->_IconBitmap == NULL);
-            bool stdIcon = false;
+            HICON icon = ExtractIcon(process, group->_ModuleFileName, 0);
+            stdIcon = icon != NULL;
+            DestroyIcon(icon);
+        }
 
+        {
+            static wchar_t userModelID[256];
+            userModelID[0] = L'\0';
+            uint32_t userModelIDLength = 256;
+            GetApplicationUserModelId(process, &userModelIDLength, userModelID);
+            isUWP = userModelID[0] != L'\0';
+        }
+
+        (void)stdIcon;
+        if (!isUWP)
+        {
+            group->_IconBitmap = GetIconFromExe(group->_ModuleFileName);
+            group->_AppName[0] = L'\0';
+            static wchar_t exePath[MAX_PATH];
+            mbstowcs(exePath, group->_ModuleFileName, MAX_PATH);
+            GetAppName(exePath, group->_AppName);
+        }
+        else if (isUWP)
+        {
+            static wchar_t iconPath[MAX_PATH];
+            iconPath[0] = L'\0';
+            group->_AppName[0] = L'\0';
+            GetUWPIconAndAppName(process, iconPath, group->_AppName, appData);
+            GdipLoadImageFromFile(iconPath, &group->_IconBitmap);
+        }
+
+        if (appData->_Config._AppSwitcherMode == AppSwitcherModeWindow)
+        {
+            group->_AppName[0] = L'\0';
+            //static char temp[MAX_PATH];
+            GetWindowTextW(hwnd, group->_AppName, MAX_PATH);
+        }
+
+        if (group->_IconBitmap == NULL)
+        {
+            // Loads a bitmap from icon resource (bitmap must be freed later)
+            HBITMAP hbm = NULL;
             {
-                HICON icon = ExtractIcon(process, group->_ModuleFileName, 0);
-                stdIcon = icon != NULL;
-                DestroyIcon(icon);
+                HICON hi = NULL;
+                (void)hi;
+                LoadIconWithScaleDown(NULL, (PCWSTR)IDI_APPLICATION, 256, 256, &hi);
+                ICONINFO iconinfo;
+                GetIconInfo(hi, &iconinfo);
+                hbm = iconinfo.hbmColor;
+                DestroyIcon(hi);
             }
 
+            // Creates a gdi bitmap from the win base api bitmap
+            GpBitmap* out;
             {
-                static wchar_t userModelID[256];
-                userModelID[0] = L'\0';
-                uint32_t userModelIDLength = 256;
-                GetApplicationUserModelId(process, &userModelIDLength, userModelID);
-                isUWP = userModelID[0] != L'\0';
+                BITMAP bm;
+                MEM_INIT(bm);
+                GetObject(hbm, sizeof(BITMAP), &bm);
+                const uint32_t iconSize = bm.bmWidth;
+                GdipCreateBitmapFromScan0(iconSize, iconSize, 4 * iconSize, PixelFormat32bppARGB, NULL, &out);
+                GpRect r = { 0, 0, iconSize, iconSize };
+                BitmapData dstData;
+                MEM_INIT(dstData);
+                GdipBitmapLockBits(out, &r, 0, PixelFormat32bppARGB, &dstData);
+                GetBitmapBits(hbm, sizeof(uint32_t) * iconSize * iconSize, dstData.Scan0);
+                GdipBitmapUnlockBits(out, &dstData);
             }
 
-            (void)stdIcon;
-            if (!isUWP)
-            {
-                group->_IconBitmap = GetIconFromExe(group->_ModuleFileName);
-                group->_AppName[0] = L'\0';
-                static wchar_t exePath[MAX_PATH];
-                mbstowcs(exePath, group->_ModuleFileName, MAX_PATH);
-                GetAppName(exePath, group->_AppName);
-            }
-            else if (isUWP)
-            {
-                static wchar_t iconPath[MAX_PATH];
-                iconPath[0] = L'\0';
-                group->_AppName[0] = L'\0';
-                GetUWPIconAndAppName(process, iconPath, group->_AppName, appData);
-                GdipLoadImageFromFile(iconPath, &group->_IconBitmap);
-            }
-
-            if (appData->_Config._AppSwitcherMode == AppSwitcherModeWindow)
-            {
-                group->_AppName[0] = L'\0';
-                //static char temp[MAX_PATH];
-                GetWindowTextW(hwnd, group->_AppName, MAX_PATH);
-            }
-
-            if (group->_IconBitmap == NULL)
-            {
-                // Loads a bitmap from icon resource (bitmap must be freed later)
-                HBITMAP hbm = NULL;
-                {
-                    HICON hi = NULL;
-                    (void)hi;
-                    LoadIconWithScaleDown(NULL, (PCWSTR)IDI_APPLICATION, 256, 256, &hi);
-                    ICONINFO iconinfo;
-                    GetIconInfo(hi, &iconinfo);
-                    hbm = iconinfo.hbmColor;
-                    DestroyIcon(hi);
-                }
-
-                // Creates a gdi bitmap from the win base api bitmap
-                GpBitmap* out;
-                {
-                    BITMAP bm;
-                    MEM_INIT(bm);
-                    GetObject(hbm, sizeof(BITMAP), &bm);
-                    const uint32_t iconSize = bm.bmWidth;
-                    GdipCreateBitmapFromScan0(iconSize, iconSize, 4 * iconSize, PixelFormat32bppARGB, NULL, &out);
-                    GpRect r = { 0, 0, iconSize, iconSize };
-                    BitmapData dstData;
-                    MEM_INIT(dstData);
-                    GdipBitmapLockBits(out, &r, 0, PixelFormat32bppARGB, &dstData);
-                    GetBitmapBits(hbm, sizeof(uint32_t) * iconSize * iconSize, dstData.Scan0);
-                    GdipBitmapUnlockBits(out, &dstData);
-                }
-
-                DeleteObject(hbm);
-                group->_IconBitmap = out; 
-            }
+            DeleteObject(hbm);
+            group->_IconBitmap = out; 
         }
         CloseHandle(process);
     }
+
     group->_Windows[group->_WindowCount++] = hwnd;
     return true;
 }
@@ -1611,6 +1628,16 @@ int StartAltAppSwitcher(HINSTANCE hInstance)
         _AppData._Config._Scale = 1.75;
         _AppData._Config._DisplayName = DisplayNameSel;
         LoadConfig(&_AppData._Config);
+        _AppData._Elevated = false;
+        {
+            HANDLE tok;
+            OpenProcessToken(GetCurrentProcess(), TOKEN_QUERY, &tok);
+            TOKEN_ELEVATION elTok;
+            DWORD cbSize = sizeof(TOKEN_ELEVATION);
+            GetTokenInformation(tok, TokenElevation, &elTok, sizeof(elTok), &cbSize);
+            _AppData._Elevated = elTok.TokenIsElevated;
+            CloseHandle(tok);
+        }
 
         if (_AppData._Config._CheckForUpdates && access(".\\Updater.exe", F_OK) == 0)
         {
