@@ -971,6 +971,7 @@ static BOOL FillCurrentWinGroup(HWND hwnd, LPARAM lParam)
 
 static void ComputeMetrics(uint32_t iconCount, float scale, Metrics *metrics)
 {
+    scale = max(scale, 0.5f);
     const int centerY = GetSystemMetrics(SM_CYSCREEN) / 2;
     const int centerX = GetSystemMetrics(SM_CXSCREEN) / 2;
     const int screenWidth = GetSystemMetrics(SM_CXFULLSCREEN);
