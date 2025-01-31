@@ -974,9 +974,10 @@ static void ComputeMetrics(uint32_t iconCount, float scale, Metrics *metrics)
     const int centerY = GetSystemMetrics(SM_CYSCREEN) / 2;
     const int centerX = GetSystemMetrics(SM_CXSCREEN) / 2;
     const int screenWidth = GetSystemMetrics(SM_CXFULLSCREEN);
-    const float iconRatio = 0.6f;
+    const float iconRatio = 0.5f;
     const float selectRatio = 0.725f;
-    const float iconContainerSize = min(max(scale, 0.5) * (1.0f / iconRatio) * GetSystemMetrics(SM_CXICON), (screenWidth * 0.9) / iconCount);
+    float iconContainerSize = min(max(scale, 0.5) * (1.0f / iconRatio) * GetSystemMetrics(SM_CXICON), (screenWidth * 0.95) / iconCount);
+    // iconContainerSize = max(iconContainerSize, GetSystemMetrics(SM_CXICON) / iconRatio); // Keep space for text if small
     const uint32_t sizeX = iconCount * iconContainerSize;
     const uint32_t halfSizeX = sizeX / 2;
     const uint32_t sizeY = 1 * iconContainerSize;
