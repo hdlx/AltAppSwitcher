@@ -1305,17 +1305,17 @@ static LRESULT KbProc(int nCode, WPARAM wParam, LPARAM lParam)
 
 static void DrawRoundedRect(GpGraphics* pGraphics, GpPen* pPen, GpBrush* pBrush, const RectF* re, float di)
 {
-    float l = (int)(re->X);
-    float t = (int)(re->Y);
-    float b = (int)(t + re->Height);
-    float r = (int)(l + re->Width);
+    float l = (re->X);
+    float t = (re->Y);
+    float b = (t + re->Height);
+    float r = (l + re->Width);
     GpPath* pPath;
     GdipCreatePath(0, &pPath);
-    GdipAddPathArc(pPath, l, t, di, di, 180, 90);
-    GdipAddPathArc(pPath, r - di, t, di, di, 270, 90);
-    GdipAddPathArc(pPath, r - di, b - di, di, di, 360, 90);
-    GdipAddPathArc(pPath, l, b - di, di, di, 90, 90);
-    GdipAddPathLine(pPath, l, b - di / 2, l, t + di / 2);
+    GdipAddPathArcI(pPath, l, t, di, di, 180, 90);
+    GdipAddPathArcI(pPath, r - di, t, di, di, 270, 90);
+    GdipAddPathArcI(pPath, r - di, b - di, di, di, 360, 90);
+    GdipAddPathArcI(pPath, l, b - di, di, di, 90, 90);
+    GdipAddPathLineI(pPath, l, b - di * 0.5, l, t + di * 0.5);
     GdipClosePathFigure(pPath);
     if (pBrush)
         GdipFillPath(pGraphics, pBrush, pPath);
