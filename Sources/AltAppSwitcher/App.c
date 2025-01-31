@@ -29,6 +29,7 @@
 #include "Config/Config.h"
 #include "Utils/Error.h"
 #include "Utils/MessageDef.h"
+#include "Utils/File.h"
 LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam);
 
 #define MEM_INIT(ARG) memset(&ARG, 0,  sizeof(ARG))
@@ -716,10 +717,27 @@ static void GetAppName(const wchar_t* exePath, wchar_t* out)
     ASSERT(SUCCEEDED(res))
     wchar_t* siStr = NULL;
     res = IShellItem2_GetString(shellItem, &PKEY_FileDescription, &siStr);
-    ASSERT(SUCCEEDED(res))
-    wcscpy(out, siStr);
-    IShellItem2_Release(shellItem);
-    CoUninitialize();
+    if (SUCCEEDED(res))
+    {
+        wcscpy(out, siStr);
+        IShellItem2_Release(shellItem);
+        CoUninitialize();
+        return;
+    }
+
+    // Fallback to filename
+    static wchar_t temp[MAX_PATH];
+    wcscpy(temp, exePath);
+    WStrBToF(temp);
+    wchar_t* lastSlash = NULL;
+    // wchar_t* lastDot = NULL;
+    for (wchar_t* p = temp; *p != L'\0'; p++)
+    {
+        if (*p == L'/') lastSlash = p;
+    }
+    if (lastSlash == NULL)
+        return;
+    wcscpy(out, lastSlash + 1);
 }
 
 static GpBitmap* GetIconFromExe(const char* exePath)
@@ -1389,7 +1407,7 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
         const float selectSize = appData->_Metrics._Selection;
         const float padSelect = (containerSize - selectSize) * 0.5f;
         const float padIcon = (containerSize - iconSize) * 0.5f;
-        const float digitBoxHeight = selectSize * 0.15f;
+        const float digitBoxHeight = min(max(selectSize * 0.15f, 12.0f), selectSize * 0.5f);
         const float digitBoxPad = digitBoxHeight * 0.1f;
         const float digitHeight = digitBoxHeight * 0.8f;
         const float digitPad = digitBoxHeight * 0.1f; (void)digitPad; // Implicit as text centering is handled by gdip
@@ -1416,7 +1434,7 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
         for (uint32_t i = 0; i < appData->_WinGroups._Size; i++)
         {
             const SWinGroup* pWinGroup = &appData->_WinGroups._Data[i];
-
+            const bool selected = i == (uint32_t)appData->_Selection;
             // Selection box
             {
                 RectF selRect = { x + padSelect, padSelect, selectSize, selectSize };
@@ -1426,7 +1444,7 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
                     DrawRoundedRect(pGraphics, NULL, pGraphRes->_pBrushBgHighlight, &selRect, 10);
                 }
 
-                if (i == (uint32_t)appData->_Selection)
+                if (selected)
                 {
                     COLORREF cr = pGraphRes->_TextColor;
                     ARGB gdipColor = cr | 0xFF000000;
@@ -1491,13 +1509,11 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
                     count = maxCount;
                 }
 
-                //if (i == (uint32_t)appData->_Selection)
-                //{
-                //    DrawRoundedRect(pGraphics, NULL, pGraphRes->_pBrushText, &r, 5);
-                //    GdipDrawString(pGraphics, name, wcslen(name), fontName, &r, pGraphRes->_pFormat, pGraphRes->_pBrushBg);
-                //}
-                //else
-                GdipDrawString(pGraphics, name, count, fontName, &r, pGraphRes->_pFormat, pGraphRes->_pBrushText);
+                if ((selected && appData->_Config._DisplayName == DisplayNameSel) ||
+                    appData->_Config._DisplayName == DisplayNameAll)
+                {
+                    GdipDrawString(pGraphics, name, count, fontName, &r, pGraphRes->_pFormat, pGraphRes->_pBrushText);
+                }
             }
 
             x += (int)containerSize;
@@ -1582,6 +1598,7 @@ int StartAltAppSwitcher(HINSTANCE hInstance)
         _AppData._Config._ThemeMode = ThemeModeAuto;
         _AppData._Config._AppSwitcherMode = AppSwitcherModeApp;
         _AppData._Config._Scale = 1.75;
+        _AppData._Config._DisplayName = DisplayNameSel;
         LoadConfig(&_AppData._Config);
 
         if (_AppData._Config._CheckForUpdates && access(".\\Updater.exe", F_OK) == 0)

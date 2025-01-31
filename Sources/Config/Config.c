@@ -39,6 +39,12 @@ const EnumString appSwitcherModeES[3] =
     { "end", 0xFFFFFFFF }
 };
 
+const EnumString displayNameES[3] = {
+    { "selected", DisplayNameSel },
+    { "all", DisplayNameAll },
+    { "none", DisplayNameNone }
+};
+
 typedef struct StrPair
 {
     char Key[64];
@@ -93,7 +99,8 @@ static bool TryGetEnum(const StrPair* keyValues, const char* token,
     unsigned int* outValue, const EnumString* enumStrings)
 {
     unsigned int entry = Find(keyValues, token);
-    ASSERT(entry != 0xFFFFFFFF)
+    if (entry == 0xFFFFFFFF)
+        return false;
     for (unsigned int i = 0; enumStrings[i].Value != 0xFFFFFFFF; i++)
     {
         if (!strcmp(keyValues[entry].Value, enumStrings[i].Name))
@@ -156,6 +163,7 @@ TryGetFloat(keyValues, ENTRY, &DST)
     GET_ENUM("previous app key", config->_Key._PrevApp, keyES);
     GET_ENUM("theme", config->_ThemeMode, themeES);
     GET_ENUM("app switcher mode", config->_AppSwitcherMode, appSwitcherModeES);
+    GET_ENUM("display name", config->_DisplayName, displayNameES);
 
     GET_BOOL("allow mouse", config->_Mouse);
     GET_BOOL("check for updates", config->_CheckForUpdates);
@@ -213,6 +221,7 @@ WriteFloat(file, ENTRY, VALUE)
     WRITE_ENUM("previous app key", config->_Key._PrevApp, keyES);
     WRITE_ENUM("theme", config->_ThemeMode, themeES);
     WRITE_ENUM("app switcher mode", config->_AppSwitcherMode, appSwitcherModeES);
+    WRITE_ENUM("display name", config->_DisplayName, displayNameES);
 
     WRITE_BOOL("allow mouse", config->_Mouse);
     WRITE_BOOL("check for updates", config->_CheckForUpdates);
