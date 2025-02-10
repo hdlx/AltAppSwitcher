@@ -1505,10 +1505,10 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
                 const float h = digitBoxHeight;
                 const float p = digitBoxPad + pathThickness;
                 RectF r = {
-                    (int)(x + padSelect + selectSize - p - w) + 0.5,
-                    (int)(padSelect + selectSize - p - h) + 0.5,
-                    (int)(w),
-                    (int)(h) };
+                    (x + padSelect + selectSize - p - w),
+                    (padSelect + selectSize - p - h),
+                    (w),
+                    (h) };
                 swprintf(str, 3, L"%i", winCount);
                 // Invert text / bg brushes 
                 DrawRoundedRect(pGraphics, NULL, pGraphRes->_pBrushText, &r, 5);
