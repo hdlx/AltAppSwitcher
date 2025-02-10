@@ -160,7 +160,7 @@ static void InitGraphicsResources(SGraphicsResources* pRes, const Config* config
         ASSERT(Ok == GdipCloneStringFormat(pGenericFormat, &pRes->_pFormat));
         ASSERT(Ok == GdipSetStringFormatAlign(pRes->_pFormat, StringAlignmentCenter));
         ASSERT(Ok == GdipSetStringFormatLineAlign(pRes->_pFormat, StringAlignmentCenter));
-        ASSERT(Ok == GdipSetStringFormatFlags(pRes->_pFormat, StringFormatFlagsNoClip));
+        ASSERT(Ok == GdipSetStringFormatFlags(pRes->_pFormat, StringFormatFlagsNoClip | StringFormatFlagsDisplayFormatControl));
     }
     // Colors
     {
@@ -1446,14 +1446,16 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 
         // Resources
         GpFont* fontName = NULL;
-        GpFont* fontDigit = NULL;
+        GpFont* font1Digit = NULL;
+        GpFont* font2Digits = NULL;
         {
             GpFontCollection* fc = NULL;
             ASSERT(Ok == GdipNewInstalledFontCollection(&fc));
             GpFontFamily* pFontFamily;
             ASSERT(Ok == GdipCreateFontFamilyFromName(L"Segoe UI", fc, &pFontFamily));
             ASSERT(Ok == GdipCreateFont(pFontFamily, nameHeight, FontStyleRegular, (int)MetafileFrameUnitPixel, &fontName));
-            ASSERT(Ok == GdipCreateFont(pFontFamily, digitHeight, FontStyleBold, (int)MetafileFrameUnitPixel, &fontDigit));
+            ASSERT(Ok == GdipCreateFont(pFontFamily, digitHeight, FontStyleBold, (int)MetafileFrameUnitPixel, &font1Digit));
+            ASSERT(Ok == GdipCreateFont(pFontFamily, digitHeight * 0.8f, FontStyleBold, (int)MetafileFrameUnitPixel, &font2Digits));
             ASSERT(Ok == GdipDeleteFontFamily(pFontFamily));
         }
 
@@ -1496,24 +1498,23 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
             // Digit
             if (appData->_Config._AppSwitcherMode == AppSwitcherModeApp)
             {
-                WCHAR count[4];
-                const uint32_t winCount = pWinGroup->_WindowCount;
-                const uint32_t digitsCount = winCount > 99 ? 3 : winCount > 9 ? 2 : 1;
-                const float w = digitsCount * 0.6 * digitBoxHeight + 0.2 * digitBoxHeight; // Font aspect ratio, and constant padding, arbitrary for now
-                // Box
+                WCHAR str[] = L"\0\0";
+                const uint32_t winCount = min(pWinGroup->_WindowCount, 99);
+                const uint32_t digitsCount = winCount > 9 ? 2 : 1;
+                const float w = digitBoxHeight;
                 const float h = digitBoxHeight;
                 const float p = digitBoxPad + pathThickness;
                 RectF r = {
-                    (int)(x + padSelect + selectSize - p - w),
-                    (int)(padSelect + selectSize - p - h),
-                    (int)(w),   
+                    (int)(x + padSelect + selectSize - p - w) + 0.5,
+                    (int)(padSelect + selectSize - p - h) + 0.5,
+                    (int)(w),
                     (int)(h) };
-                swprintf(count, 4, L"%i", winCount);
+                swprintf(str, 3, L"%i", winCount);
                 // Invert text / bg brushes 
                 DrawRoundedRect(pGraphics, NULL, pGraphRes->_pBrushText, &r, 5);
                 //r.X += (int)digitPad;
                 //r.Y += (int)digitPad; // All padding up, digit do not have font descent
-                ASSERT(!GdipDrawString(pGraphics, count, digitsCount, fontDigit, &r, pGraphRes->_pFormat, pGraphRes->_pBrushBg));
+                ASSERT(!GdipDrawString(pGraphics, str, digitsCount, digitsCount == 2 ? font2Digits : font1Digit, &r, pGraphRes->_pFormat, pGraphRes->_pBrushBg));
             }
 
             // Name
@@ -1555,7 +1556,8 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 
         // Delete res.
         GdipDeleteFont(fontName);
-        GdipDeleteFont(fontDigit);
+        GdipDeleteFont(font1Digit);
+        GdipDeleteFont(font2Digits);
 
         GdipDeleteGraphics(pGraphics);
         EndPaint(hwnd, &ps);
