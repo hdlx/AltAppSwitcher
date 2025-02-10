@@ -1434,7 +1434,7 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
         const float selectSize = appData->_Metrics._Selection;
         const float padSelect = (containerSize - selectSize) * 0.5f;
         const float padIcon = (containerSize - iconSize) * 0.5f;
-        const float digitBoxHeight = min(max(selectSize * 0.15f, 12.0f), selectSize * 0.5f);
+        const float digitBoxHeight = min(max(selectSize * 0.15f, 14.0f), selectSize * 0.5f);
         const float digitBoxPad = digitBoxHeight * 0.1f;
         const float digitHeight = digitBoxHeight * 0.8f;
         const float digitPad = digitBoxHeight * 0.1f; (void)digitPad; // Implicit as text centering is handled by gdip
@@ -1512,8 +1512,6 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
                 swprintf(str, 3, L"%i", winCount);
                 // Invert text / bg brushes 
                 DrawRoundedRect(pGraphics, NULL, pGraphRes->_pBrushText, &r, 5);
-                //r.X += (int)digitPad;
-                //r.Y += (int)digitPad; // All padding up, digit do not have font descent
                 ASSERT(!GdipDrawString(pGraphics, str, digitsCount, digitsCount == 2 ? font2Digits : font1Digit, &r, pGraphRes->_pFormat, pGraphRes->_pBrushBg));
             }
 

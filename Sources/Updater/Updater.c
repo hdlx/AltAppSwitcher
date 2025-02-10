@@ -63,7 +63,7 @@ static int GetLastAASVersion(BOOL preview, char* outVersion, char* assetURL)
     ASSERT(res == CURLE_OK)
     {
         response._Data = realloc(response._Data, response._Size + 1);
-        response._Data[response._Size] = '\0';
+        response._Data[response._Size] = '\0';  
         response._Size += 1;
     }
     curl_slist_free_all(list);
