@@ -1425,7 +1425,7 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
         ASSERT(Ok == GdipCreateFromHDC(pGraphRes->_DC, &pGraphics));
         // gdiplus/gdiplusenums.h
         GdipSetSmoothingMode(pGraphics, SmoothingModeAntiAlias);
-        GdipSetPixelOffsetMode(pGraphics, PixelOffsetModeHighQuality);
+        GdipSetPixelOffsetMode(pGraphics, PixelOffsetModeNone);
         GdipSetInterpolationMode(pGraphics, InterpolationModeHighQualityBilinear); // InterpolationModeHighQualityBicubic
         GdipSetTextRenderingHint(pGraphics, TextRenderingHintClearTypeGridFit);
 
@@ -1436,7 +1436,7 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
         const float padIcon = (containerSize - iconSize) * 0.5f;
         const float digitBoxHeight = min(max(selectSize * 0.15f, 14.0f), selectSize * 0.5f);
         const float digitBoxPad = digitBoxHeight * 0.1f;
-        const float digitHeight = digitBoxHeight * 0.8f;
+        const float digitHeight = digitBoxHeight * 0.75f;
         const float digitPad = digitBoxHeight * 0.1f; (void)digitPad; // Implicit as text centering is handled by gdip
         const float nameHeight = padSelect * 0.6f;
         const float namePad = padSelect * 0.2f;
@@ -1455,7 +1455,7 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
             ASSERT(Ok == GdipCreateFontFamilyFromName(L"Segoe UI", fc, &pFontFamily));
             ASSERT(Ok == GdipCreateFont(pFontFamily, nameHeight, FontStyleRegular, (int)MetafileFrameUnitPixel, &fontName));
             ASSERT(Ok == GdipCreateFont(pFontFamily, digitHeight, FontStyleBold, (int)MetafileFrameUnitPixel, &font1Digit));
-            ASSERT(Ok == GdipCreateFont(pFontFamily, digitHeight * 0.8f, FontStyleBold, (int)MetafileFrameUnitPixel, &font2Digits));
+            ASSERT(Ok == GdipCreateFont(pFontFamily, digitHeight * 0.7f, FontStyleBold, (int)MetafileFrameUnitPixel, &font2Digits));
             ASSERT(Ok == GdipDeleteFontFamily(pFontFamily));
         }
 
@@ -1505,10 +1505,10 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
                 const float h = digitBoxHeight;
                 const float p = digitBoxPad + pathThickness;
                 RectF r = {
-                    (x + padSelect + selectSize - p - w),
-                    (padSelect + selectSize - p - h),
-                    (w),
-                    (h) };
+                    (int)(x + padSelect + selectSize - p - w),
+                    (int)(padSelect + selectSize - p - h),
+                    (int)(w),
+                    (int)(h) };
                 swprintf(str, 3, L"%i", winCount);
                 // Invert text / bg brushes 
                 DrawRoundedRect(pGraphics, NULL, pGraphRes->_pBrushText, &r, 5);
