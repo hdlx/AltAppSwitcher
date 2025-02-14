@@ -1310,7 +1310,7 @@ static void DrawRoundedRect(GpGraphics* pGraphics, GpPen* pPen, GpBrush* pBrush,
     float b = (t + re->Height);
     float r = (l + re->Width);
     GpPath* pPath;
-    GdipCreatePath(0, &pPath);
+    GdipCreatePath(FillModeAlternate, &pPath);
     GdipAddPathArcI(pPath, l, t, di, di, 180, 90);
     GdipAddPathArcI(pPath, r - di, t, di, di, 270, 90);
     GdipAddPathArcI(pPath, r - di, b - di, di, di, 360, 90);
@@ -1434,8 +1434,8 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
         const float selectSize = appData->_Metrics._Selection;
         const float padSelect = (containerSize - selectSize) * 0.5f;
         const float padIcon = (containerSize - iconSize) * 0.5f;
-        const float digitBoxHeight = min(max(selectSize * 0.15f, 14.0f), selectSize * 0.5f);
-        const float digitBoxPad = digitBoxHeight * 0.1f;
+        const float digitBoxHeight = min(max(selectSize * 0.15f, 16.0f), selectSize * 0.5f);
+        const float digitBoxPad = digitBoxHeight * 0.2f;
         const float digitHeight = digitBoxHeight * 0.75f;
         const float digitPad = digitBoxHeight * 0.1f; (void)digitPad; // Implicit as text centering is handled by gdip
         const float nameHeight = padSelect * 0.6f;
@@ -1446,17 +1446,12 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 
         // Resources
         GpFont* fontName = NULL;
-        GpFont* font1Digit = NULL;
-        GpFont* font2Digits = NULL;
+        GpFontFamily* pFontFamily = NULL;
         {
             GpFontCollection* fc = NULL;
             ASSERT(Ok == GdipNewInstalledFontCollection(&fc));
-            GpFontFamily* pFontFamily;
             ASSERT(Ok == GdipCreateFontFamilyFromName(L"Segoe UI", fc, &pFontFamily));
             ASSERT(Ok == GdipCreateFont(pFontFamily, nameHeight, FontStyleRegular, (int)MetafileFrameUnitPixel, &fontName));
-            ASSERT(Ok == GdipCreateFont(pFontFamily, digitHeight, FontStyleBold, (int)MetafileFrameUnitPixel, &font1Digit));
-            ASSERT(Ok == GdipCreateFont(pFontFamily, digitHeight * 0.7f, FontStyleBold, (int)MetafileFrameUnitPixel, &font2Digits));
-            ASSERT(Ok == GdipDeleteFontFamily(pFontFamily));
         }
 
         for (uint32_t i = 0; i < appData->_WinGroups._Size; i++)
@@ -1505,14 +1500,36 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
                 const float h = digitBoxHeight;
                 const float p = digitBoxPad + pathThickness;
                 RectF r = {
-                    (int)(x + padSelect + selectSize - p - w),
-                    (int)(padSelect + selectSize - p - h),
-                    (int)(w),
-                    (int)(h) };
+                    (x + padSelect + selectSize - p - w),
+                    (padSelect + selectSize - p - h),
+                    (w),
+                    (h) };
+                r.X = round(r.X);
+                r.Y = round(r.Y);
+                r.Width = round(r.Width);
+                r.Height = round(r.Height);
+
                 swprintf(str, 3, L"%i", winCount);
                 // Invert text / bg brushes 
                 DrawRoundedRect(pGraphics, NULL, pGraphRes->_pBrushText, &r, 5);
-                ASSERT(!GdipDrawString(pGraphics, str, digitsCount, digitsCount == 2 ? font2Digits : font1Digit, &r, pGraphRes->_pFormat, pGraphRes->_pBrushBg));
+
+                GpPath* pPath;
+                ASSERT(Ok == GdipCreatePath(FillModeAlternate, &pPath));
+                RectF rr = {0, 0, 0, 0};
+                ASSERT(Ok == GdipAddPathString(pPath, str, digitsCount, pFontFamily, FontStyleBold, digitHeight * (digitsCount > 1 ? 0.7f : 1.0f), &rr, pGraphRes->_pFormat));
+                ASSERT(Ok == GdipGetPathWorldBounds(pPath, &rr, NULL, NULL));
+                rr.X = round(rr.X);
+                rr.Y = round(rr.Y);
+                rr.Width = round(rr.Width);
+                rr.Height = round(rr.Height);
+                GpMatrix* mat;
+                ASSERT(Ok == GdipCreateMatrix2(1.0f, 0.0f, 0.0f, 1.0f, (r.X - rr.X + (r.Width - rr.Width) * 0.5f), (r.Y - rr.Y + (r.Height - rr.Height) * 0.5f), &mat));
+                ASSERT(Ok == GdipTransformPath(pPath, mat));
+                ASSERT(Ok == GdipDeleteMatrix(mat));
+                ASSERT(Ok == GdipFillPath(pGraphics, pGraphRes->_pBrushBg, pPath));
+                ASSERT(Ok == GdipDeletePath(pPath));
+
+                // ASSERT(!GdipDrawString(pGraphics, str, digitsCount, digitsCount == 2 ? font2Digits : font1Digit, &r, pGraphRes->_pFormat, pGraphRes->_pBrushBg));
             }
 
             // Name
@@ -1554,8 +1571,7 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 
         // Delete res.
         GdipDeleteFont(fontName);
-        GdipDeleteFont(font1Digit);
-        GdipDeleteFont(font2Digits);
+        GdipDeleteFontFamily(pFontFamily);
 
         GdipDeleteGraphics(pGraphics);
         EndPaint(hwnd, &ps);
