@@ -1435,7 +1435,7 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
         const float padSelect = (containerSize - selectSize) * 0.5f;
         const float padIcon = (containerSize - iconSize) * 0.5f;
         const float digitBoxHeight = min(max(selectSize * 0.15f, 16.0f), selectSize * 0.5f);
-        const float digitBoxPad = digitBoxHeight * 0.2f;
+        const float digitBoxPad = digitBoxHeight * 0.15f;
         const float digitHeight = digitBoxHeight * 0.75f;
         const float digitPad = digitBoxHeight * 0.1f; (void)digitPad; // Implicit as text centering is handled by gdip
         const float nameHeight = padSelect * 0.6f;
@@ -1516,7 +1516,7 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
                 GpPath* pPath;
                 ASSERT(Ok == GdipCreatePath(FillModeAlternate, &pPath));
                 RectF rr = {0, 0, 0, 0};
-                ASSERT(Ok == GdipAddPathString(pPath, str, digitsCount, pFontFamily, FontStyleBold, digitHeight * (digitsCount > 1 ? 0.7f : 1.0f), &rr, pGraphRes->_pFormat));
+                ASSERT(Ok == GdipAddPathString(pPath, str, digitsCount, pFontFamily, FontStyleBold, digitHeight * (digitsCount > 1 ? 0.8f : 1.0f), &rr, pGraphRes->_pFormat));
                 ASSERT(Ok == GdipGetPathWorldBounds(pPath, &rr, NULL, NULL));
                 rr.X = round(rr.X);
                 rr.Y = round(rr.Y);
