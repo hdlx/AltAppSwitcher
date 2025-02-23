@@ -114,20 +114,10 @@ static bool TryGetEnum(const StrPair* keyValues, const char* token,
     return false;
 }
 
-
-static void ConfigFile(char* outPath)
-{
-    outPath[0] = '\0';
-    char currentExe[MAX_PATH] = {};
-    GetModuleFileName(NULL, currentExe, MAX_PATH);
-    ParentDir(currentExe, outPath);
-    strcat(outPath, "/AltAppSwitcherConfig.txt");
-}
-
 void LoadConfig(Config* config)
 {
     char configFile[MAX_PATH] = {};
-    ConfigFile(configFile);
+    ConfigPath(configFile);
     FILE* file = fopen(configFile ,"rb");
     if (file == NULL)
     {
@@ -214,7 +204,7 @@ static void WriteFloat(FILE* file, const char* entry, float value)
 void WriteConfig(const Config* config)
 {
     char configFile[MAX_PATH] = {};
-    ConfigFile(configFile);
+    ConfigPath(configFile);
     FILE* file = fopen(configFile ,"w");
 
 #define WRITE_ENUM(ENTRY, VALUE, ENUM_STRING)\

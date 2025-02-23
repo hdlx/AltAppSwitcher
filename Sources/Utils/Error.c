@@ -24,15 +24,6 @@ static void GetLastWinErrStr(char* str, uint32_t strSize)
     LocalFree(msg);
 }
 
-static void LogFile(char* outPath)
-{
-    outPath[0] = '\0';
-    char currentExe[MAX_PATH] = {};
-    GetModuleFileName(NULL, currentExe, MAX_PATH);
-    ParentDir(currentExe, outPath);
-    strcat(outPath, "/AltAppSwitcherLog.txt");
-}
-
 void ASSError(const char* file, uint32_t line, const char* assertStr)
 {
     time_t mytime = time(NULL);
@@ -43,7 +34,7 @@ void ASSError(const char* file, uint32_t line, const char* assertStr)
     SetLastError(0);
 
     char logFile[MAX_PATH] = {};
-    LogFile(logFile);
+    LogPath(logFile);
 
     FILE* f = fopen(logFile, "ab");
     if (f != NULL)

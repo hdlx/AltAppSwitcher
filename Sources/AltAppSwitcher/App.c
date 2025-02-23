@@ -1658,11 +1658,13 @@ int StartAltAppSwitcher(HINSTANCE hInstance)
             CloseHandle(tok);
         }
 
-        if (_AppData._Config._CheckForUpdates && access(".\\Updater.exe", F_OK) == 0)
+        char updater[MAX_PATH] = {};
+        UpdaterPath(updater);
+        if (_AppData._Config._CheckForUpdates && access(updater, F_OK) == 0)
         {
             STARTUPINFO si = {};
             PROCESS_INFORMATION pi = {};
-            CreateProcess(NULL, ".\\Updater.exe", 0, 0, false, CREATE_NEW_PROCESS_GROUP, 0, 0,
+            CreateProcess(NULL, updater, 0, 0, false, CREATE_NEW_PROCESS_GROUP, 0, 0,
             &si, &pi);
         }
         InitGraphicsResources(&_AppData._GraphicsResources, &_AppData._Config);

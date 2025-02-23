@@ -2,6 +2,8 @@
 #include <ftw.h>
 #include <stdio.h>
 #include <dirent.h>
+#include <minwindef.h>
+#include <libloaderapi.h>
 
 static int DeleteForFtw(const char* path, const struct stat* data, int type, struct FTW* ftw)
 {
@@ -101,4 +103,31 @@ void CopyDirContent(const char* srcDir, const char* dstDir)
         e = readdir(dir);
     }
     closedir(dir);
+}
+
+void ConfigPath(char* outPath)
+{
+    outPath[0] = '\0';
+    char currentExe[MAX_PATH] = {};
+    GetModuleFileName(NULL, currentExe, MAX_PATH);
+    ParentDir(currentExe, outPath);
+    strcat(outPath, "/AltAppSwitcherConfig.txt");
+}
+
+void LogPath(char* outPath)
+{
+    outPath[0] = '\0';
+    char currentExe[MAX_PATH] = {};
+    GetModuleFileName(NULL, currentExe, MAX_PATH);
+    ParentDir(currentExe, outPath);
+    strcat(outPath, "/AltAppSwitcherLog.txt");
+}
+
+void UpdaterPath(char* outPath)
+{
+    outPath[0] = '\0';
+    char currentExe[MAX_PATH] = {};
+    GetModuleFileName(NULL, currentExe, MAX_PATH);
+    ParentDir(currentExe, outPath);
+    strcat(outPath, "/Updater.exe");
 }
