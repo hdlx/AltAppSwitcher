@@ -1285,19 +1285,34 @@ static LRESULT KbProc(int nCode, WPARAM wParam, LPARAM lParam)
         // https://stackoverflow.com/questions/2914989/how-can-i-deal-with-depressed-windows-logo-key-when-using-sendinput
         if (releasing && (isWinHold || isAppHold || isInvert))
         {
-            INPUT inputs[3] = {};
-            ZeroMemory(inputs, sizeof(inputs));
-            inputs[0].type = INPUT_KEYBOARD;
-            inputs[0].ki.wVk = VK_RCONTROL;
-            inputs[0].ki.dwFlags = 0;
-            inputs[1].type = INPUT_KEYBOARD;
-            inputs[1].ki.wVk = kbStrut.vkCode;
-            inputs[1].ki.dwFlags = KEYEVENTF_KEYUP;
-            inputs[2].type = INPUT_KEYBOARD;
-            inputs[2].ki.wVk = VK_RCONTROL;
-            inputs[2].ki.dwFlags = KEYEVENTF_KEYUP;
-            const UINT uSent = SendInput(ARRAYSIZE(inputs), inputs, sizeof(INPUT));
-            ASSERT(uSent == 3);
+            // Sending 3 inputs in one command do not seem to garantee order, thus the 3 commands
+            // Not sure if the sleep is necessary.
+            {
+                INPUT input = {};
+                input.type = INPUT_KEYBOARD;
+                input.ki.wVk = VK_RCONTROL;
+                input.ki.dwFlags = 0;
+                const UINT uSent = SendInput(1, &input, sizeof(INPUT));
+                ASSERT(uSent == 1);
+            }
+            Sleep(1);
+            {
+                INPUT input = {};
+                input.type = INPUT_KEYBOARD;
+                input.ki.wVk = kbStrut.vkCode;
+                input.ki.dwFlags = KEYEVENTF_KEYUP;
+                const UINT uSent = SendInput(1, &input, sizeof(INPUT));
+                ASSERT(uSent == 1);
+            }
+            Sleep(1);
+            {
+                INPUT input = {};
+                input.type = INPUT_KEYBOARD;
+                input.ki.wVk = VK_RCONTROL;
+                input.ki.dwFlags = KEYEVENTF_KEYUP;
+                const UINT uSent = SendInput(1, &input, sizeof(INPUT));
+                ASSERT(uSent == 1);
+            }
         }
         return 1;
     }
