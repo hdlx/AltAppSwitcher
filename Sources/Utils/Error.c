@@ -6,6 +6,7 @@
 #include <stdint.h>
 #include <minwindef.h>
 #include <time.h>
+#include "Utils/File.h"
 
 #define MIN(a,b) (((a)<(b))?(a):(b))
 
@@ -23,6 +24,15 @@ static void GetLastWinErrStr(char* str, uint32_t strSize)
     LocalFree(msg);
 }
 
+static void LogFile(char* outPath)
+{
+    outPath[0] = '\0';
+    char currentExe[MAX_PATH] = {};
+    GetModuleFileName(NULL, currentExe, MAX_PATH);
+    ParentDir(currentExe, outPath);
+    strcat(outPath, "/AltAppSwitcherLog.txt");
+}
+
 void ASSError(const char* file, uint32_t line, const char* assertStr)
 {
     time_t mytime = time(NULL);
@@ -32,16 +42,21 @@ void ASSError(const char* file, uint32_t line, const char* assertStr)
     GetLastWinErrStr(winMsg, 512);
     SetLastError(0);
 
-    FILE* f = fopen("./AltAppSwitcherLog.txt", "ab");
-    if (f == NULL)
-        return;
-    fprintf(f, "%s:\nFile: %s, line: %u:\n", timeStr, file, line);
-    fprintf(f, "Assert: %s\n", assertStr);
-    fprintf(f, "Last winapi error: %s\n\n", winMsg[0] == '\0' ? "None" : winMsg);
-    fclose(f);
+    char logFile[MAX_PATH] = {};
+    LogFile(logFile);
 
-    printf( "Assert: %s\n", assertStr);
-    printf("Last winapi error: %s\n\n", winMsg[0] == '\0' ? "None" : winMsg);
+    FILE* f = fopen(logFile, "ab");
+    if (f != NULL)
+    {
+        fprintf(f, "%s:\nFile: %s, line: %u:\n", timeStr, file, line);
+        fprintf(f, "Assert: %s\n", assertStr);
+        fprintf(f, "Last winapi error: %s\n\n", winMsg[0] == '\0' ? "None" : winMsg);
+        fclose(f);
+
+        printf( "Assert: %s\n", assertStr);
+        printf("Last winapi error: %s\n\n", winMsg[0] == '\0' ? "None" : winMsg);
+        fclose(f);
+    }
 
     DebugBreak();
 }

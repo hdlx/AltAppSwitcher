@@ -1289,6 +1289,7 @@ static LRESULT KbProc(int nCode, WPARAM wParam, LPARAM lParam)
             ZeroMemory(inputs, sizeof(inputs));
             inputs[0].type = INPUT_KEYBOARD;
             inputs[0].ki.wVk = VK_RCONTROL;
+            inputs[0].ki.dwFlags = 0;
             inputs[1].type = INPUT_KEYBOARD;
             inputs[1].ki.wVk = kbStrut.vkCode;
             inputs[1].ki.dwFlags = KEYEVENTF_KEYUP;
@@ -1805,7 +1806,11 @@ int StartAltAppSwitcher(HINSTANCE hInstance)
     {
         STARTUPINFO si = {};
         PROCESS_INFORMATION pi = {};
-        CreateProcess(NULL, ".\\AltAppSwitcher.exe", 0, 0, false, CREATE_NEW_PROCESS_GROUP, 0, 0,
+
+        char currentExe[MAX_PATH] = {};
+        GetModuleFileName(NULL, currentExe, MAX_PATH);
+
+        CreateProcess(NULL, currentExe, 0, 0, false, CREATE_NEW_PROCESS_GROUP, 0, 0,
         &si, &pi);
     }
     return 0;
