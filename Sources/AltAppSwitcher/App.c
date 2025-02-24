@@ -1132,8 +1132,24 @@ static void ApplySwitchApp(const SWinGroup* winGroup)
         const HWND win = winGroup->_Windows[i];
         if (!IsWindow(win))
             continue;
-        RestoreWin(win);
         UIASetFocus(win, UIA);
+
+        // This seems more consistent than SetFocus
+        // Check if this works with focus when closing multiple win
+        /*
+        HWND hCurWnd = GetForegroundWindow();
+        DWORD dwMyID = GetCurrentThreadId();
+        DWORD dwCurID = GetWindowThreadProcessId(hCurWnd, NULL);
+        AttachThreadInput(dwCurID, dwMyID, TRUE);
+
+        SetWindowPos(win, HWND_TOPMOST, 0, 0, 0, 0, SWP_NOSIZE | SWP_NOMOVE);
+        SetWindowPos(win, HWND_NOTOPMOST, 0, 0, 0, 0, SWP_SHOWWINDOW | SWP_NOSIZE | SWP_NOMOVE);
+
+        BringWindowToTop(win);
+        SetForegroundWindow(win);
+        SetActiveWindow(win);
+
+        AttachThreadInput(dwCurID, dwMyID, FALSE);*/
     }
     IUIAutomation_Release(UIA);
     CoUninitialize();
