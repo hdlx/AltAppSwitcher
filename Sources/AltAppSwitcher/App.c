@@ -1289,7 +1289,7 @@ static LRESULT KbProc(int nCode, WPARAM wParam, LPARAM lParam)
             PostThreadMessage(_MainThread, keyState._InvertKeyDown ? MSG_PREV_WIN : MSG_NEXT_WIN, 0, 0);
         }
 
-        bypassMsg = 
+        bypassMsg =
             ((mode != ModeNone) || isApplying) &&
             (isWinSwitch || isAppSwitch || isWinHold || isAppHold || isInvert || isPrevApp);
     }
