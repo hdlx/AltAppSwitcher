@@ -1198,7 +1198,6 @@ static LRESULT KbProc(int nCode, WPARAM wParam, LPARAM lParam)
             keyState._SwitchWinDown = !releasing;
         if (isInvert)
         {
-            printf(releasing ? "release\n" : "push\n");
             keyState._InvertKeyDown = !releasing;
         }
         if (isEscape)
@@ -1300,7 +1299,6 @@ static LRESULT KbProc(int nCode, WPARAM wParam, LPARAM lParam)
         if (releasing && (isWinHold || isAppHold || isInvert))
         {
             PostThreadMessage(_MainThread, MSG_RESTORE_KEY, kbStrut.vkCode, 0);
-            printf("bypass\n");
         }
         return 1;
     }
