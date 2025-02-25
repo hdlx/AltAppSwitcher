@@ -152,6 +152,23 @@ static DWORD _MainThread;
 #define MSG_CANCEL_APP (WM_USER + 9)
 #define MSG_RESTORE_KEY (WM_USER + 13) // see Utils/MessageDef.h
 
+static void RestoreKey(WORD keyCode)
+{
+    INPUT inputs[3] = {};
+    ZeroMemory(inputs, sizeof(inputs));
+    inputs[0].type = INPUT_KEYBOARD;
+    inputs[0].ki.wVk = VK_RCONTROL;
+    inputs[0].ki.dwFlags = 0;
+    inputs[1].type = INPUT_KEYBOARD;
+    inputs[1].ki.wVk = keyCode;
+    inputs[1].ki.dwFlags = KEYEVENTF_KEYUP;
+    inputs[2].type = INPUT_KEYBOARD;
+    inputs[2].ki.wVk = VK_RCONTROL;
+    inputs[2].ki.dwFlags = KEYEVENTF_KEYUP;
+    const UINT uSent = SendInput(ARRAYSIZE(inputs), inputs, sizeof(INPUT));
+    ASSERT(uSent == 3);
+}
+
 static void InitGraphicsResources(SGraphicsResources* pRes, const Config* config)
 {
     // Text
@@ -1205,7 +1222,10 @@ static LRESULT KbProc(int nCode, WPARAM wParam, LPARAM lParam)
         if (isAppHold)
             keyState._HoldAppDown = !releasing;
         if (isAppSwitch)
+        {
             keyState._SwitchAppDown = !releasing;
+            printf(releasing ? "R\n": "P\n" );
+        }
         if (isPrevApp)
             keyState._PrevAppDown = !releasing;
         if (isWinHold)
@@ -1213,21 +1233,19 @@ static LRESULT KbProc(int nCode, WPARAM wParam, LPARAM lParam)
         if (isWinSwitch)
             keyState._SwitchWinDown = !releasing;
         if (isInvert)
-        {
             keyState._InvertKeyDown = !releasing;
-        }
         if (isEscape)
             keyState._EscapeDown = !releasing;
     }
 
-    if (keyState._SwitchWinDown == prevKeyState._SwitchWinDown &&
-        keyState._InvertKeyDown == prevKeyState._InvertKeyDown &&
-        keyState._HoldWinDown == prevKeyState._HoldWinDown &&
-        keyState._HoldAppDown == prevKeyState._HoldAppDown &&
-        keyState._SwitchAppDown == prevKeyState._SwitchAppDown &&
-        keyState._EscapeDown == prevKeyState._EscapeDown &&
-        keyState._PrevAppDown == prevKeyState._PrevAppDown)
-        return CallNextHookEx(NULL, nCode, wParam, lParam);
+    //if (keyState._SwitchWinDown == prevKeyState._SwitchWinDown &&
+    //    keyState._InvertKeyDown == prevKeyState._InvertKeyDown &&
+    //    keyState._HoldWinDown == prevKeyState._HoldWinDown &&
+    //    keyState._HoldAppDown == prevKeyState._HoldAppDown &&
+    //    keyState._SwitchAppDown == prevKeyState._SwitchAppDown &&
+    //    keyState._EscapeDown == prevKeyState._EscapeDown &&
+    //    keyState._PrevAppDown == prevKeyState._PrevAppDown)
+    //    return CallNextHookEx(NULL, nCode, wParam, lParam);
 
     // Update target app state
     bool bypassMsg = false;
@@ -1253,28 +1271,26 @@ static LRESULT KbProc(int nCode, WPARAM wParam, LPARAM lParam)
             escapeInput &&
             keyState._HoldAppDown;
 
-        bool isApplying = false;
-
         // Denit.
         if ((prevMode == ModeApp) &&
             (switchWin || appHoldReleasing) && !prevApp)
         {
             mode = ModeNone;
-            isApplying = true;
-            PostThreadMessage(_MainThread, MSG_DEINIT_APP, 0, 0);
+            bypassMsg = true;
+            PostThreadMessage(_MainThread, MSG_DEINIT_APP, kbStrut.vkCode, 0);
         }
         else if (prevMode == ModeWin &&
             (switchApp || winHoldReleasing))
         {
             mode = switchAppInput ? ModeApp : ModeNone;
-            isApplying = true;
-            PostThreadMessage(_MainThread, MSG_DEINIT_WIN, 0, 0);
+            bypassMsg = true;
+            PostThreadMessage(_MainThread, MSG_DEINIT_WIN, kbStrut.vkCode, 0);
         }
         else if (prevMode == ModeApp && cancel)
         {
             mode = ModeNone;
-            isApplying = true;
-            PostThreadMessage(_MainThread, MSG_CANCEL_APP, 0, 0);
+            bypassMsg = true;
+            PostThreadMessage(_MainThread, MSG_CANCEL_APP, kbStrut.vkCode, 0);
         }
 
 
@@ -1285,15 +1301,18 @@ static LRESULT KbProc(int nCode, WPARAM wParam, LPARAM lParam)
 
         if (mode == ModeApp && prevMode != ModeApp)
         {
+            bypassMsg = true;
             PostThreadMessage(_MainThread, MSG_INIT_APP, 0, 0);
         }
         else if (mode == ModeWin && prevMode != ModeWin)
         {
+            bypassMsg = true;
             PostThreadMessage(_MainThread, MSG_INIT_WIN, 0, 0);
         }
 
         if (mode == ModeApp)
         {
+            bypassMsg = true;
             if (switchApp)
                 PostThreadMessage(_MainThread, keyState._InvertKeyDown ? MSG_PREV_APP : MSG_NEXT_APP, 0, 0);
             else if (prevApp)
@@ -1301,23 +1320,14 @@ static LRESULT KbProc(int nCode, WPARAM wParam, LPARAM lParam)
         }
         else if (switchWin)
         {
+            bypassMsg = true;
             PostThreadMessage(_MainThread, keyState._InvertKeyDown ? MSG_PREV_WIN : MSG_NEXT_WIN, 0, 0);
         }
-
-        bypassMsg =
-            ((mode != ModeNone) || isApplying) &&
-            (isWinSwitch || isAppSwitch || isWinHold || isAppHold || isInvert || isPrevApp);
     }
 
     if (bypassMsg)
-    {
-        // https://stackoverflow.com/questions/2914989/how-can-i-deal-with-depressed-windows-logo-key-when-using-sendinput
-        if (releasing && (isWinHold || isAppHold || isInvert))
-        {
-            PostThreadMessage(_MainThread, MSG_RESTORE_KEY, kbStrut.vkCode, 0);
-        }
         return 1;
-    }
+
     return CallNextHookEx(NULL, nCode, wParam, lParam);
 }
 
@@ -1771,6 +1781,7 @@ int StartAltAppSwitcher(HINSTANCE hInstance)
         }
         case MSG_DEINIT_APP:
         {
+            RestoreKey(msg.wParam);
             if (_AppData._Mode == ModeNone)
                 break;
             const int selection = _AppData._Selection;
@@ -1784,6 +1795,7 @@ int StartAltAppSwitcher(HINSTANCE hInstance)
         }
         case MSG_CANCEL_APP:
         {
+            RestoreKey(msg.wParam);
             _AppData._Mode = ModeNone;
             DestroyWin(_AppData._MainWin);
             ClearWinGroupArr(&_AppData._WinGroups);
@@ -1791,6 +1803,7 @@ int StartAltAppSwitcher(HINSTANCE hInstance)
         }
         case MSG_DEINIT_WIN:
         {
+            RestoreKey(msg.wParam);
             if (_AppData._Mode == ModeNone)
                 break;
             _AppData._Mode = ModeNone;
