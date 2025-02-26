@@ -154,19 +154,22 @@ static DWORD _MainThread;
 
 static void RestoreKey(WORD keyCode)
 {
-    INPUT inputs[3] = {};
+    INPUT inputs[4] = {};
     ZeroMemory(inputs, sizeof(inputs));
     inputs[0].type = INPUT_KEYBOARD;
     inputs[0].ki.wVk = VK_RCONTROL;
     inputs[0].ki.dwFlags = 0;
     inputs[1].type = INPUT_KEYBOARD;
-    inputs[1].ki.wVk = keyCode;
+    inputs[1].ki.wVk = _KeyConfig->_Invert;
     inputs[1].ki.dwFlags = KEYEVENTF_KEYUP;
     inputs[2].type = INPUT_KEYBOARD;
-    inputs[2].ki.wVk = VK_RCONTROL;
+    inputs[2].ki.wVk = keyCode;
     inputs[2].ki.dwFlags = KEYEVENTF_KEYUP;
+    inputs[3].type = INPUT_KEYBOARD;
+    inputs[3].ki.wVk = VK_RCONTROL;
+    inputs[3].ki.dwFlags = KEYEVENTF_KEYUP;
     const UINT uSent = SendInput(ARRAYSIZE(inputs), inputs, sizeof(INPUT));
-    ASSERT(uSent == 3);
+    ASSERT(uSent == 4);
 }
 
 static void InitGraphicsResources(SGraphicsResources* pRes, const Config* config)
@@ -442,23 +445,6 @@ static bool IsAltTabWindow(HWND hwnd)
     if ((wi.dwExStyle & WS_EX_TOPMOST) != 0)
         return false;
     return true;
-}
-
-void ErrorDescription(HRESULT hr) 
-{
-     if(FACILITY_WINDOWS == HRESULT_FACILITY(hr)) 
-         hr = HRESULT_CODE(hr); 
-     TCHAR* szErrMsg; 
-
-     if(FormatMessage( 
-       FORMAT_MESSAGE_ALLOCATE_BUFFER|FORMAT_MESSAGE_FROM_SYSTEM, 
-       NULL, hr, MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT), 
-       (LPTSTR)&szErrMsg, 0, NULL) != 0) 
-     { 
-         printf(TEXT("%s"), szErrMsg); 
-         LocalFree(szErrMsg); 
-     } else 
-         printf( TEXT("[Could not find a description for error # %#x.]\n"), (int)hr); 
 }
 
 static void LoadIndirectString(const wchar_t* packagePath, const wchar_t* packageName, const wchar_t* resource, wchar_t* output)
@@ -1222,10 +1208,7 @@ static LRESULT KbProc(int nCode, WPARAM wParam, LPARAM lParam)
         if (isAppHold)
             keyState._HoldAppDown = !releasing;
         if (isAppSwitch)
-        {
             keyState._SwitchAppDown = !releasing;
-            printf(releasing ? "R\n": "P\n" );
-        }
         if (isPrevApp)
             keyState._PrevAppDown = !releasing;
         if (isWinHold)
