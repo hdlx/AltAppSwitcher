@@ -1,0 +1,1 @@
+taskkill -fi "pid gt 0" -im AltAppSwitcher.exe -f
