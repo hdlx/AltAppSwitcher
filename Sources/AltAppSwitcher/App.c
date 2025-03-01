@@ -778,9 +778,9 @@ static GpBitmap* GetIconFromExe(const char* exePath)
         UnlockResource(hGlobal);
         FreeResource(iconGrp);
     }
-
     // Loads a bitmap from icon resource (bitmap must be freed later)
     HBITMAP hbm = NULL;
+    HBITMAP hbmMask = NULL;
     {
         HRSRC iconResInfo = FindResource(module, MAKEINTRESOURCE(iconResID), RT_ICON);
         HGLOBAL iconRes = LoadResource(module, iconResInfo);
@@ -791,7 +791,7 @@ static GpBitmap* GetIconFromExe(const char* exePath)
         ICONINFO ii;
         GetIconInfo(icon, &ii);
         hbm = ii.hbmColor;
-        DeleteObject(ii.hbmMask);
+        hbmMask= ii.hbmMask;
         DestroyIcon(icon);
     }
 
@@ -802,21 +802,45 @@ static GpBitmap* GetIconFromExe(const char* exePath)
     // Creates a gdi bitmap from the win base api bitmap
     GpBitmap* out;
     {
-        BITMAP bm;
-        MEM_INIT(bm);
+        BITMAP bm = {};
         GetObject(hbm, sizeof(BITMAP), &bm);
         const uint32_t iconSize = bm.bmWidth;
         GdipCreateBitmapFromScan0(iconSize, iconSize, 4 * iconSize, PixelFormat32bppARGB, NULL, &out);
         GpRect r = { 0, 0, iconSize, iconSize };
-        BitmapData dstData;
-        MEM_INIT(dstData);
+        BitmapData dstData = {};
         GdipBitmapLockBits(out, &r, 0, PixelFormat32bppARGB, &dstData);
         GetBitmapBits(hbm, sizeof(uint32_t) * iconSize * iconSize, dstData.Scan0);
+        BITMAP bitmapMask = {};
+        GetObject(hbmMask, sizeof(bitmapMask), (LPVOID)&bitmapMask);
+        unsigned int maskByteSize = bitmapMask.bmWidthBytes * bitmapMask.bmHeight;
+        char* maskData = malloc(maskByteSize);
+        memset(maskData, 0, maskByteSize);
+        GetBitmapBits(hbmMask, maskByteSize, maskData);
+        unsigned int* ptr = (unsigned int*)dstData.Scan0;
+        bool noAlpha = true;
+        for (int i = 0; i < iconSize * iconSize; i++)
+        {
+            if (ptr[i] & 0xFF000000)
+            {
+                noAlpha = false;
+                break;
+            }
+        }
+        if (noAlpha)
+        {
+            for (int i = 0; i < iconSize * iconSize; i++)
+            {
+                unsigned int aFromMask = (0x1 & (maskData[i / 8] >> (7 - i % 8))) ? 0 : 0xFF000000;
+                ptr[i] = ptr[i] | aFromMask;
+            }
+        }
         GdipBitmapUnlockBits(out, &dstData);
+        free(maskData);
     }
 
     // Bitmap not needed anymore
     DeleteObject(hbm);
+    DeleteObject(hbmMask);
     hbm = NULL;
 
     return out;
@@ -1145,8 +1169,8 @@ static void ApplySwitchApp(const SWinGroup* winGroup)
         DWORD dwCurID = GetWindowThreadProcessId(hCurWnd, NULL);
         AttachThreadInput(dwCurID, dwMyID, TRUE);
 
-        SetWindowPos(win, HWND_TOPMOST, 0, 0, 0, 0, SWP_NOSIZE | SWP_NOMOVE);
-        SetWindowPos(win, HWND_NOTOPMOST, 0, 0, 0, 0, SWP_SHOWWINDOW | SWP_NOSIZE | SWP_NOMOVE);
+        //SetWindowPos(win, HWND_TOPMOST, 0, 0, 0, 0, SWP_NOSIZE | SWP_NOMOVE);
+        //SetWindowPos(win, HWND_NOTOPMOST, 0, 0, 0, 0, SWP_SHOWWINDOW | SWP_NOSIZE | SWP_NOMOVE);
 
         BringWindowToTop(win);
         SetForegroundWindow(win);
