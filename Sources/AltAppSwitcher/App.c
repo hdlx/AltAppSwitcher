@@ -810,12 +810,7 @@ static GpBitmap* GetIconFromExe(const char* exePath)
         BitmapData dstData = {};
         GdipBitmapLockBits(out, &r, 0, PixelFormat32bppARGB, &dstData);
         GetBitmapBits(hbm, sizeof(uint32_t) * iconSize * iconSize, dstData.Scan0);
-        BITMAP bitmapMask = {};
-        GetObject(hbmMask, sizeof(bitmapMask), (LPVOID)&bitmapMask);
-        unsigned int maskByteSize = bitmapMask.bmWidthBytes * bitmapMask.bmHeight;
-        char* maskData = malloc(maskByteSize);
-        memset(maskData, 0, maskByteSize);
-        GetBitmapBits(hbmMask, maskByteSize, maskData);
+        // Check if alpha
         unsigned int* ptr = (unsigned int*)dstData.Scan0;
         bool noAlpha = true;
         for (int i = 0; i < iconSize * iconSize; i++)
@@ -826,16 +821,23 @@ static GpBitmap* GetIconFromExe(const char* exePath)
                 break;
             }
         }
+        // If no alpha, apply mask
         if (noAlpha)
         {
+            BITMAP bitmapMask = {};
+            GetObject(hbmMask, sizeof(bitmapMask), (LPVOID)&bitmapMask);
+            unsigned int maskByteSize = bitmapMask.bmWidthBytes * bitmapMask.bmHeight;
+            char* maskData = malloc(maskByteSize);
+            memset(maskData, 0, maskByteSize);
+            GetBitmapBits(hbmMask, maskByteSize, maskData);
             for (int i = 0; i < iconSize * iconSize; i++)
             {
                 unsigned int aFromMask = (0x1 & (maskData[i / 8] >> (7 - i % 8))) ? 0 : 0xFF000000;
                 ptr[i] = ptr[i] | aFromMask;
             }
+            free(maskData);
         }
         GdipBitmapUnlockBits(out, &dstData);
-        free(maskData);
     }
 
     // Bitmap not needed anymore
