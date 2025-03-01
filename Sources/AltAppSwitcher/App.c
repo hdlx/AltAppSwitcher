@@ -1422,8 +1422,8 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
         appData->_Mode = ModeNone;
         appData->_Selection = 0;
         appData->_MouseSelection = 0;
-        DestroyWin(appData->_MainWin);
         ApplySwitchApp(&appData->_WinGroups._Data[selection]);
+        DestroyWin(appData->_MainWin);
         ClearWinGroupArr(&appData->_WinGroups);
         return 0;
     }
@@ -1797,8 +1797,8 @@ int StartAltAppSwitcher(HINSTANCE hInstance)
             _AppData._Mode = ModeNone;
             _AppData._Selection = 0;
 
-            DestroyWin(_AppData._MainWin);
             ApplySwitchApp(&_AppData._WinGroups._Data[selection]);
+            DestroyWin(_AppData._MainWin);
             ClearWinGroupArr(&_AppData._WinGroups);
             break;
         }
