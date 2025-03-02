@@ -1129,7 +1129,10 @@ static void RestoreWin(HWND win)
     GetWindowPlacement(win, &placement);
     placement.length = sizeof(WINDOWPLACEMENT);
     if (placement.showCmd == SW_SHOWMINIMIZED)
+    {
         ShowWindowAsync(win, SW_RESTORE);
+        ShowWindowAsync(win, SW_SHOW);
+    }
 }
 
 static void UIASetFocus(HWND win, IUIAutomation* UIA)
@@ -1147,40 +1150,67 @@ static void ApplySwitchApp(const SWinGroup* winGroup)
     for (int i = ((int)winGroup->_WindowCount) - 1; i >= 0 ; i--)
         RestoreWin(winGroup->_Windows[i]);
 
-    CoInitializeEx(NULL, COINIT_APARTMENTTHREADED);
-    IUIAutomation* UIA = NULL;
-    {
-        DWORD res = CoCreateInstance(&CLSID_CUIAutomation, NULL, CLSCTX_INPROC_SERVER, &IID_IUIAutomation, (void**)&UIA);
-        ASSERT(SUCCEEDED(res))
-    }
+    //CoInitializeEx(NULL, COINIT_APARTMENTTHREADED);
+    //IUIAutomation* UIA = NULL;
+    //{
+    //    DWORD res = CoCreateInstance(&CLSID_CUIAutomation, NULL, CLSCTX_INPROC_SERVER, &IID_IUIAutomation, (void**)&UIA);
+    //    ASSERT(SUCCEEDED(res))
+    //}
+
+    HDWP dwp = BeginDeferWindowPos(winGroup->_WindowCount);
     // Set focus for all win, not only the last one. This way when the active window is closed,
     // the second to last window of the group becomes the active one.
-    for (int i = ((int)winGroup->_WindowCount) - 1; i >= 0 ; i--)
+    HWND fgWin = GetForegroundWindow();
+    DWORD curThread = GetCurrentThreadId();
+    DWORD fgWinThread = GetWindowThreadProcessId(fgWin, NULL);
+    AttachThreadInput(fgWinThread, curThread, TRUE);
+    int winCount = (int)winGroup->_WindowCount; 
+    HWND prev = HWND_TOP;//GetTopWindow(NULL);
+    for (int i = winCount - 1; i >= 0 ; i--)
     {
-        const HWND win = winGroup->_Windows[i];
+        const HWND win = winGroup->_Windows[Modulo(i +1, winCount)];
         if (!IsWindow(win))
             continue;
         //UIASetFocus(win, UIA);
 
         // This seems more consistent than SetFocus
         // Check if this works with focus when closing multiple win
-        
-        HWND hCurWnd = GetForegroundWindow();
-        DWORD dwMyID = GetCurrentThreadId();
-        DWORD dwCurID = GetWindowThreadProcessId(hCurWnd, NULL);
-        AttachThreadInput(dwCurID, dwMyID, TRUE);
+        DWORD targetWinThread = GetWindowThreadProcessId(win, NULL);
+        AttachThreadInput(targetWinThread, curThread, TRUE);
 
-        //SetWindowPos(win, HWND_TOPMOST, 0, 0, 0, 0, SWP_NOSIZE | SWP_NOMOVE);
+        dwp = DeferWindowPos(dwp, win, prev, 0, 0, 0, 0, SWP_NOSIZE | SWP_NOMOVE | SWP_NOOWNERZORDER);
         //SetWindowPos(win, HWND_NOTOPMOST, 0, 0, 0, 0, SWP_SHOWWINDOW | SWP_NOSIZE | SWP_NOMOVE);
-
-        BringWindowToTop(win);
-        SetForegroundWindow(win);
-        SetActiveWindow(win);
-
-        AttachThreadInput(dwCurID, dwMyID, FALSE);
+        prev = win;
+        //BringWindowToTop(win);
+        //SetForegroundWindow(win);
+        //SetActiveWindow(win);
     }
-    IUIAutomation_Release(UIA);
-    CoUninitialize();
+
+    EndDeferWindowPos(dwp);
+    //dwp = BeginDeferWindowPos(winGroup->_WindowCount);
+//
+    //for (int i = winCount - 1; i >= 0 ; i--)
+    //{
+    //    const HWND win = winGroup->_Windows[i];
+    //    if (!IsWindow(win))
+    //        continue;
+    //    dwp = DeferWindowPos(dwp, win, HWND_NOTOPMOST, 0, 0, 0, 0, SWP_NOSIZE | SWP_NOMOVE);
+    //}
+//
+    //EndDeferWindowPos(dwp);
+//
+    AttachThreadInput(fgWinThread, curThread, FALSE);
+    for (int i = winCount - 1; i >= 0 ; i--)
+    {
+        const HWND win = winGroup->_Windows[i];
+        if (!IsWindow(win))
+            continue;
+        DWORD targetWinThread = GetWindowThreadProcessId(win, NULL);
+        AttachThreadInput(targetWinThread, curThread, FALSE);
+    }
+
+    //IUIAutomation_Release(UIA);
+    //CoUninitialize();
 }
 
 static void ApplySwitchWin(HWND win)
