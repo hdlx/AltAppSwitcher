@@ -1130,8 +1130,8 @@ static void RestoreWin(HWND win)
     placement.length = sizeof(WINDOWPLACEMENT);
     if (placement.showCmd == SW_SHOWMINIMIZED)
     {
-        ShowWindowAsync(win, SW_RESTORE);
-        ShowWindowAsync(win, SW_SHOW);
+        ShowWindow(win, SW_RESTORE);
+        SetWindowPos(win, HWND_TOP, 0, 0, 0, 0, SWP_NOSIZE | SWP_NOMOVE | SWP_NOOWNERZORDER);
     }
 }
 
@@ -1147,9 +1147,6 @@ static void UIASetFocus(HWND win, IUIAutomation* UIA)
 
 static void ApplySwitchApp(const SWinGroup* winGroup)
 {
-    for (int i = ((int)winGroup->_WindowCount) - 1; i >= 0 ; i--)
-        RestoreWin(winGroup->_Windows[i]);
-
     //CoInitializeEx(NULL, COINIT_APARTMENTTHREADED);
     //IUIAutomation* UIA = NULL;
     //{
@@ -1164,7 +1161,14 @@ static void ApplySwitchApp(const SWinGroup* winGroup)
     DWORD curThread = GetCurrentThreadId();
     DWORD fgWinThread = GetWindowThreadProcessId(fgWin, NULL);
     AttachThreadInput(fgWinThread, curThread, TRUE);
-    int winCount = (int)winGroup->_WindowCount; 
+    int winCount = (int)winGroup->_WindowCount;
+
+    for (int i = winCount - 1; i >= 0 ; i--)
+    {
+        const HWND win = winGroup->_Windows[Modulo(i +1, winCount)];
+        RestoreWin(win);
+    }
+
     HWND prev = HWND_TOP;//GetTopWindow(NULL);
     for (int i = winCount - 1; i >= 0 ; i--)
     {
