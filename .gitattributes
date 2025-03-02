@@ -1,3 +1,4 @@
 SDK/* linguist-vendored
 *.h linguist-language=C
 *.c linguist-language=C
+*.png filter=lfs diff=lfs merge=lfs -text
