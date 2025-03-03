@@ -1543,7 +1543,7 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
                     COLORREF cr = pGraphRes->_TextColor;
                     ARGB gdipColor = cr | 0xFF000000;
                     GpPen* pPen;
-                    GdipCreatePen1(gdipColor, pathThickness, 2, &pPen);
+                    GdipCreatePen1(gdipColor, 2, UnitPixel, &pPen);
                     DrawRoundedRect(pGraphics, pPen, NULL, &selRect, 10);
                     GdipDeletePen(pPen);
                 }
