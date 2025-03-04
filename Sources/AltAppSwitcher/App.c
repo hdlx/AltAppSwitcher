@@ -440,8 +440,9 @@ static bool IsAltTabWindow(HWND hwnd)
         return false;
     WINDOWINFO wi;
     GetWindowInfo(hwnd, &wi);
-    if ((wi.dwExStyle & WS_EX_TOOLWINDOW) != 0)
-        return false;
+    // Chrome has sometime WS_EX_TOOLWINDOW while beeing an alttabable window
+    // if ((wi.dwExStyle & WS_EX_TOOLWINDOW) != 0)
+    //     return false;
     if ((wi.dwExStyle & WS_EX_TOPMOST) != 0)
         return false;
     return true;
