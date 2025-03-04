@@ -422,7 +422,10 @@ static bool IsAltTabWindow(HWND hwnd)
     // Start at the root owner
     const HWND hwndRoot = GetAncestor(hwnd, GA_ROOTOWNER);
     // See if we are the last active visible popup
-    if (GetLastActivePopup(hwndRoot) != hwnd)
+    // Useless and might be null ?
+    // if (GetLastActivePopup(hwndRoot) != hwnd)
+    //     return false;
+    if (hwndRoot != hwnd)
         return false;
     if (!IsWindowVisible(hwnd))
         return false;
@@ -440,9 +443,9 @@ static bool IsAltTabWindow(HWND hwnd)
         return false;
     WINDOWINFO wi;
     GetWindowInfo(hwnd, &wi);
-    // Chrome has sometime WS_EX_TOOLWINDOW while beeing an alttabable window
-    // if ((wi.dwExStyle & WS_EX_TOOLWINDOW) != 0)
-    //     return false;
+    //Chrome has sometime WS_EX_TOOLWINDOW while beeing an alttabable window
+    if ((wi.dwExStyle & WS_EX_TOOLWINDOW) != 0)
+         return false;
     if ((wi.dwExStyle & WS_EX_TOPMOST) != 0)
         return false;
     return true;
