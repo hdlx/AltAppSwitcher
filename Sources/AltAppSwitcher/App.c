@@ -1297,9 +1297,9 @@ static LRESULT KbProc(int nCode, WPARAM wParam, LPARAM lParam)
     bool bypassMsg = false;
     const Mode prevMode = mode;
     {
-        const bool switchWinInput = !prevKeyState._SwitchWinDown && keyState._SwitchWinDown;
-        const bool switchAppInput = !prevKeyState._SwitchAppDown && keyState._SwitchAppDown;
-        const bool prevAppInput = !prevKeyState._PrevAppDown && keyState._PrevAppDown;
+        const bool switchWinInput = /*!prevKeyState._SwitchWinDown &&*/ keyState._SwitchWinDown;
+        const bool switchAppInput = /*!prevKeyState._SwitchAppDown &&*/ keyState._SwitchAppDown;
+        const bool prevAppInput = /*!prevKeyState._PrevAppDown &&*/ keyState._PrevAppDown;
         const bool winHoldReleasing = prevKeyState._HoldWinDown && !keyState._HoldWinDown;
         const bool appHoldReleasing = prevKeyState._HoldAppDown && !keyState._HoldAppDown;
         const bool escapeInput = !prevKeyState._EscapeDown && keyState._EscapeDown;
@@ -1338,7 +1338,6 @@ static LRESULT KbProc(int nCode, WPARAM wParam, LPARAM lParam)
             bypassMsg = true;
             PostThreadMessage(_MainThread, MSG_CANCEL_APP, kbStrut.vkCode, 0);
         }
-
 
         if (mode == ModeNone && switchApp)
             mode = ModeApp;
