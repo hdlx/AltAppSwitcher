@@ -58,13 +58,9 @@ typedef struct SWinGroupArr
 
 typedef struct KeyState
 {
-    bool _SwitchWinDown;
     bool _InvertKeyDown;
     bool _HoldWinDown;
     bool _HoldAppDown;
-    bool _SwitchAppDown;
-    bool _EscapeDown;
-    bool _PrevAppDown;
 } KeyState;
 
 typedef struct SGraphicsResources
@@ -1259,50 +1255,33 @@ static LRESULT KbProc(int nCode, WPARAM wParam, LPARAM lParam)
     if (!isWatchedKey)
         return CallNextHookEx(NULL, nCode, wParam, lParam);
 
-    static KeyState keyState =  { false, false, false, false, false, false, false };
+    static KeyState keyState =  { false, false, false };
     static Mode mode = ModeNone;
 
     const KeyState prevKeyState = keyState;
 
-    const bool releasing = kbStrut.flags & LLKHF_UP;
+    const bool rel = kbStrut.flags & LLKHF_UP;
 
     // Update keyState
     {
         if (isAppHold)
-            keyState._HoldAppDown = !releasing;
-        if (isAppSwitch)
-            keyState._SwitchAppDown = !releasing;
-        if (isPrevApp)
-            keyState._PrevAppDown = !releasing;
+            keyState._HoldAppDown = !rel;
         if (isWinHold)
-            keyState._HoldWinDown = !releasing;
-        if (isWinSwitch)
-            keyState._SwitchWinDown = !releasing;
+            keyState._HoldWinDown = !rel;
         if (isInvert)
-            keyState._InvertKeyDown = !releasing;
-        if (isEscape)
-            keyState._EscapeDown = !releasing;
+            keyState._InvertKeyDown = !rel;
     }
-
-    //if (keyState._SwitchWinDown == prevKeyState._SwitchWinDown &&
-    //    keyState._InvertKeyDown == prevKeyState._InvertKeyDown &&
-    //    keyState._HoldWinDown == prevKeyState._HoldWinDown &&
-    //    keyState._HoldAppDown == prevKeyState._HoldAppDown &&
-    //    keyState._SwitchAppDown == prevKeyState._SwitchAppDown &&
-    //    keyState._EscapeDown == prevKeyState._EscapeDown &&
-    //    keyState._PrevAppDown == prevKeyState._PrevAppDown)
-    //    return CallNextHookEx(NULL, nCode, wParam, lParam);
 
     // Update target app state
     bool bypassMsg = false;
     const Mode prevMode = mode;
     {
-        const bool switchWinInput = /*!prevKeyState._SwitchWinDown &&*/ keyState._SwitchWinDown;
-        const bool switchAppInput = /*!prevKeyState._SwitchAppDown &&*/ keyState._SwitchAppDown;
-        const bool prevAppInput = /*!prevKeyState._PrevAppDown &&*/ keyState._PrevAppDown;
+        const bool switchWinInput = isWinSwitch && !rel;
+        const bool switchAppInput = isAppSwitch && !rel;
+        const bool prevAppInput = isPrevApp && !rel;
         const bool winHoldReleasing = prevKeyState._HoldWinDown && !keyState._HoldWinDown;
         const bool appHoldReleasing = prevKeyState._HoldAppDown && !keyState._HoldAppDown;
-        const bool escapeInput = !prevKeyState._EscapeDown && keyState._EscapeDown;
+        const bool escapeInput = isEscape && !rel;
 
         const bool switchApp =
             switchAppInput &&
@@ -1359,7 +1338,11 @@ static LRESULT KbProc(int nCode, WPARAM wParam, LPARAM lParam)
         {
             bypassMsg = true;
             if (switchApp)
+            {
+                if (!keyState._InvertKeyDown && !(mode == ModeApp && prevMode != ModeApp))
+                    printf("heu");
                 PostThreadMessage(_MainThread, keyState._InvertKeyDown ? MSG_PREV_APP : MSG_NEXT_APP, 0, 0);
+            }
             else if (prevApp)
                 PostThreadMessage(_MainThread, MSG_PREV_APP, 0, 0);
         }
