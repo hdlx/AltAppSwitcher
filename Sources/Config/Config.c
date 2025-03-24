@@ -40,10 +40,11 @@ const EnumString appSwitcherModeES[3] =
     { "end", 0xFFFFFFFF }
 };
 
-const EnumString displayNameES[3] = {
+const EnumString displayNameES[4] = {
     { "selected", DisplayNameSel },
     { "all", DisplayNameAll },
-    { "none", DisplayNameNone }
+    { "none", DisplayNameNone },
+    { "end", 0xFFFFFFFF }
 };
 
 typedef struct StrPair

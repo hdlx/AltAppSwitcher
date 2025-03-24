@@ -52,7 +52,7 @@ typedef struct EnumString
 extern const EnumString keyES[14];
 extern const EnumString themeES[4];
 extern const EnumString appSwitcherModeES[3];
-extern const EnumString displayNameES[3];
+extern const EnumString displayNameES[4];
 
 void LoadConfig(Config* config);
 void WriteConfig(const Config* config);
