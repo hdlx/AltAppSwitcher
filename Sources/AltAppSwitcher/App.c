@@ -576,8 +576,13 @@ static void GetUWPIconAndAppName(HANDLE process, wchar_t* outIconPath, wchar_t* 
         IAppxManifestReader_Release(reader);
         IAppxFactory_Release(appxfac);
         IStream_Release(inputStream);
-        ASSERT(logoProp != NULL);
-        ASSERT(displayName != NULL);
+        VERIFY(logoProp != NULL);
+        VERIFY(displayName != NULL);
+        if (logoProp == NULL || displayName == NULL)
+        {
+            CoUninitialize();
+            return;
+        }
     }
     for (uint32_t i = 0; logoProp[i] != L'\0'; i++)
     {
