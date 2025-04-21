@@ -7,6 +7,7 @@
 #include <minwindef.h>
 #include <time.h>
 #include "Utils/File.h"
+#include "Utils/Error.h"
 
 #define MIN(a,b) (((a)<(b))?(a):(b))
 
@@ -24,7 +25,7 @@ static void GetLastWinErrStr(char* str, uint32_t strSize)
     LocalFree(msg);
 }
 
-void ASSError(const char* file, uint32_t line, const char* assertStr)
+void ASSError(const char* file, uint32_t line, const char* assertStr, bool crash)
 {
     time_t mytime = time(NULL);
     char* timeStr = ctime(&mytime);
@@ -49,5 +50,6 @@ void ASSError(const char* file, uint32_t line, const char* assertStr)
         fclose(f);
     }
 
-    DebugBreak();
+    if (crash)
+        DebugBreak();
 }
