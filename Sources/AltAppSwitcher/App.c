@@ -147,24 +147,41 @@ static DWORD _MainThread;
 #define MSG_DEINIT_APP (WM_USER + 8)
 #define MSG_CANCEL_APP (WM_USER + 9)
 
+
 static void RestoreKey(WORD keyCode)
 {
-    INPUT inputs[4] = {};
-    ZeroMemory(inputs, sizeof(inputs));
-    inputs[0].type = INPUT_KEYBOARD;
-    inputs[0].ki.wVk = VK_RCONTROL;
-    inputs[0].ki.dwFlags = 0;
-    inputs[1].type = INPUT_KEYBOARD;
-    inputs[1].ki.wVk = _KeyConfig->_Invert;
-    inputs[1].ki.dwFlags = KEYEVENTF_KEYUP;
-    inputs[2].type = INPUT_KEYBOARD;
-    inputs[2].ki.wVk = keyCode;
-    inputs[2].ki.dwFlags = KEYEVENTF_KEYUP;
-    inputs[3].type = INPUT_KEYBOARD;
-    inputs[3].ki.wVk = VK_RCONTROL;
-    inputs[3].ki.dwFlags = KEYEVENTF_KEYUP;
-    const UINT uSent = SendInput(ARRAYSIZE(inputs), inputs, sizeof(INPUT));
-    ASSERT(uSent == 4);
+    {
+        INPUT input = {};
+        input.type = INPUT_KEYBOARD;
+        input.ki.wVk = VK_RCONTROL;
+        input.ki.dwFlags = 0;
+        const UINT uSent = SendInput(1, &input, sizeof(INPUT));
+        ASSERT(uSent == 1);
+    }
+    {
+        INPUT input = {};
+        input.type = INPUT_KEYBOARD;
+        input.ki.wVk = _KeyConfig->_Invert;
+        input.ki.dwFlags = KEYEVENTF_KEYUP;
+        const UINT uSent = SendInput(1, &input, sizeof(INPUT));
+        ASSERT(uSent == 1);
+    }
+    {
+        INPUT input = {};
+        input.type = INPUT_KEYBOARD;
+        input.ki.wVk = keyCode;
+        input.ki.dwFlags = KEYEVENTF_KEYUP;
+        const UINT uSent = SendInput(1, &input, sizeof(INPUT));
+        ASSERT(uSent == 1);
+    }
+    {
+        INPUT input = {};
+        input.type = INPUT_KEYBOARD;
+        input.ki.wVk = VK_RCONTROL;
+        input.ki.dwFlags = KEYEVENTF_KEYUP;
+        const UINT uSent = SendInput(1, &input, sizeof(INPUT));
+        ASSERT(uSent == 1);
+    }
 }
 
 static void InitGraphicsResources(SGraphicsResources* pRes, const Config* config)
