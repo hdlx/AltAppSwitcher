@@ -146,7 +146,6 @@ static DWORD _MainThread;
 #define MSG_DEINIT_WIN (WM_USER + 7)
 #define MSG_DEINIT_APP (WM_USER + 8)
 #define MSG_CANCEL_APP (WM_USER + 9)
-#define MSG_RESTORE_KEY (WM_USER + 13) // see Utils/MessageDef.h
 
 static void RestoreKey(WORD keyCode)
 {
@@ -1851,24 +1850,6 @@ int StartAltAppSwitcher(HINSTANCE hInstance)
         case MSG_CLOSE_AAS:
         {
             closeAAS = true;
-            break;
-        }
-        case MSG_RESTORE_KEY:
-        {
-            WORD keyCode = msg.wParam;
-            INPUT inputs[3] = {};
-            ZeroMemory(inputs, sizeof(inputs));
-            inputs[0].type = INPUT_KEYBOARD;
-            inputs[0].ki.wVk = VK_RCONTROL;
-            inputs[0].ki.dwFlags = 0;
-            inputs[1].type = INPUT_KEYBOARD;
-            inputs[1].ki.wVk = keyCode;
-            inputs[1].ki.dwFlags = KEYEVENTF_KEYUP;
-            inputs[2].type = INPUT_KEYBOARD;
-            inputs[2].ki.wVk = VK_RCONTROL;
-            inputs[2].ki.dwFlags = KEYEVENTF_KEYUP;
-            const UINT uSent = SendInput(ARRAYSIZE(inputs), inputs, sizeof(INPUT));
-            ASSERT(uSent == 3);
             break;
         }
         }
