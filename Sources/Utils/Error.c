@@ -38,16 +38,16 @@ void ASSError(const char* file, uint32_t line, const char* assertStr, bool crash
     LogPath(logFile);
 
     FILE* f = fopen(logFile, "ab");
+    const char* type = crash ? "Assert" : "Verify";
     if (f != NULL)
     {
         fprintf(f, "%s:\nFile: %s, line: %u:\n", timeStr, file, line);
-        fprintf(f, "Assert: %s\n", assertStr);
+        fprintf(f, "%s: %s\n", type, assertStr);
         fprintf(f, "Last winapi error: %s\n\n", winMsg[0] == '\0' ? "None" : winMsg);
         fclose(f);
 
-        printf( "Assert: %s\n", assertStr);
+        printf("%s: %s\n", type, assertStr);
         printf("Last winapi error: %s\n\n", winMsg[0] == '\0' ? "None" : winMsg);
-        fclose(f);
     }
 
     if (crash)

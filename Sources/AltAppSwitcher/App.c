@@ -1052,6 +1052,7 @@ static void DestroyWin(HWND win)
 
 static void CreateWin(SAppData* appData)
 {
+    VERIFY(false);
     if (appData->_MainWin)
         DestroyWin(appData->_MainWin);
 
