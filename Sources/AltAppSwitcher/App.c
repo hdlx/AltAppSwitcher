@@ -24,6 +24,7 @@
 #include <gdiplus/gdiplusenums.h>
 #include <Shobjidl.h>
 #include <PropKey.h>
+#include <winuser.h>
 #include <winnt.h>
 #include "AppxPackaging.h"
 #undef COBJMACROS
@@ -1052,7 +1053,6 @@ static void DestroyWin(HWND win)
 
 static void CreateWin(SAppData* appData)
 {
-    VERIFY(false);
     if (appData->_MainWin)
         DestroyWin(appData->_MainWin);
 
@@ -1254,16 +1254,16 @@ static void ApplySwitchWin(HWND win)
 static LRESULT KbProc(int nCode, WPARAM wParam, LPARAM lParam)
 {
     const KBDLLHOOKSTRUCT kbStrut = *(KBDLLHOOKSTRUCT*)lParam;
-    const bool isAppHold = kbStrut.vkCode == _KeyConfig->_AppHold;
-    const bool isAppSwitch = kbStrut.vkCode == _KeyConfig->_AppSwitch;
-    const bool isPrevApp = kbStrut.vkCode == _KeyConfig->_PrevApp;
-    const bool isWinHold = kbStrut.vkCode == _KeyConfig->_WinHold;
-    const bool isWinSwitch = kbStrut.vkCode == _KeyConfig->_WinSwitch;
-    const bool isInvert = kbStrut.vkCode == _KeyConfig->_Invert;
+    const bool isAppHold = kbStrut.scanCode == _KeyConfig->_AppHold;
+    const bool isAppSwitch = kbStrut.scanCode == _KeyConfig->_AppSwitch;
+    const bool isPrevApp = kbStrut.scanCode == _KeyConfig->_PrevApp;
+    const bool isWinHold = kbStrut.scanCode == _KeyConfig->_WinHold;
+    const bool isWinSwitch = kbStrut.scanCode == _KeyConfig->_WinSwitch;
+    const bool isInvert = kbStrut.scanCode == _KeyConfig->_Invert;
     const bool isTab = kbStrut.vkCode == VK_TAB;
     const bool isShift = kbStrut.vkCode == VK_LSHIFT;
     const bool isEscape = kbStrut.vkCode == VK_ESCAPE;
-    const bool isWatchedKey = 
+    const bool isWatchedKey =
         isAppHold ||
         isAppSwitch ||
         isWinHold ||
@@ -1274,8 +1274,16 @@ static LRESULT KbProc(int nCode, WPARAM wParam, LPARAM lParam)
         (isPrevApp && _KeyConfig->_PrevApp != 0xFFFFFFFF) ||
         isEscape;
 
+    //char kbln[512];
+    //GetKeyboardLayoutName(kbln);
+    //printf("kb layout %s\n", kbln);
+    //unsigned int scanCode = MapVirtualKeyEx(kbStrut.vkCode, MAPVK_VK_TO_VSC_EX, GetKeyboardLayout(0));
+    //printf("vk %u\n", (unsigned int) kbStrut.vkCode);
+    //printf("scancode %u\n", scanCode);
+
     if (!isWatchedKey)
         return CallNextHookEx(NULL, nCode, wParam, lParam);
+
 
     static KeyState keyState =  { false, false, false };
     static Mode mode = ModeNone;
@@ -1360,11 +1368,7 @@ static LRESULT KbProc(int nCode, WPARAM wParam, LPARAM lParam)
         {
             bypassMsg = true;
             if (switchApp)
-            {
-                if (!keyState._InvertKeyDown && !(mode == ModeApp && prevMode != ModeApp))
-                    printf("heu");
                 PostThreadMessage(_MainThread, keyState._InvertKeyDown ? MSG_PREV_APP : MSG_NEXT_APP, 0, 0);
-            }
             else if (prevApp)
                 PostThreadMessage(_MainThread, MSG_PREV_APP, 0, 0);
         }
@@ -1677,6 +1681,12 @@ static DWORD KbHookCb(LPVOID param)
 int StartAltAppSwitcher(HINSTANCE hInstance)
 {
     SetLastError(0);
+
+    //char kbln[512];
+    //GetKeyboardLayoutName(kbln);
+    //printf("layout: %s\n", kbln);
+    //unsigned int scanCode = MapVirtualKeyEx(VK_OEM_3, MAPVK_VK_TO_VSC, GetKeyboardLayout(0));
+    //printf("scan code for oem3: %u\n", scanCode);
 
     ULONG_PTR gdiplusToken = 0;
     {

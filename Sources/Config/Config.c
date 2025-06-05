@@ -7,22 +7,22 @@
 #include <debugapi.h>
 #include "Utils/Error.h"
 #include "Utils/File.h"
-#include "WinKeyCodes.h"
 
+// Scan codes, ref being us keyboard.
 const EnumString keyES[14] = {
-    { "left alt", VK_LMENU },
-    { "right alt", VK_RMENU },
-    { "alt", VK_MENU },
-    { "tilde", VK_OEM_3 },
-    { "left windows", VK_LWIN },
-    { "right windows", VK_RWIN },
-    { "right super", VK_RWIN },
-    { "left super", VK_LWIN },
-    { "left control", VK_LCONTROL },
-    { "right control", VK_RCONTROL },
-    { "left shift", VK_LSHIFT },
-    { "right shift", VK_RSHIFT },
-    { "tab", VK_TAB },
+    { "left alt", 56 },
+    { "right alt", 57400 },
+    { "alt", 56 },
+    { "tilde", 41 },
+    { "left windows", 57435 },
+    { "right windows", 57436 },
+    { "right super", 57435 },
+    { "left super", 57436 },
+    { "left control", 29 },
+    { "right control", 57373 },
+    { "left shift", 42 },
+    { "right shift", 54 },
+    { "tab", 15 },
     { "end", 0xFFFFFFFF }
 };
 
