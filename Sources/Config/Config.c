@@ -10,19 +10,19 @@
 
 // Scan codes, ref being us keyboard.
 const EnumString keyES[14] = {
-    { "left alt", 56 },
-    { "right alt", 57400 },
-    { "alt", 56 },
-    { "tilde", 41 },
-    { "left windows", 57435 },
-    { "right windows", 57436 },
-    { "right super", 57435 },
-    { "left super", 57436 },
-    { "left control", 29 },
-    { "right control", 57373 },
-    { "left shift", 42 },
-    { "right shift", 54 },
-    { "tab", 15 },
+    { "left alt", VK_LMENU },
+    { "right alt", VK_RMENU },
+    { "alt", VK_MENU },
+    { "tilde", VK_OEM_3 }, // Scan code 41
+    { "left windows", VK_LWIN },
+    { "right windows", VK_RWIN },
+    { "right super", VK_RWIN },
+    { "left super", VK_LWIN },
+    { "left control", VK_LCONTROL },
+    { "right control", VK_RCONTROL },
+    { "left shift", VK_LSHIFT },
+    { "right shift", VK_RSHIFT },
+    { "tab", VK_TAB },
     { "end", 0xFFFFFFFF }
 };
 
@@ -164,6 +164,16 @@ TryGetFloat(keyValues, ENTRY, &DST)
     GET_ENUM("next window key", config->_Key._WinSwitch, keyES);
     GET_ENUM("invert order key", config->_Key._Invert, keyES);
     GET_ENUM("previous app key", config->_Key._PrevApp, keyES);
+
+#define PATCH_TILDE(key) key = key == VK_OEM_3 ? MapVirtualKey(41, MAPVK_VSC_TO_VK) : key;
+    PATCH_TILDE(config->_Key._AppHold);
+    PATCH_TILDE(config->_Key._AppSwitch);
+    PATCH_TILDE(config->_Key._WinHold);
+    PATCH_TILDE(config->_Key._WinSwitch);
+    PATCH_TILDE(config->_Key._Invert);
+    PATCH_TILDE(config->_Key._PrevApp);
+#undef PATCH_TILDE
+
     GET_ENUM("theme", config->_ThemeMode, themeES);
     GET_ENUM("app switcher mode", config->_AppSwitcherMode, appSwitcherModeES);
     GET_ENUM("display name", config->_DisplayName, displayNameES);

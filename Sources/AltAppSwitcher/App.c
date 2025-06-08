@@ -1254,12 +1254,12 @@ static void ApplySwitchWin(HWND win)
 static LRESULT KbProc(int nCode, WPARAM wParam, LPARAM lParam)
 {
     const KBDLLHOOKSTRUCT kbStrut = *(KBDLLHOOKSTRUCT*)lParam;
-    const bool isAppHold = kbStrut.scanCode == _KeyConfig->_AppHold;
-    const bool isAppSwitch = kbStrut.scanCode == _KeyConfig->_AppSwitch;
-    const bool isPrevApp = kbStrut.scanCode == _KeyConfig->_PrevApp;
-    const bool isWinHold = kbStrut.scanCode == _KeyConfig->_WinHold;
-    const bool isWinSwitch = kbStrut.scanCode == _KeyConfig->_WinSwitch;
-    const bool isInvert = kbStrut.scanCode == _KeyConfig->_Invert;
+    const bool isAppHold = kbStrut.vkCode == _KeyConfig->_AppHold;
+    const bool isAppSwitch = kbStrut.vkCode == _KeyConfig->_AppSwitch;
+    const bool isPrevApp = kbStrut.vkCode == _KeyConfig->_PrevApp;
+    const bool isWinHold = kbStrut.vkCode == _KeyConfig->_WinHold;
+    const bool isWinSwitch = kbStrut.vkCode == _KeyConfig->_WinSwitch;
+    const bool isInvert = kbStrut.vkCode == _KeyConfig->_Invert;
     const bool isTab = kbStrut.vkCode == VK_TAB;
     const bool isShift = kbStrut.vkCode == VK_LSHIFT;
     const bool isEscape = kbStrut.vkCode == VK_ESCAPE;
@@ -1573,7 +1573,7 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
             }
 
             // Digit
-            if (appData->_Config._AppSwitcherMode == AppSwitcherModeApp)
+            if (appData->_Config._AppSwitcherMode == AppSwitcherModeApp && pWinGroup->_WindowCount > 1)
             {
                 WCHAR str[] = L"\0\0";
                 const uint32_t winCount = min(pWinGroup->_WindowCount, 99);
