@@ -1284,7 +1284,6 @@ static LRESULT KbProc(int nCode, WPARAM wParam, LPARAM lParam)
     if (!isWatchedKey)
         return CallNextHookEx(NULL, nCode, wParam, lParam);
 
-
     static KeyState keyState =  { false, false, false };
     static Mode mode = ModeNone;
 

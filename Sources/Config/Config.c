@@ -9,7 +9,7 @@
 #include "Utils/File.h"
 
 // Scan codes, ref being us keyboard.
-const EnumString keyES[14] = {
+const EnumString keyES[15] = {
     { "left alt", VK_LMENU },
     { "right alt", VK_RMENU },
     { "alt", VK_MENU },
@@ -23,6 +23,7 @@ const EnumString keyES[14] = {
     { "left shift", VK_LSHIFT },
     { "right shift", VK_RSHIFT },
     { "tab", VK_TAB },
+    { "none", 0xFFFFFFFE },
     { "end", 0xFFFFFFFF }
 };
 
