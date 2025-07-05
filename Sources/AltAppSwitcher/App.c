@@ -1062,7 +1062,7 @@ static void CreateWin(SAppData* appData)
         WS_EX_TOPMOST | WS_EX_TOOLWINDOW, // Optional window styles (WS_EX_)
         CLASS_NAME, // Window class
         "", // Window text
-        WS_BORDER | WS_POPUP | WS_VISIBLE, // Window style
+        WS_BORDER | WS_POPUP, // Window style
         // Pos and size
         appData->_Metrics._WinPosX, appData->_Metrics._WinPosY, appData->_Metrics._WinX, appData->_Metrics._WinY,
         NULL, // Parent window
@@ -1071,6 +1071,9 @@ static void CreateWin(SAppData* appData)
         appData // Additional application data
     );
     ASSERT(hwnd);
+
+    SendMessage(hwnd, WM_PAINT, 0, 0);
+    ShowWindow(hwnd, SW_SHOW);
 
     // Needed for exact client area.
     RECT r = { appData->_Metrics._WinPosX,
