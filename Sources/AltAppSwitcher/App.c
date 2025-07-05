@@ -88,6 +88,7 @@ typedef struct Metrics
     float _Container;
     float _Selection;
     float _Icon;
+    float _Pad;
 } Metrics;
 
 typedef enum Mode
@@ -1026,21 +1027,23 @@ static void ComputeMetrics(uint32_t iconCount, float scale, Metrics *metrics)
     const int centerY = GetSystemMetrics(SM_CYSCREEN) / 2;
     const int centerX = GetSystemMetrics(SM_CXSCREEN) / 2;
     const int screenWidth = GetSystemMetrics(SM_CXFULLSCREEN);
-    const float containerRatio = 2.0f;
+    const float containerRatio = 1.25f;
     const float selectRatio = 1.25f;
-    const float iconSize = GetSystemMetrics(SM_CXICON) * scale;
-    float iconContainerSize = min(iconSize * containerRatio, (screenWidth * 0.9) / iconCount);
-    const uint32_t sizeX = iconCount * iconContainerSize;
+    const float pad = 0.25f;
+    float iconSize = GetSystemMetrics(SM_CXICON) * scale;
+    const uint32_t sizeX = min(iconSize * (iconCount * containerRatio + 2.0f * pad), screenWidth * 0.9);
+    iconSize = sizeX / (iconCount * containerRatio + 2.0f * pad);
     const uint32_t halfSizeX = sizeX / 2;
-    const uint32_t sizeY = 1 * iconContainerSize;
+    const uint32_t sizeY = 1 * iconSize * containerRatio + 2.0f * pad * iconSize;
     const uint32_t halfSizeY = sizeY / 2;
     metrics->_WinPosX = centerX - halfSizeX;
     metrics->_WinPosY = centerY - halfSizeY;
     metrics->_WinX = sizeX;
     metrics->_WinY = sizeY;
-    metrics->_Icon = ceil(iconContainerSize / containerRatio);
-    metrics->_Container = iconContainerSize;
-    metrics->_Selection =  metrics->_Icon * selectRatio;
+    metrics->_Icon = iconSize;
+    metrics->_Container = iconSize * containerRatio;
+    metrics->_Selection =  iconSize * selectRatio;
+    metrics->_Pad = iconSize * pad; 
 }
 
 static const char CLASS_NAME[] = "AltAppSwitcher";
@@ -1425,8 +1428,9 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
         if (!appData->_Config._Mouse)
             return 0;
         const int iconContainerSize = (int)appData->_Metrics._Container;
+        const int pad = (int)appData->_Metrics._Pad;
         const int posX = GET_X_LPARAM(lParam);
-        appData->_MouseSelection = min(max(0, posX / iconContainerSize), (int)appData->_WinGroups._Size);
+        appData->_MouseSelection = min(max(0, (posX - pad) / iconContainerSize), (int)appData->_WinGroups._Size - 1);
         InvalidateRect(appData->_MainWin, 0, FALSE);
         UpdateWindow(appData->_MainWin);
         return 0;
@@ -1516,17 +1520,19 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
         const float containerSize = appData->_Metrics._Container;
         const float iconSize = appData->_Metrics._Icon;
         const float selectSize = appData->_Metrics._Selection;
+        const float pad = appData->_Metrics._Pad;
         const float padSelect = (containerSize - selectSize) * 0.5f;
         const float padIcon = (containerSize - iconSize) * 0.5f;
         const float digitBoxHeight = min(max(selectSize * 0.15f, 16.0f), selectSize * 0.5f);
         const float digitBoxPad = digitBoxHeight * 0.15f;
         const float digitHeight = digitBoxHeight * 0.75f;
         const float digitPad = digitBoxHeight * 0.1f; (void)digitPad; // Implicit as text centering is handled by gdip
-        const float nameHeight = padSelect * 0.6f;
-        const float namePad = padSelect * 0.2f;
+        const float nameHeight = pad * 0.6f;
+        const float namePad = pad * 0.2f;
         const float pathThickness = 2.0f;
 
-        float x = 0;
+        float x = pad;
+        float y = pad;
 
         // Resources
         GpFont* fontName = NULL;
@@ -1538,30 +1544,32 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
             ASSERT(Ok == GdipCreateFont(pFontFamily, nameHeight, FontStyleRegular, (int)MetafileFrameUnitPixel, &fontName));
         }
 
+
+
+        // Selection box
+        {
+            const uint32_t selIdx = (uint32_t)appData->_Selection;
+            const uint32_t mouseSelIdx = (uint32_t)appData->_MouseSelection;
+
+            {
+                RectF selRect = { pad + containerSize * selIdx + padSelect, pad + padSelect, selectSize, selectSize };
+                DrawRoundedRect(pGraphics, NULL, pGraphRes->_pBrushBgHighlight, &selRect, 10);
+            }
+
+            {
+                RectF selRect = { pad + containerSize * mouseSelIdx + padSelect, pad + padSelect, selectSize, selectSize };
+                COLORREF cr = pGraphRes->_TextColor;
+                ARGB gdipColor = cr | 0xFF000000;
+                GpPen* pPen;
+                GdipCreatePen1(gdipColor, 2, UnitPixel, &pPen);
+                DrawRoundedRect(pGraphics, pPen, NULL, &selRect, 10);
+                GdipDeletePen(pPen);
+            }
+        }
+
         for (uint32_t i = 0; i < appData->_WinGroups._Size; i++)
         {
             const SWinGroup* pWinGroup = &appData->_WinGroups._Data[i];
-            const bool selected = i == (uint32_t)appData->_Selection;
-            const bool mouseSelected = i == (uint32_t)appData->_MouseSelection;
-            // Selection box
-            {
-                RectF selRect = { x + padSelect, padSelect, selectSize, selectSize };
-
-                if (mouseSelected)
-                {
-                    DrawRoundedRect(pGraphics, NULL, pGraphRes->_pBrushBgHighlight, &selRect, 10);
-                }
-
-                if (selected)
-                {
-                    COLORREF cr = pGraphRes->_TextColor;
-                    ARGB gdipColor = cr | 0xFF000000;
-                    GpPen* pPen;
-                    GdipCreatePen1(gdipColor, 2, UnitPixel, &pPen);
-                    DrawRoundedRect(pGraphics, pPen, NULL, &selRect, 10);
-                    GdipDeletePen(pPen);
-                }
-            }
 
             // Icon
             // TODO: Check histogram and invert (or another filter) if background is similar
@@ -1571,7 +1579,7 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
             // Also check palette to see if monochrome
             if (pWinGroup->_IconBitmap)
             {
-                GdipDrawImageRectI(pGraphics, pWinGroup->_IconBitmap, x + padIcon, padIcon, iconSize, iconSize);
+                GdipDrawImageRectI(pGraphics, pWinGroup->_IconBitmap, x + padIcon, y + padIcon, iconSize, iconSize);
             }
 
             // Digit
@@ -1585,7 +1593,7 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
                 const float p = digitBoxPad + pathThickness;
                 RectF r = {
                     (x + padSelect + selectSize - p - w),
-                    (padSelect + selectSize - p - h),
+                    (y + padSelect + selectSize - p - h),
                     (w),
                     (h) };
                 r.X = round(r.X);
@@ -1617,6 +1625,9 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
             }
 
             // Name
+            const bool selected = i == (uint32_t)appData->_Selection;
+            const bool mouseSelected = i == (uint32_t)appData->_MouseSelection;
+
             if (((selected || mouseSelected) && appData->_Config._DisplayName == DisplayNameSel) ||
                 appData->_Config._DisplayName == DisplayNameAll)
             {
@@ -1626,7 +1637,7 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
                 const float w = containerSize - 2.0f * p;
                 RectF r = {
                     (int)(x + p),
-                    (int)(containerSize - padSelect + p),
+                    (int)(y + containerSize - padSelect + p),
                     (int)(w),
                     (int)(h) };
                 static wchar_t name[MAX_PATH];
