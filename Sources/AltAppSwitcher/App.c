@@ -1161,9 +1161,9 @@ static void UIASetFocus(HWND win, IUIAutomation* UIA)
 {
     IUIAutomationElement* el = NULL;
     DWORD res = IUIAutomation_ElementFromHandle(UIA, win, &el);
-    ASSERT(SUCCEEDED(res));
+    VERIFY(SUCCEEDED(res));
     res = IUIAutomationElement_SetFocus(el);
-    ASSERT(SUCCEEDED(res));
+    VERIFY(SUCCEEDED(res));
     IUIAutomationElement_Release(el);
 }
 

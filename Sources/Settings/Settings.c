@@ -11,6 +11,7 @@
 static void SetupGUI(GUIData* gui, void* userData)
 {
     Config* cfg = (Config*)userData;
+
     LoadConfig(cfg);
 
     GridLayout(1, gui);
