@@ -8,7 +8,7 @@
 #include "Utils/Error.h"
 #include "Utils/File.h"
 
-// Scan codes, ref being us keyboard.
+#define AAS_NONE_VK 0xFFFFFFFE
 const EnumString keyES[15] = {
     { "left alt", VK_LMENU },
     { "right alt", VK_RMENU },
@@ -23,7 +23,7 @@ const EnumString keyES[15] = {
     { "left shift", VK_LSHIFT },
     { "right shift", VK_RSHIFT },
     { "tab", VK_TAB },
-    { "none", 0xFFFFFFFE },
+    { "none", AAS_NONE_VK },
     { "end", 0xFFFFFFFF }
 };
 
@@ -99,11 +99,14 @@ static bool TryGetFloat(const StrPair* keyValues, const char* token, float* floa
 }
 
 static bool TryGetEnum(const StrPair* keyValues, const char* token,
-    unsigned int* outValue, const EnumString* enumStrings)
+    unsigned int* outValue, const EnumString* enumStrings, unsigned int defaultValue)
 {
     unsigned int entry = Find(keyValues, token);
     if (entry == 0xFFFFFFFF)
+    {
+        *outValue = defaultValue;
         return false;
+    }
     for (unsigned int i = 0; enumStrings[i].Value != 0xFFFFFFFF; i++)
     {
         if (!strcmp(keyValues[entry].Value, enumStrings[i].Name))
@@ -129,8 +132,8 @@ void LoadConfig(Config* config)
         fopen(configFile ,"rb");
     }
 
-#define GET_ENUM(ENTRY, DST, ENUM_STRING)\
-TryGetEnum(keyValues, ENTRY, &DST, ENUM_STRING)
+#define GET_ENUM(ENTRY, DST, ENUM_STRING, DEFAULT)\
+TryGetEnum(keyValues, ENTRY, &DST, ENUM_STRING, DEFAULT)
 
 #define GET_BOOL(ENTRY, DST)\
 TryGetBool(keyValues, ENTRY, &DST)
@@ -159,12 +162,12 @@ TryGetFloat(keyValues, ENTRY, &DST)
     }
     fclose(file);
 
-    GET_ENUM("app hold key", config->_Key._AppHold, keyES);
-    GET_ENUM("next app key", config->_Key._AppSwitch, keyES);
-    GET_ENUM("window hold key", config->_Key._WinHold, keyES);
-    GET_ENUM("next window key", config->_Key._WinSwitch, keyES);
-    GET_ENUM("invert order key", config->_Key._Invert, keyES);
-    GET_ENUM("previous app key", config->_Key._PrevApp, keyES);
+    GET_ENUM("app hold key", config->_Key._AppHold, keyES, AAS_NONE_VK);
+    GET_ENUM("next app key", config->_Key._AppSwitch, keyES, AAS_NONE_VK);
+    GET_ENUM("window hold key", config->_Key._WinHold, keyES, AAS_NONE_VK);
+    GET_ENUM("next window key", config->_Key._WinSwitch, keyES, AAS_NONE_VK);
+    GET_ENUM("invert order key", config->_Key._Invert, keyES, AAS_NONE_VK);
+    GET_ENUM("previous app key", config->_Key._PrevApp, keyES, AAS_NONE_VK);
 
 #define PATCH_TILDE(key) key = key == VK_OEM_3 ? MapVirtualKey(41, MAPVK_VSC_TO_VK) : key;
     PATCH_TILDE(config->_Key._AppHold);
@@ -175,9 +178,9 @@ TryGetFloat(keyValues, ENTRY, &DST)
     PATCH_TILDE(config->_Key._PrevApp);
 #undef PATCH_TILDE
 
-    GET_ENUM("theme", config->_ThemeMode, themeES);
-    GET_ENUM("app switcher mode", config->_AppSwitcherMode, appSwitcherModeES);
-    GET_ENUM("display name", config->_DisplayName, displayNameES);
+    GET_ENUM("theme", config->_ThemeMode, themeES, ThemeModeAuto);
+    GET_ENUM("app switcher mode", config->_AppSwitcherMode, appSwitcherModeES, AppSwitcherModeApp);
+    GET_ENUM("display name", config->_DisplayName, displayNameES, DisplayNameSel);
 
     GET_BOOL("allow mouse", config->_Mouse);
     GET_BOOL("check for updates", config->_CheckForUpdates);

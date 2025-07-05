@@ -270,7 +270,7 @@ void ApplyBindings(const GUIData* guiData)
         {
             if (!strcmp(bd->_EnumStrings[j].Name, sValue))
             {
-                *bd->_TargetValue = bd->_EnumStrings[j].Value;
+                *bd->_TargetValue = bd->_EnumStrings[j].Value; 
                 found = true;
                 break;
             }
