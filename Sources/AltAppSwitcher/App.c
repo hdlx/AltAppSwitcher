@@ -1028,13 +1028,13 @@ static void ComputeMetrics(uint32_t iconCount, float scale, Metrics *metrics)
     const int centerX = GetSystemMetrics(SM_CXSCREEN) / 2;
     const int screenWidth = GetSystemMetrics(SM_CXFULLSCREEN);
     const float containerRatio = 1.25f;
-    const float selectRatio = 1.25f;
+    const float selectRatio = 1.25f; // Same as container, legacy was different
     float iconSize = GetSystemMetrics(SM_CXICON) * scale;
-    const float pad = max(0.25 * iconSize, 16.0f) / iconSize;
-    const uint32_t sizeX = min(iconSize * (iconCount * containerRatio + 2.0f * pad), screenWidth * 0.9);
-    iconSize = sizeX / (iconCount * containerRatio + 2.0f * pad);
+    const float padRatio = max(0.25 * iconSize, 16.0f) / iconSize; // Keep room for app name
+    const uint32_t sizeX = min(iconSize * (iconCount * containerRatio + 2.0f * padRatio), screenWidth * 0.9);
+    iconSize = sizeX / (iconCount * containerRatio + 2.0f * padRatio);
     const uint32_t halfSizeX = sizeX / 2;
-    const uint32_t sizeY = 1 * iconSize * containerRatio + 2.0f * pad * iconSize;
+    const uint32_t sizeY = 1 * iconSize * containerRatio + 2.0f * padRatio * iconSize;
     const uint32_t halfSizeY = sizeY / 2;
     metrics->_WinPosX = centerX - halfSizeX;
     metrics->_WinPosY = centerY - halfSizeY;
@@ -1043,7 +1043,7 @@ static void ComputeMetrics(uint32_t iconCount, float scale, Metrics *metrics)
     metrics->_Icon = iconSize;
     metrics->_Container = iconSize * containerRatio;
     metrics->_Selection =  iconSize * selectRatio;
-    metrics->_Pad = iconSize * pad; 
+    metrics->_Pad = iconSize * padRatio; 
 }
 
 static const char CLASS_NAME[] = "AltAppSwitcher";
