@@ -169,15 +169,6 @@ TryGetFloat(keyValues, ENTRY, &DST)
     GET_ENUM("invert order key", config->_Key._Invert, keyES, AAS_NONE_VK);
     GET_ENUM("previous app key", config->_Key._PrevApp, keyES, AAS_NONE_VK);
 
-#define PATCH_TILDE(key) key = key == VK_OEM_3 ? MapVirtualKey(41, MAPVK_VSC_TO_VK) : key;
-    PATCH_TILDE(config->_Key._AppHold);
-    PATCH_TILDE(config->_Key._AppSwitch);
-    PATCH_TILDE(config->_Key._WinHold);
-    PATCH_TILDE(config->_Key._WinSwitch);
-    PATCH_TILDE(config->_Key._Invert);
-    PATCH_TILDE(config->_Key._PrevApp);
-#undef PATCH_TILDE
-
     GET_ENUM("theme", config->_ThemeMode, themeES, ThemeModeAuto);
     GET_ENUM("app switcher mode", config->_AppSwitcherMode, appSwitcherModeES, AppSwitcherModeApp);
     GET_ENUM("display name", config->_DisplayName, displayNameES, DisplayNameSel);

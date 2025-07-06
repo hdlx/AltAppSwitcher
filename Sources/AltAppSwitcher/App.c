@@ -1029,8 +1029,8 @@ static void ComputeMetrics(uint32_t iconCount, float scale, Metrics *metrics)
     const int screenWidth = GetSystemMetrics(SM_CXFULLSCREEN);
     const float containerRatio = 1.25f;
     const float selectRatio = 1.25f;
-    const float pad = 0.25f;
     float iconSize = GetSystemMetrics(SM_CXICON) * scale;
+    const float pad = max(0.25 * iconSize, 16.0f) / iconSize;
     const uint32_t sizeX = min(iconSize * (iconCount * containerRatio + 2.0f * pad), screenWidth * 0.9);
     iconSize = sizeX / (iconCount * containerRatio + 2.0f * pad);
     const uint32_t halfSizeX = sizeX / 2;
@@ -1747,6 +1747,17 @@ int StartAltAppSwitcher(HINSTANCE hInstance)
         _AppData._Config._Scale = 1.75;
         _AppData._Config._DisplayName = DisplayNameSel;
         LoadConfig(&_AppData._Config);
+
+        // Patch only for runtime use. Do not patch if used for serialization.
+#define PATCH_TILDE(key) key = key == VK_OEM_3 ? MapVirtualKey(41, MAPVK_VSC_TO_VK) : key;
+    PATCH_TILDE(_AppData._Config._Key._AppHold);
+    PATCH_TILDE(_AppData._Config._Key._AppSwitch);
+    PATCH_TILDE(_AppData._Config._Key._WinHold);
+    PATCH_TILDE(_AppData._Config._Key._WinSwitch);
+    PATCH_TILDE(_AppData._Config._Key._Invert);
+    PATCH_TILDE(_AppData._Config._Key._PrevApp);
+#undef PATCH_TILDE
+
         _AppData._Elevated = false;
         {
             HANDLE tok;
