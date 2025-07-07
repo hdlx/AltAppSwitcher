@@ -576,10 +576,10 @@ static void GetUWPIconAndAppName(HANDLE process, wchar_t* outIconPath, wchar_t* 
         IAppxManifestApplication* app = NULL;
         BOOL hasApp = false;
         IAppxManifestApplicationsEnumerator_GetHasCurrent(appEnum, &hasApp);
-        IAppxManifestApplicationsEnumerator_GetCurrent(appEnum, &app);
         while (hasApp)
         {
             static wchar_t* aumid = NULL;
+            IAppxManifestApplicationsEnumerator_GetCurrent(appEnum, &app);
             IAppxManifestApplication_GetAppUserModelId(app, &aumid);
             if (!wcscmp(aumid, userModelID))
             {
