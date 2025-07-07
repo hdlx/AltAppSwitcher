@@ -1,2 +1,2 @@
 #define MAJOR 0
-#define MINOR 35
+#define MINOR 36
