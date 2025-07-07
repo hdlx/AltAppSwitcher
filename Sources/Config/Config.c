@@ -69,7 +69,6 @@ static bool TryGetBool(const StrPair* keyValues, const char* token, bool* boolTo
     unsigned int entry = Find(keyValues, token);
     if (entry == 0xFFFFFFFF)
     {
-        DebugBreak();
         return false;
     }
     if (strstr(keyValues[entry].Value, "true") != NULL)
@@ -82,7 +81,6 @@ static bool TryGetBool(const StrPair* keyValues, const char* token, bool* boolTo
         *boolToSet = false;
         return true;
     }
-    DebugBreak();
     return false;
 }
 
