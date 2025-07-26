@@ -128,7 +128,7 @@ typedef struct SAppData
     Config _Config;
     Metrics _Metrics;
     bool _Elevated;
-    pthread_mutex_t _WorkerMutex;
+    CRITICAL_SECTION _WorkerCS;
     HANDLE _WorkerWin;
 } SAppData;
 
@@ -1282,8 +1282,7 @@ static void ApplySwitchApp(const SWinGroup* winGroup)
     (void)curThread; (void)fgWinThread;
     DWORD ret; (void)ret;
 
-    ret = AttachThreadInput(fgWinThread, curThread, TRUE);
-    ASSERT(ret != 0);
+    printf("start apply\n");
 
     int winCount = (int)winGroup->_WindowCount;
 
@@ -1325,9 +1324,6 @@ static void ApplySwitchApp(const SWinGroup* winGroup)
         ret = AttachThreadInput(targetWinThread, curThread, FALSE);
         ASSERT(ret != 0);
     }
-
-    ret = AttachThreadInput(fgWinThread, curThread, FALSE);
-    ASSERT(ret != 0);
 }
 
 //void* ApplySwitchAppThread(void* data)
@@ -1353,18 +1349,19 @@ static DWORD ApplySwitchAppThread(LPVOID data)
     // pthread_mutex_lock(&appData->_ThreadRunningMutex);
     // appData->_ThreadRunning = false;
     // pthread_mutex_unlock(&appData->_ThreadRunningMutex);
-    pthread_mutex_lock(&appData->_WorkerMutex);
+    EnterCriticalSection(&appData->_WorkerCS);
     appData->_WorkerWin = window;
-    pthread_mutex_unlock(&appData->_WorkerMutex);
+    LeaveCriticalSection(&appData->_WorkerCS);
     MSG msg = {};
     while (GetMessage(&msg, NULL, 0, 0) > 0)
     {
         TranslateMessage(&msg);
         DispatchMessage(&msg);
     }
-    pthread_mutex_lock(&appData->_WorkerMutex);
+    printf("Quit received\n");
+    EnterCriticalSection(&appData->_WorkerCS);
     appData->_WorkerWin = NULL;
-    pthread_mutex_unlock(&appData->_WorkerMutex);
+    LeaveCriticalSection(&appData->_WorkerCS);
     return 0;
 }
 
@@ -1731,7 +1728,8 @@ LRESULT CALLBACK WorkerWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lP
     case MSG_APPLY:
     {
         ApplySwitchApp(&appData->_WinGroups._Data[appData->_Selection]);
-        printf("test");
+        printf("End apply\n");
+
         PostQuitMessage(0);
         return 0;
     }
@@ -1922,6 +1920,7 @@ int StartAltAppSwitcher(HINSTANCE hInstance)
         _AppData._Config._Scale = 1.75;
         _AppData._Config._DisplayName = DisplayNameSel;
         LoadConfig(&_AppData._Config);
+        InitializeCriticalSection(&_AppData._WorkerCS);
 
         // Patch only for runtime use. Do not patch if used for serialization.
 #define PATCH_TILDE(key) key = key == VK_OEM_3 ? MapVirtualKey(41, MAPVK_VSC_TO_VK) : key;
@@ -2045,11 +2044,9 @@ int StartAltAppSwitcher(HINSTANCE hInstance)
                 break;
 #if 1
 
-
-        pthread_mutex_init(&_AppData._WorkerMutex, NULL);
-        pthread_mutex_lock(&_AppData._WorkerMutex);
+        EnterCriticalSection(&_AppData._WorkerCS);
         _AppData._WorkerWin = NULL;
-        pthread_mutex_unlock(&_AppData._WorkerMutex);
+        LeaveCriticalSection(&_AppData._WorkerCS);
 
         DWORD tid;
         HANDLE ht = CreateThread(NULL, 0, ApplySwitchAppThread, (void*)&_AppData, 0, &tid);
@@ -2057,10 +2054,10 @@ int StartAltAppSwitcher(HINSTANCE hInstance)
 
         while (true)
         {
-            if (!pthread_mutex_trylock(&_AppData._WorkerMutex))
+            if (TryEnterCriticalSection(&_AppData._WorkerCS))
             {
                 const bool initialized = _AppData._WorkerWin != NULL;
-                pthread_mutex_unlock(&_AppData._WorkerMutex);
+                LeaveCriticalSection(&_AppData._WorkerCS);
                 if (initialized)
                     break;
             }
@@ -2070,28 +2067,30 @@ int StartAltAppSwitcher(HINSTANCE hInstance)
         HWND fgWin = GetForegroundWindow();
         DWORD fgWinThread = GetWindowThreadProcessId(fgWin, NULL);
         (void)fgWinThread;
-        DWORD ret = AttachThreadInput(GetCurrentThreadId(), tid, TRUE);
+        DWORD ret = 0; (void)ret;
+        
+        ret = SetForegroundWindow(_AppData._WorkerWin);
         ASSERT(ret != 0);
+        //ret = AttachThreadInput(GetCurrentThreadId(), tid, TRUE);
+        //ASSERT(ret != 0);
 
         SendNotifyMessage(_AppData._WorkerWin, MSG_APPLY, 0, 0);
 
         unsigned int msElasped = 0;
         while (true)
         {
-            if (!pthread_mutex_trylock(&_AppData._WorkerMutex))
+            if (TryEnterCriticalSection(&_AppData._WorkerCS))
             {
                 const bool done = _AppData._WorkerWin == NULL;
-                pthread_mutex_unlock(&_AppData._WorkerMutex);
+                LeaveCriticalSection(&_AppData._WorkerCS);
                 if (done)
                     break;
             }
             usleep(1000);
             msElasped += 1;
-            if (msElasped > 10)
+            if (msElasped > 1000)
                 break;
         }
-
-        pthread_mutex_destroy(&_AppData._WorkerMutex);
 
         //WaitForSingleObject(ht, INFINITE);
 
