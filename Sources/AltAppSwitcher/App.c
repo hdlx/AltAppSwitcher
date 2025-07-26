@@ -26,6 +26,7 @@
 #include <PropKey.h>
 #include <winuser.h>
 #include <winnt.h>
+#include <pthread.h>
 #include "AppxPackaging.h"
 #undef COBJMACROS
 #include "Config/Config.h"
@@ -127,6 +128,8 @@ typedef struct SAppData
     Config _Config;
     Metrics _Metrics;
     bool _Elevated;
+    pthread_mutex_t _WorkerMutex;
+    HANDLE _WorkerWin;
 } SAppData;
 
 typedef struct SFoundWin
@@ -149,6 +152,9 @@ static DWORD _MainThread;
 #define MSG_DEINIT_APP (WM_USER + 8)
 #define MSG_CANCEL_APP (WM_USER + 9)
 
+// Apply thread
+#define MSG_APPLY (WM_USER + 1)
+#define MSG_DUMMY (WM_USER + 2)
 
 static void RestoreKey(WORD keyCode)
 {
@@ -1047,6 +1053,7 @@ static void ComputeMetrics(uint32_t iconCount, float scale, Metrics *metrics)
 }
 
 static const char CLASS_NAME[] = "AltAppSwitcher";
+static const char WORKER_CLASS_NAME[] = "AASWorker";
 
 static void DestroyWin(HWND win)
 {
@@ -1179,8 +1186,19 @@ static void UIASetFocus(HWND win, IUIAutomation* UIA)
     IUIAutomationElement_Release(el);
 }
 
-static void ApplySwitchApp(const SWinGroup* winGroup)
+typedef struct ApplySwitchAppData
 {
+    HWND _Data[64];
+    unsigned int _Count;
+    DWORD _fgWinThread;
+} ApplySwitchAppData;
+
+DWORD ApplySwitchApp0(LPVOID param)
+//void* ApplySwitchApp0(void* param)
+{
+    const ApplySwitchAppData* data = param;
+    unsigned int c = data->_Count;
+    const HWND* wins = data->_Data;
     //CoInitializeEx(NULL, COINIT_APARTMENTTHREADED);
     //IUIAutomation* UIA = NULL;
     //{
@@ -1188,25 +1206,24 @@ static void ApplySwitchApp(const SWinGroup* winGroup)
     //    ASSERT(SUCCEEDED(res))
     //}
 
-    HDWP dwp = BeginDeferWindowPos(winGroup->_WindowCount);
+    HDWP dwp = BeginDeferWindowPos(c);
     // Set focus for all win, not only the last one. This way when the active window is closed,
     // the second to last window of the group becomes the active one.
-    HWND fgWin = GetForegroundWindow();
     DWORD curThread = GetCurrentThreadId();
-    DWORD fgWinThread = GetWindowThreadProcessId(fgWin, NULL);
+    DWORD fgWinThread = data->_fgWinThread;
     AttachThreadInput(fgWinThread, curThread, TRUE);
-    int winCount = (int)winGroup->_WindowCount;
+    int winCount = (int)c;
 
     for (int i = winCount - 1; i >= 0 ; i--)
     {
-        const HWND win = winGroup->_Windows[Modulo(i +1, winCount)];
+        const HWND win = wins[Modulo(i +1, winCount)];
         RestoreWin(win);
     }
 
     HWND prev = HWND_TOP;//GetTopWindow(NULL);
     for (int i = winCount - 1; i >= 0 ; i--)
     {
-        const HWND win = winGroup->_Windows[Modulo(i +1, winCount)];
+        const HWND win = wins[Modulo(i +1, winCount)];
         if (!IsWindow(win))
             continue;
         //UIASetFocus(win, UIA);
@@ -1240,7 +1257,7 @@ static void ApplySwitchApp(const SWinGroup* winGroup)
     AttachThreadInput(fgWinThread, curThread, FALSE);
     for (int i = winCount - 1; i >= 0 ; i--)
     {
-        const HWND win = winGroup->_Windows[i];
+        const HWND win = wins[i];
         if (!IsWindow(win))
             continue;
         DWORD targetWinThread = GetWindowThreadProcessId(win, NULL);
@@ -1249,6 +1266,106 @@ static void ApplySwitchApp(const SWinGroup* winGroup)
 
     //IUIAutomation_Release(UIA);
     //CoUninitialize();
+
+    free((void*)data);
+
+    return 0;
+}
+
+static void ApplySwitchApp(const SWinGroup* winGroup)
+{
+    // Set focus for all win, not only the last one. This way when the active window is closed,
+    // the second to last window of the group becomes the active one.
+    HWND fgWin = GetForegroundWindow();
+    DWORD curThread = GetCurrentThreadId();
+    DWORD fgWinThread = GetWindowThreadProcessId(fgWin, NULL);
+    (void)curThread; (void)fgWinThread;
+    DWORD ret; (void)ret;
+
+    ret = AttachThreadInput(fgWinThread, curThread, TRUE);
+    ASSERT(ret != 0);
+
+    int winCount = (int)winGroup->_WindowCount;
+
+    for (int i = winCount - 1; i >= 0 ; i--)
+    {
+        const HWND win = winGroup->_Windows[i];
+        RestoreWin(win);
+    }
+
+    HWND prev = HWND_TOP;//GetTopWindow(NULL);
+    HDWP dwp = BeginDeferWindowPos(winGroup->_WindowCount);
+    for (int i = winCount - 1; i >= 0 ; i--)
+    {
+        const HWND win = winGroup->_Windows[i];
+        if (!IsWindow(win))
+            continue;
+        //UIASetFocus(win, UIA);
+
+        // This seems more consistent than SetFocus
+        // Check if this works with focus when closing multiple win
+        DWORD targetWinThread = GetWindowThreadProcessId(win, NULL);
+        (void)targetWinThread;
+        ret = AttachThreadInput(targetWinThread, curThread, TRUE);
+        ASSERT(ret != 0);
+
+        dwp = DeferWindowPos(dwp, win, prev, 0, 0, 0, 0, SWP_NOSIZE | SWP_NOMOVE | SWP_NOOWNERZORDER);
+        prev = win;
+    }
+
+    EndDeferWindowPos(dwp);
+
+    for (int i = winCount - 1; i >= 0 ; i--)
+    {
+        const HWND win = winGroup->_Windows[i];
+        if (!IsWindow(win))
+            continue;
+        DWORD targetWinThread = GetWindowThreadProcessId(win, NULL);
+        (void)targetWinThread;
+        ret = AttachThreadInput(targetWinThread, curThread, FALSE);
+        ASSERT(ret != 0);
+    }
+
+    ret = AttachThreadInput(fgWinThread, curThread, FALSE);
+    ASSERT(ret != 0);
+}
+
+//void* ApplySwitchAppThread(void* data)
+static DWORD ApplySwitchAppThread(LPVOID data)
+{
+    SAppData* appData = (SAppData*)data;
+
+    HANDLE window = CreateWindowEx(
+        WS_EX_TOPMOST, // Optional window styles (WS_EX_)
+        WORKER_CLASS_NAME, // Window class
+        NULL, // Window text
+        WS_POPUP, // Window style
+        // Pos and size
+        0, 0, 0, 0,
+        HWND_MESSAGE, // Parent window
+        NULL, // Menu
+        appData->_Instance, // Instance handle
+        appData // Additional application data
+    );
+    (void)window;
+    //ShowWindow(window, SW_SHOW);
+
+    // pthread_mutex_lock(&appData->_ThreadRunningMutex);
+    // appData->_ThreadRunning = false;
+    // pthread_mutex_unlock(&appData->_ThreadRunningMutex);
+    pthread_mutex_lock(&appData->_WorkerMutex);
+    appData->_WorkerWin = window;
+    pthread_mutex_unlock(&appData->_WorkerMutex);
+    MSG msg = {};
+    while (GetMessage(&msg, NULL, 0, 0) > 0)
+    {
+        TranslateMessage(&msg);
+        DispatchMessage(&msg);
+    }
+    pthread_mutex_lock(&appData->_WorkerMutex);
+    appData->_WorkerWin = NULL;
+    pthread_mutex_unlock(&appData->_WorkerMutex);
+    return 0;
 }
 
 static void ApplySwitchWin(HWND win)
@@ -1601,6 +1718,27 @@ static void Draw(SAppData* appData, HDC dc, RECT clientRect)
     GdipDeleteGraphics(pGraphics);
 }
 
+LRESULT CALLBACK WorkerWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
+{
+    static SAppData* appData = NULL;
+    switch (uMsg)
+    {
+    case WM_CREATE:
+    {
+        appData = (SAppData*)((CREATESTRUCTA*)lParam)->lpCreateParams;
+        return 0;
+    }
+    case MSG_APPLY:
+    {
+        ApplySwitchApp(&appData->_WinGroups._Data[appData->_Selection]);
+        printf("test");
+        PostQuitMessage(0);
+        return 0;
+    }
+    }
+    return DefWindowProc(hwnd, uMsg, wParam, lParam);
+}
+
 LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 {
     static SAppData* appData = NULL;
@@ -1750,6 +1888,17 @@ int StartAltAppSwitcher(HINSTANCE hInstance)
     }
 
     {
+        WNDCLASS wc = { };
+        wc.lpfnWndProc   = WorkerWindowProc;
+        wc.hInstance     = hInstance;
+        wc.lpszClassName = WORKER_CLASS_NAME;
+        wc.cbWndExtra = sizeof(SAppData*);
+        wc.style = 0;
+        wc.hbrBackground = NULL;
+        RegisterClass(&wc);
+    }
+
+    {
         _AppData._Mode = ModeNone;
         _AppData._Selection = 0;
         _AppData._MainWin = NULL;
@@ -1894,11 +2043,81 @@ int StartAltAppSwitcher(HINSTANCE hInstance)
             RestoreKey(msg.wParam);
             if (_AppData._Mode == ModeNone)
                 break;
-            const int selection = _AppData._Selection;
+#if 1
+
+
+        pthread_mutex_init(&_AppData._WorkerMutex, NULL);
+        pthread_mutex_lock(&_AppData._WorkerMutex);
+        _AppData._WorkerWin = NULL;
+        pthread_mutex_unlock(&_AppData._WorkerMutex);
+
+        DWORD tid;
+        HANDLE ht = CreateThread(NULL, 0, ApplySwitchAppThread, (void*)&_AppData, 0, &tid);
+        ASSERT(ht != NULL);
+
+        while (true)
+        {
+            if (!pthread_mutex_trylock(&_AppData._WorkerMutex))
+            {
+                const bool initialized = _AppData._WorkerWin != NULL;
+                pthread_mutex_unlock(&_AppData._WorkerMutex);
+                if (initialized)
+                    break;
+            }
+            usleep(100);
+        }
+
+        HWND fgWin = GetForegroundWindow();
+        DWORD fgWinThread = GetWindowThreadProcessId(fgWin, NULL);
+        (void)fgWinThread;
+        DWORD ret = AttachThreadInput(GetCurrentThreadId(), tid, TRUE);
+        ASSERT(ret != 0);
+
+        SendNotifyMessage(_AppData._WorkerWin, MSG_APPLY, 0, 0);
+
+        unsigned int msElasped = 0;
+        while (true)
+        {
+            if (!pthread_mutex_trylock(&_AppData._WorkerMutex))
+            {
+                const bool done = _AppData._WorkerWin == NULL;
+                pthread_mutex_unlock(&_AppData._WorkerMutex);
+                if (done)
+                    break;
+            }
+            usleep(1000);
+            msElasped += 1;
+            if (msElasped > 10)
+                break;
+        }
+
+        pthread_mutex_destroy(&_AppData._WorkerMutex);
+
+        //WaitForSingleObject(ht, INFINITE);
+
+        CloseHandle(ht);
+
+            // while (true)
+            // {
+            //    if (!pthread_mutex_trylock(&_AppData._ThreadRunningMutex))
+            //    {
+            //        if (!_AppData._ThreadRunning)
+            //            break;
+            //        pthread_mutex_unlock(&_AppData._ThreadRunningMutex);
+            //    }
+            //    usleep(1000);
+            // }
+            // pthread_mutex_destroy(&_AppData._ThreadRunningMutex);
+
+            //DWORD curThread = GetCurrentThreadId();
+            //AttachThreadInput(GetThreadId(ht), curThread, TRUE);
+
+            //ResumeThread(ht);
+#else
+            ApplySwitchApp(&_AppData._WinGroups._Data[_AppData._Selection]);
+#endif
             _AppData._Mode = ModeNone;
             _AppData._Selection = 0;
-
-            ApplySwitchApp(&_AppData._WinGroups._Data[selection]);
             DestroyWin(_AppData._MainWin);
             ClearWinGroupArr(&_AppData._WinGroups);
             break;

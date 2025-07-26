@@ -11,11 +11,8 @@
 
 #define MIN(a,b) (((a)<(b))?(a):(b))
 
-static void GetLastWinErrStr(char* str, uint32_t strSize)
+static void GetErrStr(DWORD err, char* str, uint32_t strSize)
 {
-    DWORD err = GetLastError();
-    if (err == 0)
-        return;
     LPSTR msg = NULL;
     FormatMessage(FORMAT_MESSAGE_ALLOCATE_BUFFER | FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS,
         NULL, err, MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT), (LPSTR)&msg, 0, NULL);
@@ -27,12 +24,20 @@ static void GetLastWinErrStr(char* str, uint32_t strSize)
 
 void ASSError(const char* file, uint32_t line, const char* assertStr, bool crash)
 {
+     // Call GetLastError first, otherwise other winapi calls might overwrite last error.
+    DWORD err = GetLastError();
+    SetLastError(0);
+
+    static char winMsg[512];
+    memset(winMsg, '\0', sizeof(winMsg));
+    if (err != 0)
+    {
+        GetErrStr(err, winMsg, 512);
+    }
+
     time_t mytime = time(NULL);
     char* timeStr = ctime(&mytime);
     timeStr[strlen(timeStr) - 1] = '\0';
-    static char winMsg[512];
-    GetLastWinErrStr(winMsg, 512);
-    SetLastError(0);
 
     char logFile[MAX_PATH] = {};
     LogPath(logFile);
