@@ -2076,8 +2076,6 @@ int StartAltAppSwitcher(HINSTANCE hInstance)
         
         ret = SetForegroundWindow(_AppData._WorkerWin);
         ASSERT(ret != 0);
-        //ret = AttachThreadInput(GetCurrentThreadId(), tid, TRUE);
-        //ASSERT(ret != 0);
 
         SendNotifyMessage(_AppData._WorkerWin, MSG_APPLY, 0, 0);
 
@@ -2093,30 +2091,12 @@ int StartAltAppSwitcher(HINSTANCE hInstance)
             }
             usleep(1000);
             msElasped += 1;
-            if (msElasped > 1000)
+            if (msElasped > 100)
                 break;
         }
 
-        //WaitForSingleObject(ht, INFINITE);
-
         CloseHandle(ht);
 
-            // while (true)
-            // {
-            //    if (!pthread_mutex_trylock(&_AppData._ThreadRunningMutex))
-            //    {
-            //        if (!_AppData._ThreadRunning)
-            //            break;
-            //        pthread_mutex_unlock(&_AppData._ThreadRunningMutex);
-            //    }
-            //    usleep(1000);
-            // }
-            // pthread_mutex_destroy(&_AppData._ThreadRunningMutex);
-
-            //DWORD curThread = GetCurrentThreadId();
-            //AttachThreadInput(GetThreadId(ht), curThread, TRUE);
-
-            //ResumeThread(ht);
 #else
             ApplySwitchApp(&_AppData._WinGroups._Data[_AppData._Selection]);
 #endif
