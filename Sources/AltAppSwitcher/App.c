@@ -1288,7 +1288,7 @@ static void ApplySwitchApp(const SWinGroup* winGroup)
 
     for (int i = winCount - 1; i >= 0 ; i--)
     {
-        const HWND win = winGroup->_Windows[i];
+        const HWND win = winGroup->_Windows[Modulo(i + 1, winCount)];
         RestoreWin(win);
     }
 
@@ -1297,7 +1297,7 @@ static void ApplySwitchApp(const SWinGroup* winGroup)
     ASSERT(dwp != 0);
     for (int i = winCount - 1; i >= 0 ; i--)
     {
-        const HWND win = winGroup->_Windows[i];
+        const HWND win = winGroup->_Windows[Modulo(i + 1, winCount)];
         if (!IsWindow(win))
             continue;
 #if 0
@@ -1321,7 +1321,7 @@ static void ApplySwitchApp(const SWinGroup* winGroup)
 
     for (int i = winCount - 1; i >= 0 ; i--)
     {
-        const HWND win = winGroup->_Windows[i];
+        const HWND win = winGroup->_Windows[Modulo(i + 1, winCount)];
         if (!IsWindow(win))
             continue;
         DWORD targetWinThread = GetWindowThreadProcessId(win, NULL);
