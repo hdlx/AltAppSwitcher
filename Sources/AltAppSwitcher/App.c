@@ -1292,27 +1292,32 @@ static void ApplySwitchApp(const SWinGroup* winGroup)
         RestoreWin(win);
     }
 
-    HWND prev = HWND_TOP;//GetTopWindow(NULL);
+    HWND prev = HWND_TOP;
     HDWP dwp = BeginDeferWindowPos(winGroup->_WindowCount);
+    ASSERT(dwp != 0);
     for (int i = winCount - 1; i >= 0 ; i--)
     {
         const HWND win = winGroup->_Windows[i];
         if (!IsWindow(win))
             continue;
-        //UIASetFocus(win, UIA);
+#if 0
+        UIASetFocus(win, UIA);
+#endif
 
         // This seems more consistent than SetFocus
         // Check if this works with focus when closing multiple win
         DWORD targetWinThread = GetWindowThreadProcessId(win, NULL);
         (void)targetWinThread;
         ret = AttachThreadInput(targetWinThread, curThread, TRUE);
-        ASSERT(ret != 0);
+        // ASSERT(ret != 0);
 
         dwp = DeferWindowPos(dwp, win, prev, 0, 0, 0, 0, SWP_NOSIZE | SWP_NOMOVE | SWP_NOOWNERZORDER);
+        // ASSERT(dwp != 0);
         prev = win;
     }
 
-    EndDeferWindowPos(dwp);
+    ret = EndDeferWindowPos(dwp);
+    // ASSERT(ret != 0);
 
     for (int i = winCount - 1; i >= 0 ; i--)
     {
@@ -1322,7 +1327,7 @@ static void ApplySwitchApp(const SWinGroup* winGroup)
         DWORD targetWinThread = GetWindowThreadProcessId(win, NULL);
         (void)targetWinThread;
         ret = AttachThreadInput(targetWinThread, curThread, FALSE);
-        ASSERT(ret != 0);
+        // ASSERT(ret != 0);
     }
 }
 
