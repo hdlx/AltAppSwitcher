@@ -1193,84 +1193,6 @@ typedef struct ApplySwitchAppData
     DWORD _fgWinThread;
 } ApplySwitchAppData;
 
-DWORD ApplySwitchApp0(LPVOID param)
-//void* ApplySwitchApp0(void* param)
-{
-    const ApplySwitchAppData* data = param;
-    unsigned int c = data->_Count;
-    const HWND* wins = data->_Data;
-    //CoInitializeEx(NULL, COINIT_APARTMENTTHREADED);
-    //IUIAutomation* UIA = NULL;
-    //{
-    //    DWORD res = CoCreateInstance(&CLSID_CUIAutomation, NULL, CLSCTX_INPROC_SERVER, &IID_IUIAutomation, (void**)&UIA);
-    //    ASSERT(SUCCEEDED(res))
-    //}
-
-    HDWP dwp = BeginDeferWindowPos(c);
-    // Set focus for all win, not only the last one. This way when the active window is closed,
-    // the second to last window of the group becomes the active one.
-    DWORD curThread = GetCurrentThreadId();
-    DWORD fgWinThread = data->_fgWinThread;
-    AttachThreadInput(fgWinThread, curThread, TRUE);
-    int winCount = (int)c;
-
-    for (int i = winCount - 1; i >= 0 ; i--)
-    {
-        const HWND win = wins[Modulo(i +1, winCount)];
-        RestoreWin(win);
-    }
-
-    HWND prev = HWND_TOP;//GetTopWindow(NULL);
-    for (int i = winCount - 1; i >= 0 ; i--)
-    {
-        const HWND win = wins[Modulo(i +1, winCount)];
-        if (!IsWindow(win))
-            continue;
-        //UIASetFocus(win, UIA);
-
-        // This seems more consistent than SetFocus
-        // Check if this works with focus when closing multiple win
-        DWORD targetWinThread = GetWindowThreadProcessId(win, NULL);
-        AttachThreadInput(targetWinThread, curThread, TRUE);
-
-        dwp = DeferWindowPos(dwp, win, prev, 0, 0, 0, 0, SWP_NOSIZE | SWP_NOMOVE | SWP_NOOWNERZORDER);
-        //SetWindowPos(win, HWND_NOTOPMOST, 0, 0, 0, 0, SWP_SHOWWINDOW | SWP_NOSIZE | SWP_NOMOVE);
-        prev = win;
-        //BringWindowToTop(win);
-        //SetForegroundWindow(win);
-        //SetActiveWindow(win);
-    }
-
-    EndDeferWindowPos(dwp);
-    //dwp = BeginDeferWindowPos(winGroup->_WindowCount);
-//
-    //for (int i = winCount - 1; i >= 0 ; i--)
-    //{
-    //    const HWND win = winGroup->_Windows[i];
-    //    if (!IsWindow(win))
-    //        continue;
-    //    dwp = DeferWindowPos(dwp, win, HWND_NOTOPMOST, 0, 0, 0, 0, SWP_NOSIZE | SWP_NOMOVE);
-    //}
-//
-    //EndDeferWindowPos(dwp);
-//
-    AttachThreadInput(fgWinThread, curThread, FALSE);
-    for (int i = winCount - 1; i >= 0 ; i--)
-    {
-        const HWND win = wins[i];
-        if (!IsWindow(win))
-            continue;
-        DWORD targetWinThread = GetWindowThreadProcessId(win, NULL);
-        AttachThreadInput(targetWinThread, curThread, FALSE);
-    }
-
-    //IUIAutomation_Release(UIA);
-    //CoUninitialize();
-
-    free((void*)data);
-
-    return 0;
-}
 
 static void ApplySwitchApp(const SWinGroup* winGroup)
 {
@@ -1349,11 +1271,7 @@ static DWORD ApplySwitchAppThread(LPVOID data)
         appData // Additional application data
     );
     (void)window;
-    //ShowWindow(window, SW_SHOW);
 
-    // pthread_mutex_lock(&appData->_ThreadRunningMutex);
-    // appData->_ThreadRunning = false;
-    // pthread_mutex_unlock(&appData->_ThreadRunningMutex);
     EnterCriticalSection(&appData->_WorkerCS);
     appData->_WorkerWin = window;
     LeaveCriticalSection(&appData->_WorkerCS);
@@ -1823,23 +1741,6 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
         EndPaint(hwnd, &ps);
         return 0;
     }
-    // case WM_SHOWWINDOW:
-    // {
-    //     if (!GetLayeredWindowAttributes(hwnd, NULL, NULL, NULL))
-    //     {
-    //         SetLayeredWindowAttributes(hwnd, 0, 0, LWA_ALPHA);
-    //         // DefWindowProc(hwnd, WM_ERASEBKGND, (WPARAM)GetDC(hwnd), lParam);
-    //         //DefWindowProc(hwnd, WM_PAINT, (WPARAM)GetDC(hwnd), lParam);
-    //         LRESULT r = DefWindowProc(hwnd, uMsg, wParam, lParam);
-    //         SendMessage(hwnd, WM_PAINT, 0, 0);
-
-    //         SetLayeredWindowAttributes(hwnd, 0, 255, LWA_ALPHA);
-    //         AnimateWindow(hwnd, 1, AW_ACTIVATE|AW_BLEND);
-    //         return r;
-    //     }
-    //     return DefWindowProc(hwnd, uMsg, wParam, lParam);
-    // }
-    break;
     case WM_ERASEBKGND:
         return (LRESULT)0;
     }
@@ -1858,15 +1759,61 @@ static DWORD KbHookCb(LPVOID param)
     return (DWORD)0;
 }
 
+static void ApplySwitchAppTimeout(SAppData* appData)
+{
+    EnterCriticalSection(&appData->_WorkerCS);
+    appData->_WorkerWin = NULL;
+    LeaveCriticalSection(&appData->_WorkerCS);
+
+    DWORD tid;
+    HANDLE ht = CreateThread(NULL, 0, ApplySwitchAppThread, (void*)appData, 0, &tid);
+    ASSERT(ht != NULL);
+
+    while (true)
+    {
+        if (TryEnterCriticalSection(&appData->_WorkerCS))
+        {
+            const bool initialized = appData->_WorkerWin != NULL;
+            LeaveCriticalSection(&appData->_WorkerCS);
+            if (initialized)
+                break;
+        }
+        usleep(100);
+    }
+
+    HWND fgWin = GetForegroundWindow();
+    DWORD fgWinThread = GetWindowThreadProcessId(fgWin, NULL);
+    (void)fgWinThread;
+    DWORD ret = 0; (void)ret;
+    
+    ret = SetForegroundWindow(appData->_WorkerWin);
+    
+    ASSERT(ret != 0);
+
+    SendNotifyMessage(appData->_WorkerWin, MSG_APPLY, 0, 0);
+
+    unsigned int msElasped = 0;
+    while (true)
+    {
+        if (TryEnterCriticalSection(&appData->_WorkerCS))
+        {
+            const bool done = appData->_WorkerWin == NULL;
+            LeaveCriticalSection(&appData->_WorkerCS);
+            if (done)
+                break;
+        }
+        usleep(1000);
+        msElasped += 1;
+        if (msElasped > 100)
+            break;
+    }
+
+    CloseHandle(ht);
+}
+
 int StartAltAppSwitcher(HINSTANCE hInstance)
 {
     SetLastError(0);
-
-    //char kbln[512];
-    //GetKeyboardLayoutName(kbln);
-    //printf("layout: %s\n", kbln);
-    //unsigned int scanCode = MapVirtualKeyEx(VK_OEM_3, MAPVK_VK_TO_VSC, GetKeyboardLayout(0));
-    //printf("scan code for oem3: %u\n", scanCode);
 
     ULONG_PTR gdiplusToken = 0;
     {
@@ -2048,55 +1995,7 @@ int StartAltAppSwitcher(HINSTANCE hInstance)
             if (_AppData._Mode == ModeNone)
                 break;
 #if 1
-
-        EnterCriticalSection(&_AppData._WorkerCS);
-        _AppData._WorkerWin = NULL;
-        LeaveCriticalSection(&_AppData._WorkerCS);
-
-        DWORD tid;
-        HANDLE ht = CreateThread(NULL, 0, ApplySwitchAppThread, (void*)&_AppData, 0, &tid);
-        ASSERT(ht != NULL);
-
-        while (true)
-        {
-            if (TryEnterCriticalSection(&_AppData._WorkerCS))
-            {
-                const bool initialized = _AppData._WorkerWin != NULL;
-                LeaveCriticalSection(&_AppData._WorkerCS);
-                if (initialized)
-                    break;
-            }
-            usleep(100);
-        }
-
-        HWND fgWin = GetForegroundWindow();
-        DWORD fgWinThread = GetWindowThreadProcessId(fgWin, NULL);
-        (void)fgWinThread;
-        DWORD ret = 0; (void)ret;
-        
-        ret = SetForegroundWindow(_AppData._WorkerWin);
-        ASSERT(ret != 0);
-
-        SendNotifyMessage(_AppData._WorkerWin, MSG_APPLY, 0, 0);
-
-        unsigned int msElasped = 0;
-        while (true)
-        {
-            if (TryEnterCriticalSection(&_AppData._WorkerCS))
-            {
-                const bool done = _AppData._WorkerWin == NULL;
-                LeaveCriticalSection(&_AppData._WorkerCS);
-                if (done)
-                    break;
-            }
-            usleep(1000);
-            msElasped += 1;
-            if (msElasped > 100)
-                break;
-        }
-
-        CloseHandle(ht);
-
+            ApplySwitchAppTimeout(&_AppData);
 #else
             ApplySwitchApp(&_AppData._WinGroups._Data[_AppData._Selection]);
 #endif
