@@ -156,8 +156,8 @@ static DWORD _MainThread;
 #define MSG_CANCEL_APP (WM_USER + 9)
 
 // Apply thread
-#define MSG_APPLY (WM_USER + 1)
-#define MSG_DUMMY (WM_USER + 2)
+#define MSG_APPLY_APP (WM_USER + 1)
+#define MSG_APPLY_WIN (WM_USER + 2)
 
 static void RestoreKey(WORD keyCode)
 {
@@ -1290,6 +1290,7 @@ static DWORD ApplySwitchAppThread(LPVOID data)
     LeaveCriticalSection(&appData->_WorkerCS);
     return 0;
 }
+
 #endif
 
 static void ApplySwitchWin(HWND win)
@@ -1652,11 +1653,15 @@ LRESULT CALLBACK WorkerWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lP
         appData = (SAppData*)((CREATESTRUCTA*)lParam)->lpCreateParams;
         return 0;
     }
-    case MSG_APPLY:
+    case MSG_APPLY_APP:
     {
         ApplySwitchApp(&appData->_WinGroups._Data[appData->_Selection]);
-        printf("End apply\n");
-
+        PostQuitMessage(0);
+        return 0;
+    }
+    case MSG_APPLY_WIN:
+    {
+        ApplySwitchWin(appData->_CurrentWinGroup._Windows[appData->_Selection]);
         PostQuitMessage(0);
         return 0;
     }
@@ -1764,7 +1769,7 @@ static DWORD KbHookCb(LPVOID param)
 }
 
 #if ASYNC_APPLY
-static void ApplySwitchAppTimeout(SAppData* appData)
+static void ApplyWithTimeout(SAppData* appData, unsigned int msg)
 {
     EnterCriticalSection(&appData->_WorkerCS);
     appData->_WorkerWin = NULL;
@@ -1795,7 +1800,7 @@ static void ApplySwitchAppTimeout(SAppData* appData)
     
     ASSERT(ret != 0);
 
-    SendNotifyMessage(appData->_WorkerWin, MSG_APPLY, 0, 0);
+    SendNotifyMessage(appData->_WorkerWin, msg, 0, 0);
 
     time_t start;
     time(&start);
@@ -1980,8 +1985,12 @@ int StartAltAppSwitcher(HINSTANCE hInstance)
             _AppData._Selection++;
             _AppData._Selection = Modulo(_AppData._Selection, _AppData._CurrentWinGroup._WindowCount);
 
+#if ASYNC_APPLY
+            ApplyWithTimeout(&_AppData, MSG_APPLY_WIN);
+#else
             HWND win = _AppData._CurrentWinGroup._Windows[_AppData._Selection];
             ApplySwitchWin(win);
+#endif
 
             break;
         }
@@ -1992,9 +2001,12 @@ int StartAltAppSwitcher(HINSTANCE hInstance)
             _AppData._Selection--;
             _AppData._Selection = Modulo(_AppData._Selection, _AppData._CurrentWinGroup._WindowCount);
 
+#if ASYNC_APPLY
+            ApplyWithTimeout(&_AppData, MSG_APPLY_WIN);
+#else
             HWND win = _AppData._CurrentWinGroup._Windows[_AppData._Selection];
             ApplySwitchWin(win);
-
+#endif
             break;
         }
         case MSG_DEINIT_APP:
@@ -2003,7 +2015,7 @@ int StartAltAppSwitcher(HINSTANCE hInstance)
             if (_AppData._Mode == ModeNone)
                 break;
 #if ASYNC_APPLY
-            ApplySwitchAppTimeout(&_AppData);
+            ApplyWithTimeout(&_AppData, MSG_APPLY_APP);
 #else
             ApplySwitchApp(&_AppData._WinGroups._Data[_AppData._Selection]);
 #endif
