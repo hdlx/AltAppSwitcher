@@ -27,6 +27,7 @@
 #include <winuser.h>
 #include <winnt.h>
 #include <pthread.h>
+#include <time.h>
 #include "AppxPackaging.h"
 #undef COBJMACROS
 #include "Config/Config.h"
@@ -36,6 +37,8 @@
 LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam);
 
 #define MEM_INIT(ARG) memset(&ARG, 0,  sizeof(ARG))
+
+#define ASYNC_APPLY 1
 
 typedef struct SWinGroup
 {
@@ -1253,7 +1256,7 @@ static void ApplySwitchApp(const SWinGroup* winGroup)
     }
 }
 
-//void* ApplySwitchAppThread(void* data)
+#if ASYNC_APPLY
 static DWORD ApplySwitchAppThread(LPVOID data)
 {
     SAppData* appData = (SAppData*)data;
@@ -1287,6 +1290,7 @@ static DWORD ApplySwitchAppThread(LPVOID data)
     LeaveCriticalSection(&appData->_WorkerCS);
     return 0;
 }
+#endif
 
 static void ApplySwitchWin(HWND win)
 {
@@ -1759,6 +1763,7 @@ static DWORD KbHookCb(LPVOID param)
     return (DWORD)0;
 }
 
+#if ASYNC_APPLY
 static void ApplySwitchAppTimeout(SAppData* appData)
 {
     EnterCriticalSection(&appData->_WorkerCS);
@@ -1792,7 +1797,8 @@ static void ApplySwitchAppTimeout(SAppData* appData)
 
     SendNotifyMessage(appData->_WorkerWin, MSG_APPLY, 0, 0);
 
-    unsigned int msElasped = 0;
+    time_t start;
+    time(&start);
     while (true)
     {
         if (TryEnterCriticalSection(&appData->_WorkerCS))
@@ -1802,14 +1808,16 @@ static void ApplySwitchAppTimeout(SAppData* appData)
             if (done)
                 break;
         }
-        usleep(1000);
-        msElasped += 1;
-        if (msElasped > 100)
+        time_t now;
+        time(&now);
+        const double dt = difftime(now, start);
+        if (dt > 1.0)
             break;
     }
 
     CloseHandle(ht);
 }
+#endif
 
 int StartAltAppSwitcher(HINSTANCE hInstance)
 {
@@ -1994,7 +2002,7 @@ int StartAltAppSwitcher(HINSTANCE hInstance)
             RestoreKey(msg.wParam);
             if (_AppData._Mode == ModeNone)
                 break;
-#if 1
+#if ASYNC_APPLY
             ApplySwitchAppTimeout(&_AppData);
 #else
             ApplySwitchApp(&_AppData._WinGroups._Data[_AppData._Selection]);
