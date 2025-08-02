@@ -1,4 +1,5 @@
 #define COBJMACROS
+#define NTDDI_VERSION NTDDI_WIN10
 #include <stdio.h>
 #include <string.h>
 #include <vsstyle.h>
@@ -22,10 +23,12 @@
 #include <Initguid.h>
 #include <uiautomationclient.h>
 #include <gdiplus/gdiplusenums.h>
-#include <Shobjidl.h>
 #include <PropKey.h>
 #include <winuser.h>
 #include <winnt.h>
+#include <pthread.h>
+#include <time.h>
+#include <Shobjidl.h>
 #include "AppxPackaging.h"
 #undef COBJMACROS
 #include "Config/Config.h"
@@ -35,6 +38,8 @@
 LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam);
 
 #define MEM_INIT(ARG) memset(&ARG, 0,  sizeof(ARG))
+
+#define ASYNC_APPLY
 
 typedef struct SWinGroup
 {
@@ -127,6 +132,8 @@ typedef struct SAppData
     Config _Config;
     Metrics _Metrics;
     bool _Elevated;
+    CRITICAL_SECTION _WorkerCS;
+    HANDLE _WorkerWin;
 } SAppData;
 
 typedef struct SFoundWin
@@ -149,6 +156,10 @@ static DWORD _MainThread;
 #define MSG_DEINIT_APP (WM_USER + 8)
 #define MSG_CANCEL_APP (WM_USER + 9)
 
+// Apply thread
+#define MSG_APPLY_APP (WM_USER + 1)
+#define MSG_APPLY_WIN (WM_USER + 2)
+#define MSG_APPLY_APP_MOUSE (WM_USER + 3)
 
 static void RestoreKey(WORD keyCode)
 {
@@ -429,6 +440,21 @@ static void FindActualPID(HWND hwnd, DWORD* PID, BOOL* isUWP)
     }
 }
 
+bool BelongsToCurrentDesktop(HWND window)
+{
+    IVirtualDesktopManager* vdm = NULL; (void)vdm;
+    CoInitialize(NULL);
+    CoCreateInstance(&CLSID_VirtualDesktopManager, NULL, CLSCTX_ALL, &IID_IVirtualDesktopManager, (void**)&vdm);
+
+    WINBOOL isCurrent = true;
+    if (vdm)
+        IVirtualDesktopManager_IsWindowOnCurrentVirtualDesktop(vdm, window, &isCurrent);
+
+    IVirtualDesktopManager_Release(vdm);
+    CoUninitialize();
+    return isCurrent;
+}
+
 static bool IsAltTabWindow(HWND hwnd)
 {
     if (hwnd == GetShellWindow()) //Desktop
@@ -461,6 +487,8 @@ static bool IsAltTabWindow(HWND hwnd)
     if ((wi.dwExStyle & WS_EX_TOOLWINDOW) != 0)
          return false;
     if ((wi.dwExStyle & WS_EX_TOPMOST) != 0)
+        return false;
+    if (!BelongsToCurrentDesktop(hwnd))
         return false;
     return true;
 }
@@ -549,14 +577,15 @@ static void GetUWPIconAndAppName(HANDLE process, wchar_t* outIconPath, wchar_t* 
         if (!SUCCEEDED(res))
             return;
 
-        // Appxfactory:
-        // CLSID_AppxFactory and IID_IAppxFactory are declared in "AppxPackaging.h"
-        // but I don't know where the symbols are defined, thus the hardcoded GUIDs here.
+
         IAppxFactory* appxfac = NULL;
+        // Appxfactory:
+        // CLSID_AppxFactory and IID_IAppxFactory are declared as extern in "AppxPackaging.h"
+        // I don't know where the symbols are defined, thus the hardcoded GUIDs here.
         GUID clsid;
         CLSIDFromString(L"{5842a140-ff9f-4166-8f5c-62f5b7b0c781}", &clsid);
         GUID iid;
-        IIDFromString(L"{beb94909-e451-438b-b5a7-d79e767b75d8}", &iid); 
+        IIDFromString(L"{beb94909-e451-438b-b5a7-d79e767b75d8}", &iid);
         res = CoCreateInstance(&clsid, NULL, CLSCTX_INPROC_SERVER, &iid, (void**)&appxfac);
         if (!SUCCEEDED(res))
             return;
@@ -1047,6 +1076,7 @@ static void ComputeMetrics(uint32_t iconCount, float scale, Metrics *metrics)
 }
 
 static const char CLASS_NAME[] = "AltAppSwitcher";
+static const char WORKER_CLASS_NAME[] = "AASWorker";
 
 static void DestroyWin(HWND win)
 {
@@ -1091,7 +1121,9 @@ static void CreateWin(SAppData* appData)
     DwmSetWindowAttribute(hwnd, 33, &rounded, sizeof(rounded));
     InvalidateRect(hwnd, NULL, FALSE);
     UpdateWindow(hwnd);
-    SetForegroundWindow(hwnd);
+    const DWORD ret = SetForegroundWindow(hwnd);
+    (void)ret;
+    // ASSERT(ret != 0);
     appData->_MainWin = hwnd;
 
     SetLayeredWindowAttributes(hwnd, 0, 0, LWA_ALPHA);
@@ -1179,77 +1211,150 @@ static void UIASetFocus(HWND win, IUIAutomation* UIA)
     IUIAutomationElement_Release(el);
 }
 
+typedef struct ApplySwitchAppData
+{
+    HWND _Data[64];
+    unsigned int _Count;
+    DWORD _fgWinThread;
+} ApplySwitchAppData;
+
+
 static void ApplySwitchApp(const SWinGroup* winGroup)
 {
-    //CoInitializeEx(NULL, COINIT_APARTMENTTHREADED);
-    //IUIAutomation* UIA = NULL;
-    //{
-    //    DWORD res = CoCreateInstance(&CLSID_CUIAutomation, NULL, CLSCTX_INPROC_SERVER, &IID_IUIAutomation, (void**)&UIA);
-    //    ASSERT(SUCCEEDED(res))
-    //}
-
-    HDWP dwp = BeginDeferWindowPos(winGroup->_WindowCount);
     // Set focus for all win, not only the last one. This way when the active window is closed,
     // the second to last window of the group becomes the active one.
     HWND fgWin = GetForegroundWindow();
     DWORD curThread = GetCurrentThreadId();
     DWORD fgWinThread = GetWindowThreadProcessId(fgWin, NULL);
-    AttachThreadInput(fgWinThread, curThread, TRUE);
+    (void)curThread; (void)fgWinThread;
+    DWORD ret; (void)ret;
+
+    printf("start apply\n");
+
     int winCount = (int)winGroup->_WindowCount;
 
     for (int i = winCount - 1; i >= 0 ; i--)
     {
-        const HWND win = winGroup->_Windows[Modulo(i +1, winCount)];
+        const HWND win = winGroup->_Windows[Modulo(i + 1, winCount)];
         RestoreWin(win);
     }
 
-    HWND prev = HWND_TOP;//GetTopWindow(NULL);
+    HWND prev = HWND_TOP;
+    HDWP dwp = BeginDeferWindowPos(winGroup->_WindowCount);
+    ASSERT(dwp != 0);
     for (int i = winCount - 1; i >= 0 ; i--)
     {
-        const HWND win = winGroup->_Windows[Modulo(i +1, winCount)];
+        const HWND win = winGroup->_Windows[Modulo(i + 1, winCount)];
         if (!IsWindow(win))
             continue;
-        //UIASetFocus(win, UIA);
+#if 0
+        UIASetFocus(win, UIA);
+#endif
 
         // This seems more consistent than SetFocus
         // Check if this works with focus when closing multiple win
         DWORD targetWinThread = GetWindowThreadProcessId(win, NULL);
-        AttachThreadInput(targetWinThread, curThread, TRUE);
+        (void)targetWinThread;
+        ret = AttachThreadInput(targetWinThread, curThread, TRUE);
+        // ASSERT(ret != 0);
 
         dwp = DeferWindowPos(dwp, win, prev, 0, 0, 0, 0, SWP_NOSIZE | SWP_NOMOVE | SWP_NOOWNERZORDER);
-        //SetWindowPos(win, HWND_NOTOPMOST, 0, 0, 0, 0, SWP_SHOWWINDOW | SWP_NOSIZE | SWP_NOMOVE);
+        // ASSERT(dwp != 0);
         prev = win;
-        //BringWindowToTop(win);
-        //SetForegroundWindow(win);
-        //SetActiveWindow(win);
     }
 
-    EndDeferWindowPos(dwp);
-    //dwp = BeginDeferWindowPos(winGroup->_WindowCount);
-//
-    //for (int i = winCount - 1; i >= 0 ; i--)
-    //{
-    //    const HWND win = winGroup->_Windows[i];
-    //    if (!IsWindow(win))
-    //        continue;
-    //    dwp = DeferWindowPos(dwp, win, HWND_NOTOPMOST, 0, 0, 0, 0, SWP_NOSIZE | SWP_NOMOVE);
-    //}
-//
-    //EndDeferWindowPos(dwp);
-//
-    AttachThreadInput(fgWinThread, curThread, FALSE);
+    ret = EndDeferWindowPos(dwp);
+    // ASSERT(ret != 0);
+
     for (int i = winCount - 1; i >= 0 ; i--)
     {
-        const HWND win = winGroup->_Windows[i];
+        const HWND win = winGroup->_Windows[Modulo(i + 1, winCount)];
         if (!IsWindow(win))
             continue;
         DWORD targetWinThread = GetWindowThreadProcessId(win, NULL);
-        AttachThreadInput(targetWinThread, curThread, FALSE);
+        (void)targetWinThread;
+        ret = AttachThreadInput(targetWinThread, curThread, FALSE);
+        // ASSERT(ret != 0);
+    }
+}
+
+#ifdef ASYNC_APPLY
+static DWORD WorkerThread(LPVOID data)
+{
+    SAppData* appData = (SAppData*)data;
+
+    HANDLE window = CreateWindowEx(WS_EX_TOPMOST, WORKER_CLASS_NAME, NULL, WS_POPUP,
+        0, 0, 0, 0, HWND_MESSAGE, NULL, appData->_Instance,appData);
+    (void)window;
+
+    EnterCriticalSection(&appData->_WorkerCS);
+    appData->_WorkerWin = window;
+    LeaveCriticalSection(&appData->_WorkerCS);
+    MSG msg = {};
+    while (GetMessage(&msg, NULL, 0, 0) > 0)
+    {
+        TranslateMessage(&msg);
+        DispatchMessage(&msg);
+    }
+    EnterCriticalSection(&appData->_WorkerCS);
+    appData->_WorkerWin = NULL;
+    LeaveCriticalSection(&appData->_WorkerCS);
+    return 0;
+}
+
+static void ApplyWithTimeout(SAppData* appData, unsigned int msg)
+{
+    EnterCriticalSection(&appData->_WorkerCS);
+    appData->_WorkerWin = NULL;
+    LeaveCriticalSection(&appData->_WorkerCS);
+
+    DWORD tid;
+    HANDLE ht = CreateThread(NULL, 0, WorkerThread, (void*)appData, 0, &tid);
+    ASSERT(ht != NULL);
+
+    while (true)
+    {
+        if (TryEnterCriticalSection(&appData->_WorkerCS))
+        {
+            const bool initialized = appData->_WorkerWin != NULL;
+            LeaveCriticalSection(&appData->_WorkerCS);
+            if (initialized)
+                break;
+        }
+        usleep(100);
     }
 
-    //IUIAutomation_Release(UIA);
-    //CoUninitialize();
+    HWND fgWin = GetForegroundWindow();
+    DWORD fgWinThread = GetWindowThreadProcessId(fgWin, NULL);
+    (void)fgWinThread;
+    DWORD ret = 0; (void)ret;
+
+    ret = SetForegroundWindow(appData->_WorkerWin);
+    // ASSERT(ret != 0);
+
+    SendNotifyMessage(appData->_WorkerWin, msg, 0, 0);
+
+    time_t start;
+    time(&start);
+    while (true)
+    {
+        if (TryEnterCriticalSection(&appData->_WorkerCS))
+        {
+            const bool done = appData->_WorkerWin == NULL;
+            LeaveCriticalSection(&appData->_WorkerCS);
+            if (done)
+                break;
+        }
+        time_t now;
+        time(&now);
+        const double dt = difftime(now, start);
+        if (dt > 1.0)
+            break;
+    }
+
+    CloseHandle(ht);
 }
+#endif
 
 static void ApplySwitchWin(HWND win)
 {
@@ -1285,13 +1390,6 @@ static LRESULT KbProc(int nCode, WPARAM wParam, LPARAM lParam)
         isShift ||
         (isPrevApp && _KeyConfig->_PrevApp != 0xFFFFFFFF) ||
         isEscape;
-
-    //char kbln[512];
-    //GetKeyboardLayoutName(kbln);
-    //printf("kb layout %s\n", kbln);
-    //unsigned int scanCode = MapVirtualKeyEx(kbStrut.vkCode, MAPVK_VK_TO_VSC_EX, GetKeyboardLayout(0));
-    //printf("vk %u\n", (unsigned int) kbStrut.vkCode);
-    //printf("scancode %u\n", scanCode);
 
     if (!isWatchedKey)
         return CallNextHookEx(NULL, nCode, wParam, lParam);
@@ -1601,6 +1699,38 @@ static void Draw(SAppData* appData, HDC dc, RECT clientRect)
     GdipDeleteGraphics(pGraphics);
 }
 
+LRESULT CALLBACK WorkerWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
+{
+    static SAppData* appData = NULL;
+    switch (uMsg)
+    {
+    case WM_CREATE:
+    {
+        appData = (SAppData*)((CREATESTRUCTA*)lParam)->lpCreateParams;
+        return 0;
+    }
+    case MSG_APPLY_APP:
+    {
+        ApplySwitchApp(&appData->_WinGroups._Data[appData->_Selection]);
+        PostQuitMessage(0);
+        return 0;
+    }
+    case MSG_APPLY_WIN:
+    {
+        ApplySwitchWin(appData->_CurrentWinGroup._Windows[appData->_Selection]);
+        PostQuitMessage(0);
+        return 0;
+    }
+    case MSG_APPLY_APP_MOUSE:
+    {
+        ApplySwitchApp(&appData->_WinGroups._Data[appData->_MouseSelection]);
+        PostQuitMessage(0);
+        return 0;
+    }
+    }
+    return DefWindowProc(hwnd, uMsg, wParam, lParam);
+}
+
 LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 {
     static SAppData* appData = NULL;
@@ -1652,11 +1782,14 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
         }
         if (!appData->_Config._Mouse)
             return 0;
-        const int selection = appData->_MouseSelection;
+#ifdef ASYNC_APPLY
+        ApplyWithTimeout(appData, MSG_APPLY_APP_MOUSE);
+#else
+        ApplySwitchApp(&appData->_WinGroups._Data[appData->_MouseSelection]);
+#endif
         appData->_Mode = ModeNone;
         appData->_Selection = 0;
         appData->_MouseSelection = 0;
-        ApplySwitchApp(&appData->_WinGroups._Data[selection]);
         DestroyWin(appData->_MainWin);
         ClearWinGroupArr(&appData->_WinGroups);
         return 0;
@@ -1682,23 +1815,6 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
         EndPaint(hwnd, &ps);
         return 0;
     }
-    // case WM_SHOWWINDOW:
-    // {
-    //     if (!GetLayeredWindowAttributes(hwnd, NULL, NULL, NULL))
-    //     {
-    //         SetLayeredWindowAttributes(hwnd, 0, 0, LWA_ALPHA);
-    //         // DefWindowProc(hwnd, WM_ERASEBKGND, (WPARAM)GetDC(hwnd), lParam);
-    //         //DefWindowProc(hwnd, WM_PAINT, (WPARAM)GetDC(hwnd), lParam);
-    //         LRESULT r = DefWindowProc(hwnd, uMsg, wParam, lParam);
-    //         SendMessage(hwnd, WM_PAINT, 0, 0);
-
-    //         SetLayeredWindowAttributes(hwnd, 0, 255, LWA_ALPHA);
-    //         AnimateWindow(hwnd, 1, AW_ACTIVATE|AW_BLEND);
-    //         return r;
-    //     }
-    //     return DefWindowProc(hwnd, uMsg, wParam, lParam);
-    // }
-    break;
     case WM_ERASEBKGND:
         return (LRESULT)0;
     }
@@ -1721,12 +1837,6 @@ int StartAltAppSwitcher(HINSTANCE hInstance)
 {
     SetLastError(0);
 
-    //char kbln[512];
-    //GetKeyboardLayoutName(kbln);
-    //printf("layout: %s\n", kbln);
-    //unsigned int scanCode = MapVirtualKeyEx(VK_OEM_3, MAPVK_VK_TO_VSC, GetKeyboardLayout(0));
-    //printf("scan code for oem3: %u\n", scanCode);
-
     ULONG_PTR gdiplusToken = 0;
     {
         GdiplusStartupInput gdiplusStartupInput = {};
@@ -1746,6 +1856,17 @@ int StartAltAppSwitcher(HINSTANCE hInstance)
         wc.cbWndExtra = sizeof(SAppData*);
         wc.style = CS_HREDRAW | CS_VREDRAW;
         wc.hbrBackground = GetSysColorBrush(COLOR_WINDOW);
+        RegisterClass(&wc);
+    }
+
+    {
+        WNDCLASS wc = { };
+        wc.lpfnWndProc   = WorkerWindowProc;
+        wc.hInstance     = hInstance;
+        wc.lpszClassName = WORKER_CLASS_NAME;
+        wc.cbWndExtra = sizeof(SAppData*);
+        wc.style = 0;
+        wc.hbrBackground = NULL;
         RegisterClass(&wc);
     }
 
@@ -1773,6 +1894,7 @@ int StartAltAppSwitcher(HINSTANCE hInstance)
         _AppData._Config._Scale = 1.75;
         _AppData._Config._DisplayName = DisplayNameSel;
         LoadConfig(&_AppData._Config);
+        InitializeCriticalSection(&_AppData._WorkerCS);
 
         // Patch only for runtime use. Do not patch if used for serialization.
 #define PATCH_TILDE(key) key = key == VK_OEM_3 ? MapVirtualKey(41, MAPVK_VSC_TO_VK) : key;
@@ -1872,8 +1994,12 @@ int StartAltAppSwitcher(HINSTANCE hInstance)
             _AppData._Selection++;
             _AppData._Selection = Modulo(_AppData._Selection, _AppData._CurrentWinGroup._WindowCount);
 
+#ifdef ASYNC_APPLY
+            ApplyWithTimeout(&_AppData, MSG_APPLY_WIN);
+#else
             HWND win = _AppData._CurrentWinGroup._Windows[_AppData._Selection];
             ApplySwitchWin(win);
+#endif
 
             break;
         }
@@ -1884,9 +2010,12 @@ int StartAltAppSwitcher(HINSTANCE hInstance)
             _AppData._Selection--;
             _AppData._Selection = Modulo(_AppData._Selection, _AppData._CurrentWinGroup._WindowCount);
 
+#ifdef ASYNC_APPLY
+            ApplyWithTimeout(&_AppData, MSG_APPLY_WIN);
+#else
             HWND win = _AppData._CurrentWinGroup._Windows[_AppData._Selection];
             ApplySwitchWin(win);
-
+#endif
             break;
         }
         case MSG_DEINIT_APP:
@@ -1894,11 +2023,13 @@ int StartAltAppSwitcher(HINSTANCE hInstance)
             RestoreKey(msg.wParam);
             if (_AppData._Mode == ModeNone)
                 break;
-            const int selection = _AppData._Selection;
+#ifdef ASYNC_APPLY
+            ApplyWithTimeout(&_AppData, MSG_APPLY_APP);
+#else
+            ApplySwitchApp(&_AppData._WinGroups._Data[_AppData._Selection]);
+#endif
             _AppData._Mode = ModeNone;
             _AppData._Selection = 0;
-
-            ApplySwitchApp(&_AppData._WinGroups._Data[selection]);
             DestroyWin(_AppData._MainWin);
             ClearWinGroupArr(&_AppData._WinGroups);
             break;
