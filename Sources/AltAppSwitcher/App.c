@@ -1,4 +1,5 @@
 #define COBJMACROS
+#define NTDDI_VERSION NTDDI_WIN10
 #include <stdio.h>
 #include <string.h>
 #include <vsstyle.h>
@@ -22,12 +23,12 @@
 #include <Initguid.h>
 #include <uiautomationclient.h>
 #include <gdiplus/gdiplusenums.h>
-#include <Shobjidl.h>
 #include <PropKey.h>
 #include <winuser.h>
 #include <winnt.h>
 #include <pthread.h>
 #include <time.h>
+#include <Shobjidl.h>
 #include "AppxPackaging.h"
 #undef COBJMACROS
 #include "Config/Config.h"
@@ -38,7 +39,7 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam);
 
 #define MEM_INIT(ARG) memset(&ARG, 0,  sizeof(ARG))
 
-#define ASYNC_APPLY 1
+#define ASYNC_APPLY
 
 typedef struct SWinGroup
 {
@@ -158,6 +159,7 @@ static DWORD _MainThread;
 // Apply thread
 #define MSG_APPLY_APP (WM_USER + 1)
 #define MSG_APPLY_WIN (WM_USER + 2)
+#define MSG_APPLY_APP_MOUSE (WM_USER + 3)
 
 static void RestoreKey(WORD keyCode)
 {
@@ -438,6 +440,21 @@ static void FindActualPID(HWND hwnd, DWORD* PID, BOOL* isUWP)
     }
 }
 
+bool BelongsToCurrentDesktop(HWND window)
+{
+    IVirtualDesktopManager* vdm = NULL; (void)vdm;
+    CoInitialize(NULL);
+    CoCreateInstance(&CLSID_VirtualDesktopManager, NULL, CLSCTX_ALL, &IID_IVirtualDesktopManager, (void**)&vdm);
+
+    WINBOOL isCurrent = true;
+    if (vdm)
+        IVirtualDesktopManager_IsWindowOnCurrentVirtualDesktop(vdm, window, &isCurrent);
+
+    IVirtualDesktopManager_Release(vdm);
+    CoUninitialize();
+    return isCurrent;
+}
+
 static bool IsAltTabWindow(HWND hwnd)
 {
     if (hwnd == GetShellWindow()) //Desktop
@@ -470,6 +487,8 @@ static bool IsAltTabWindow(HWND hwnd)
     if ((wi.dwExStyle & WS_EX_TOOLWINDOW) != 0)
          return false;
     if ((wi.dwExStyle & WS_EX_TOPMOST) != 0)
+        return false;
+    if (!BelongsToCurrentDesktop(hwnd))
         return false;
     return true;
 }
@@ -558,14 +577,15 @@ static void GetUWPIconAndAppName(HANDLE process, wchar_t* outIconPath, wchar_t* 
         if (!SUCCEEDED(res))
             return;
 
-        // Appxfactory:
-        // CLSID_AppxFactory and IID_IAppxFactory are declared in "AppxPackaging.h"
-        // but I don't know where the symbols are defined, thus the hardcoded GUIDs here.
+
         IAppxFactory* appxfac = NULL;
+        // Appxfactory:
+        // CLSID_AppxFactory and IID_IAppxFactory are declared as extern in "AppxPackaging.h"
+        // I don't know where the symbols are defined, thus the hardcoded GUIDs here.
         GUID clsid;
         CLSIDFromString(L"{5842a140-ff9f-4166-8f5c-62f5b7b0c781}", &clsid);
         GUID iid;
-        IIDFromString(L"{beb94909-e451-438b-b5a7-d79e767b75d8}", &iid); 
+        IIDFromString(L"{beb94909-e451-438b-b5a7-d79e767b75d8}", &iid);
         res = CoCreateInstance(&clsid, NULL, CLSCTX_INPROC_SERVER, &iid, (void**)&appxfac);
         if (!SUCCEEDED(res))
             return;
@@ -1101,7 +1121,9 @@ static void CreateWin(SAppData* appData)
     DwmSetWindowAttribute(hwnd, 33, &rounded, sizeof(rounded));
     InvalidateRect(hwnd, NULL, FALSE);
     UpdateWindow(hwnd);
-    SetForegroundWindow(hwnd);
+    const DWORD ret = SetForegroundWindow(hwnd);
+    (void)ret;
+    // ASSERT(ret != 0);
     appData->_MainWin = hwnd;
 
     SetLayeredWindowAttributes(hwnd, 0, 0, LWA_ALPHA);
@@ -1256,23 +1278,13 @@ static void ApplySwitchApp(const SWinGroup* winGroup)
     }
 }
 
-#if ASYNC_APPLY
-static DWORD ApplySwitchAppThread(LPVOID data)
+#ifdef ASYNC_APPLY
+static DWORD WorkerThread(LPVOID data)
 {
     SAppData* appData = (SAppData*)data;
 
-    HANDLE window = CreateWindowEx(
-        WS_EX_TOPMOST, // Optional window styles (WS_EX_)
-        WORKER_CLASS_NAME, // Window class
-        NULL, // Window text
-        WS_POPUP, // Window style
-        // Pos and size
-        0, 0, 0, 0,
-        HWND_MESSAGE, // Parent window
-        NULL, // Menu
-        appData->_Instance, // Instance handle
-        appData // Additional application data
-    );
+    HANDLE window = CreateWindowEx(WS_EX_TOPMOST, WORKER_CLASS_NAME, NULL, WS_POPUP,
+        0, 0, 0, 0, HWND_MESSAGE, NULL, appData->_Instance,appData);
     (void)window;
 
     EnterCriticalSection(&appData->_WorkerCS);
@@ -1284,13 +1296,64 @@ static DWORD ApplySwitchAppThread(LPVOID data)
         TranslateMessage(&msg);
         DispatchMessage(&msg);
     }
-    printf("Quit received\n");
     EnterCriticalSection(&appData->_WorkerCS);
     appData->_WorkerWin = NULL;
     LeaveCriticalSection(&appData->_WorkerCS);
     return 0;
 }
 
+static void ApplyWithTimeout(SAppData* appData, unsigned int msg)
+{
+    EnterCriticalSection(&appData->_WorkerCS);
+    appData->_WorkerWin = NULL;
+    LeaveCriticalSection(&appData->_WorkerCS);
+
+    DWORD tid;
+    HANDLE ht = CreateThread(NULL, 0, WorkerThread, (void*)appData, 0, &tid);
+    ASSERT(ht != NULL);
+
+    while (true)
+    {
+        if (TryEnterCriticalSection(&appData->_WorkerCS))
+        {
+            const bool initialized = appData->_WorkerWin != NULL;
+            LeaveCriticalSection(&appData->_WorkerCS);
+            if (initialized)
+                break;
+        }
+        usleep(100);
+    }
+
+    HWND fgWin = GetForegroundWindow();
+    DWORD fgWinThread = GetWindowThreadProcessId(fgWin, NULL);
+    (void)fgWinThread;
+    DWORD ret = 0; (void)ret;
+
+    ret = SetForegroundWindow(appData->_WorkerWin);
+    // ASSERT(ret != 0);
+
+    SendNotifyMessage(appData->_WorkerWin, msg, 0, 0);
+
+    time_t start;
+    time(&start);
+    while (true)
+    {
+        if (TryEnterCriticalSection(&appData->_WorkerCS))
+        {
+            const bool done = appData->_WorkerWin == NULL;
+            LeaveCriticalSection(&appData->_WorkerCS);
+            if (done)
+                break;
+        }
+        time_t now;
+        time(&now);
+        const double dt = difftime(now, start);
+        if (dt > 1.0)
+            break;
+    }
+
+    CloseHandle(ht);
+}
 #endif
 
 static void ApplySwitchWin(HWND win)
@@ -1327,13 +1390,6 @@ static LRESULT KbProc(int nCode, WPARAM wParam, LPARAM lParam)
         isShift ||
         (isPrevApp && _KeyConfig->_PrevApp != 0xFFFFFFFF) ||
         isEscape;
-
-    //char kbln[512];
-    //GetKeyboardLayoutName(kbln);
-    //printf("kb layout %s\n", kbln);
-    //unsigned int scanCode = MapVirtualKeyEx(kbStrut.vkCode, MAPVK_VK_TO_VSC_EX, GetKeyboardLayout(0));
-    //printf("vk %u\n", (unsigned int) kbStrut.vkCode);
-    //printf("scancode %u\n", scanCode);
 
     if (!isWatchedKey)
         return CallNextHookEx(NULL, nCode, wParam, lParam);
@@ -1665,6 +1721,12 @@ LRESULT CALLBACK WorkerWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lP
         PostQuitMessage(0);
         return 0;
     }
+    case MSG_APPLY_APP_MOUSE:
+    {
+        ApplySwitchApp(&appData->_WinGroups._Data[appData->_MouseSelection]);
+        PostQuitMessage(0);
+        return 0;
+    }
     }
     return DefWindowProc(hwnd, uMsg, wParam, lParam);
 }
@@ -1720,11 +1782,14 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
         }
         if (!appData->_Config._Mouse)
             return 0;
-        const int selection = appData->_MouseSelection;
+#ifdef ASYNC_APPLY
+        ApplyWithTimeout(appData, MSG_APPLY_APP_MOUSE);
+#else
+        ApplySwitchApp(&appData->_WinGroups._Data[appData->_MouseSelection]);
+#endif
         appData->_Mode = ModeNone;
         appData->_Selection = 0;
         appData->_MouseSelection = 0;
-        ApplySwitchApp(&appData->_WinGroups._Data[selection]);
         DestroyWin(appData->_MainWin);
         ClearWinGroupArr(&appData->_WinGroups);
         return 0;
@@ -1767,62 +1832,6 @@ static DWORD KbHookCb(LPVOID param)
 
     return (DWORD)0;
 }
-
-#if ASYNC_APPLY
-static void ApplyWithTimeout(SAppData* appData, unsigned int msg)
-{
-    EnterCriticalSection(&appData->_WorkerCS);
-    appData->_WorkerWin = NULL;
-    LeaveCriticalSection(&appData->_WorkerCS);
-
-    DWORD tid;
-    HANDLE ht = CreateThread(NULL, 0, ApplySwitchAppThread, (void*)appData, 0, &tid);
-    ASSERT(ht != NULL);
-
-    while (true)
-    {
-        if (TryEnterCriticalSection(&appData->_WorkerCS))
-        {
-            const bool initialized = appData->_WorkerWin != NULL;
-            LeaveCriticalSection(&appData->_WorkerCS);
-            if (initialized)
-                break;
-        }
-        usleep(100);
-    }
-
-    HWND fgWin = GetForegroundWindow();
-    DWORD fgWinThread = GetWindowThreadProcessId(fgWin, NULL);
-    (void)fgWinThread;
-    DWORD ret = 0; (void)ret;
-    
-    ret = SetForegroundWindow(appData->_WorkerWin);
-    
-    ASSERT(ret != 0);
-
-    SendNotifyMessage(appData->_WorkerWin, msg, 0, 0);
-
-    time_t start;
-    time(&start);
-    while (true)
-    {
-        if (TryEnterCriticalSection(&appData->_WorkerCS))
-        {
-            const bool done = appData->_WorkerWin == NULL;
-            LeaveCriticalSection(&appData->_WorkerCS);
-            if (done)
-                break;
-        }
-        time_t now;
-        time(&now);
-        const double dt = difftime(now, start);
-        if (dt > 1.0)
-            break;
-    }
-
-    CloseHandle(ht);
-}
-#endif
 
 int StartAltAppSwitcher(HINSTANCE hInstance)
 {
@@ -1985,7 +1994,7 @@ int StartAltAppSwitcher(HINSTANCE hInstance)
             _AppData._Selection++;
             _AppData._Selection = Modulo(_AppData._Selection, _AppData._CurrentWinGroup._WindowCount);
 
-#if ASYNC_APPLY
+#ifdef ASYNC_APPLY
             ApplyWithTimeout(&_AppData, MSG_APPLY_WIN);
 #else
             HWND win = _AppData._CurrentWinGroup._Windows[_AppData._Selection];
@@ -2001,7 +2010,7 @@ int StartAltAppSwitcher(HINSTANCE hInstance)
             _AppData._Selection--;
             _AppData._Selection = Modulo(_AppData._Selection, _AppData._CurrentWinGroup._WindowCount);
 
-#if ASYNC_APPLY
+#ifdef ASYNC_APPLY
             ApplyWithTimeout(&_AppData, MSG_APPLY_WIN);
 #else
             HWND win = _AppData._CurrentWinGroup._Windows[_AppData._Selection];
@@ -2014,7 +2023,7 @@ int StartAltAppSwitcher(HINSTANCE hInstance)
             RestoreKey(msg.wParam);
             if (_AppData._Mode == ModeNone)
                 break;
-#if ASYNC_APPLY
+#ifdef ASYNC_APPLY
             ApplyWithTimeout(&_AppData, MSG_APPLY_APP);
 #else
             ApplySwitchApp(&_AppData._WinGroups._Data[_AppData._Selection]);
