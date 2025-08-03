@@ -42,6 +42,8 @@ static void SetupGUI(GUIData* gui, void* userData)
         &cfg->_Scale, gui);
     CreateText("Display app name:", "", gui);
     CreateComboBox("Display app name.", &cfg->_DisplayName, displayNameES, gui);
+    CreateText("Multiple monitor:", "", gui);
+    CreateComboBox("Multiple monitor display mode.", &cfg->_MultipleMonitorMode, multipleMonitorModeES, gui);
 
     GridLayout(1, gui);
     CreateText("Other:", "", gui);

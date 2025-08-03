@@ -1050,8 +1050,21 @@ static BOOL FillCurrentWinGroup(HWND hwnd, LPARAM lParam)
     return true;
 }
 
-static void ComputeMetrics(uint32_t iconCount, float scale, Metrics *metrics)
+static void ComputeMetrics(uint32_t iconCount, float scale, Metrics *metrics, bool monitorModeMouse)
 {
+    uint32_t monitorOffset[2] = { 0, 0 };
+    if (monitorModeMouse)
+    {
+        POINT mousePos;
+        GetCursorPos(&mousePos);
+        HMONITOR monitor = MonitorFromPoint(mousePos, MONITOR_DEFAULTTONEAREST);
+        MONITORINFO info;
+        info.cbSize = sizeof(MONITORINFO);
+        GetMonitorInfo(monitor, &info);
+        monitorOffset[0] = info.rcMonitor.left;
+        monitorOffset[1] = info.rcMonitor.top;
+    }
+
     scale = max(scale, 0.5f);
     const int centerY = GetSystemMetrics(SM_CYSCREEN) / 2;
     const int centerX = GetSystemMetrics(SM_CXSCREEN) / 2;
@@ -1065,8 +1078,8 @@ static void ComputeMetrics(uint32_t iconCount, float scale, Metrics *metrics)
     const uint32_t halfSizeX = sizeX / 2;
     const uint32_t sizeY = 1 * iconSize * containerRatio + 2.0f * padRatio * iconSize;
     const uint32_t halfSizeY = sizeY / 2;
-    metrics->_WinPosX = centerX - halfSizeX;
-    metrics->_WinPosY = centerY - halfSizeY;
+    metrics->_WinPosX = centerX - halfSizeX + monitorOffset[0];
+    metrics->_WinPosY = centerY - halfSizeY + monitorOffset[1];
     metrics->_WinX = sizeX;
     metrics->_WinY = sizeY;
     metrics->_Icon = iconSize;
@@ -1091,7 +1104,7 @@ static void CreateWin(SAppData* appData)
     if (appData->_MainWin)
         DestroyWin(appData->_MainWin);
 
-    ComputeMetrics(appData->_WinGroups._Size, appData->_Config._Scale, &appData->_Metrics);
+    ComputeMetrics(appData->_WinGroups._Size, appData->_Config._Scale, &appData->_Metrics, appData->_Config._MultipleMonitorMode == MultipleMonitorModeMouse);
 
     HWND hwnd = CreateWindowEx(
         WS_EX_TOPMOST | WS_EX_TOOLWINDOW | WS_EX_LAYERED, // Optional window styles (WS_EX_)
@@ -1228,8 +1241,6 @@ static void ApplySwitchApp(const SWinGroup* winGroup)
     DWORD fgWinThread = GetWindowThreadProcessId(fgWin, NULL);
     (void)curThread; (void)fgWinThread;
     DWORD ret; (void)ret;
-
-    printf("start apply\n");
 
     int winCount = (int)winGroup->_WindowCount;
 
@@ -1893,6 +1904,7 @@ int StartAltAppSwitcher(HINSTANCE hInstance)
         _AppData._Config._AppSwitcherMode = AppSwitcherModeApp;
         _AppData._Config._Scale = 1.75;
         _AppData._Config._DisplayName = DisplayNameSel;
+        _AppData._Config._MultipleMonitorMode = MultipleMonitorModeMouse;
         LoadConfig(&_AppData._Config);
         InitializeCriticalSection(&_AppData._WorkerCS);
 
