@@ -1591,12 +1591,12 @@ static void Draw(SAppData* appData, HDC dc, RECT clientRect)
         const uint32_t mouseSelIdx = (uint32_t)appData->_MouseSelection;
 
         {
-            RectF selRect = { pad + containerSize * selIdx + padSelect, pad + padSelect, selectSize, selectSize };
+            RectF selRect = { pad + containerSize * mouseSelIdx + padSelect, pad + padSelect, selectSize, selectSize };
             DrawRoundedRect(pGraphics, NULL, pGraphRes->_pBrushBgHighlight, &selRect, 10);
         }
 
         {
-            RectF selRect = { pad + containerSize * mouseSelIdx + padSelect, pad + padSelect, selectSize, selectSize };
+            RectF selRect = { pad + containerSize * selIdx + padSelect, pad + padSelect, selectSize, selectSize };
             COLORREF cr = pGraphRes->_TextColor;
             ARGB gdipColor = cr | 0xFF000000;
             GpPen* pPen;
