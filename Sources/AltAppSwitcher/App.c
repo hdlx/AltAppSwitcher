@@ -1053,6 +1053,7 @@ static BOOL FillCurrentWinGroup(HWND hwnd, LPARAM lParam)
 static void ComputeMetrics(uint32_t iconCount, float scale, Metrics *metrics, bool monitorModeMouse)
 {
     uint32_t monitorOffset[2] = { 0, 0 };
+    uint32_t monitorSize[2] = { 0, 0 };
     if (monitorModeMouse)
     {
         POINT mousePos;
@@ -1063,12 +1064,14 @@ static void ComputeMetrics(uint32_t iconCount, float scale, Metrics *metrics, bo
         GetMonitorInfo(monitor, &info);
         monitorOffset[0] = info.rcMonitor.left;
         monitorOffset[1] = info.rcMonitor.top;
+        monitorSize[0] = info.rcMonitor.right - info.rcMonitor.left;
+        monitorSize[1] = info.rcMonitor.bottom - info.rcMonitor.top;
     }
 
     scale = max(scale, 0.5f);
-    const int centerY = GetSystemMetrics(SM_CYSCREEN) / 2;
-    const int centerX = GetSystemMetrics(SM_CXSCREEN) / 2;
-    const int screenWidth = GetSystemMetrics(SM_CXFULLSCREEN);
+    const int centerY = monitorSize[1] / 2;
+    const int centerX = monitorSize[0] / 2;
+    const int screenWidth = monitorSize[0];
     const float containerRatio = 1.25f;
     const float selectRatio = 1.25f; // Same as container, legacy was different
     float iconSize = GetSystemMetrics(SM_CXICON) * scale;
