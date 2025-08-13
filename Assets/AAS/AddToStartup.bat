@@ -16,7 +16,7 @@ schtasks /create /sc ONEVENT /ec Application /tn AltAppSwitcher /tr "'%fullPath%
 if !errorlevel! neq 0 (
     schtasks /create /sc ONEVENT /ec Application /tn AltAppSwitcher /tr "'%fullPath%'" /RL LIMITED /F
     if !errorlevel! neq 0 (
-        msg * "Task creation failed."
+        msg * "Task creation failed. If a previous task was created with admin privileges, please re-run this utility as an admin."
         exit
     )
     set "limited=true"
@@ -25,7 +25,7 @@ if !errorlevel! neq 0 (
 reg add "HKEY_CURRENT_USER\SOFTWARE\Microsoft\Windows\CurrentVersion\Run" /v "AltAppSwitcher" /t REG_SZ /d "schtasks /run /tn AltAppSwitcher" /f
 
 if !errorlevel! neq 0 (
-    msg * "Adding task to run failed. If a previous task was created as an admin, please re-run this utility as an admin."
+    msg * "Adding task to run failed."
     exit
 )
 
