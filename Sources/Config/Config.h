@@ -38,6 +38,12 @@ typedef enum MultipleMonitorMode
     MultipleMonitorModeMain,
 } MultipleMonitorMode;
 
+typedef enum AppFilterMode
+{
+    AppFilterModeAll,
+    AppFilterModeMouseMonitor,
+} AppFilterMode;
+
 typedef struct Config
 {
     KeyConfig _Key;
@@ -48,6 +54,7 @@ typedef struct Config
     float _Scale;
     AppSwitcherMode _AppSwitcherMode;
     MultipleMonitorMode _MultipleMonitorMode;
+    AppFilterMode _AppFilterMode;
 } Config;
 
 typedef struct EnumString
@@ -61,6 +68,7 @@ extern const EnumString themeES[4];
 extern const EnumString appSwitcherModeES[3];
 extern const EnumString displayNameES[4];
 extern const EnumString multipleMonitorModeES[3];
+extern const EnumString appFilterModeES[3];
 
 void LoadConfig(Config* config);
 void WriteConfig(const Config* config);
