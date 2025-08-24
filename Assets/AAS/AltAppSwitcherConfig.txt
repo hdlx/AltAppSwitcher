@@ -40,3 +40,10 @@ app switcher mode: app
 // all: display all names
 // none: do not display any name
 display name: selected
+
+// Multiple monitor mode:
+// "mouse": Show apps on the monitor where mouse is located
+// "all": Show apps on all monitors
+// "main": Show apps on main monitor only
+multiple monitor mode: mouse
+
