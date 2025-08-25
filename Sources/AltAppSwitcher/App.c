@@ -1054,19 +1054,18 @@ static void ComputeMetrics(uint32_t iconCount, float scale, Metrics *metrics, bo
 {
     uint32_t monitorOffset[2] = { 0, 0 };
     uint32_t monitorSize[2] = { 0, 0 };
+
+    POINT mousePos = { 0, 0 };
     if (monitorModeMouse)
-    {
-        POINT mousePos;
         GetCursorPos(&mousePos);
-        HMONITOR monitor = MonitorFromPoint(mousePos, MONITOR_DEFAULTTONEAREST);
-        MONITORINFO info;
-        info.cbSize = sizeof(MONITORINFO);
-        GetMonitorInfo(monitor, &info);
-        monitorOffset[0] = info.rcMonitor.left;
-        monitorOffset[1] = info.rcMonitor.top;
-        monitorSize[0] = info.rcMonitor.right - info.rcMonitor.left;
-        monitorSize[1] = info.rcMonitor.bottom - info.rcMonitor.top;
-    }
+    HMONITOR monitor = MonitorFromPoint(mousePos, MONITOR_DEFAULTTOPRIMARY);
+    MONITORINFO info;
+    info.cbSize = sizeof(MONITORINFO);
+    GetMonitorInfo(monitor, &info);
+    monitorOffset[0] = info.rcMonitor.left;
+    monitorOffset[1] = info.rcMonitor.top;
+    monitorSize[0] = info.rcMonitor.right - info.rcMonitor.left;
+    monitorSize[1] = info.rcMonitor.bottom - info.rcMonitor.top;
 
     scale = max(scale, 0.5f);
     const int centerY = monitorSize[1] / 2;
