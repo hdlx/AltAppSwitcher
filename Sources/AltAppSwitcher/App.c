@@ -134,6 +134,7 @@ typedef struct SAppData
     bool _Elevated;
     CRITICAL_SECTION _WorkerCS;
     HANDLE _WorkerWin;
+    HMONITOR _MouseMonitor;
 } SAppData;
 
 typedef struct SFoundWin
@@ -455,6 +456,64 @@ bool BelongsToCurrentDesktop(HWND window)
     return isCurrent;
 }
 
+static bool IsWindowOnMonitor(HWND hwnd, HMONITOR targetMonitor)
+{
+    RECT windowRect;
+    
+    // For minimized windows, use the restored position instead of current position
+    if (IsIconic(hwnd))
+    {
+        WINDOWPLACEMENT wp;
+        wp.length = sizeof(WINDOWPLACEMENT);
+        if (GetWindowPlacement(hwnd, &wp))
+        {
+            windowRect = wp.rcNormalPosition;
+        }
+        else
+        {
+            // Fallback to GetWindowRect if GetWindowPlacement fails
+            if (!GetWindowRect(hwnd, &windowRect))
+                return false;
+        }
+    }
+    else
+    {
+        if (!GetWindowRect(hwnd, &windowRect))
+            return false;
+    }
+    
+    // Use MonitorFromRect for more accurate monitor detection
+    // This considers the window's entire area, not just center point
+    HMONITOR windowMonitor = MonitorFromRect(&windowRect, MONITOR_DEFAULTTONEAREST);
+    
+    // Use CompareObjectHandles if available (Windows 10+) for more robust comparison
+    // Fall back to direct comparison for older Windows versions
+    static HMODULE kernel32 = NULL;
+    static BOOL (WINAPI *pCompareObjectHandles)(HANDLE, HANDLE) = NULL;
+    static bool initialized = false;
+    
+    if (!initialized)
+    {
+        kernel32 = GetModuleHandleA("kernel32.dll");
+        if (kernel32)
+        {
+            pCompareObjectHandles = (BOOL (WINAPI *)(HANDLE, HANDLE))
+                GetProcAddress(kernel32, "CompareObjectHandles");
+        }
+        initialized = true;
+    }
+    
+    if (pCompareObjectHandles)
+    {
+        return pCompareObjectHandles(windowMonitor, targetMonitor);
+    }
+    else
+    {
+        // Fallback to direct comparison for older Windows versions
+        return windowMonitor == targetMonitor;
+    }
+}
+
 static bool IsAltTabWindow(HWND hwnd)
 {
     if (hwnd == GetShellWindow()) //Desktop
@@ -467,7 +526,8 @@ static bool IsAltTabWindow(HWND hwnd)
     //     return false;
     if (hwndRoot != hwnd)
         return false;
-    if (!IsWindowVisible(hwnd))
+    // Allow minimized windows to be included in Alt-Tab
+    if (!IsWindowVisible(hwnd) && !IsIconic(hwnd))
         return false;
     static char buf[512];
     GetClassName(hwnd, buf, 512);
@@ -903,6 +963,16 @@ static BOOL FillWinGroups(HWND hwnd, LPARAM lParam)
 {
     if (!IsAltTabWindow(hwnd))
         return true;
+
+    SAppData* appData = (SAppData*)lParam;
+    
+    // Filter apps by monitor if enabled - moved early to avoid expensive calls
+    if (appData->_Config._AppFilterMode == AppFilterModeMouseMonitor)
+    {
+        if (!IsWindowOnMonitor(hwnd, appData->_MouseMonitor))
+            return true;
+    }
+
     DWORD PID = 0;
     BOOL isUWP = false;
 
@@ -910,7 +980,6 @@ static BOOL FillWinGroups(HWND hwnd, LPARAM lParam)
     static char moduleFileName[512];
     GetProcessFileName(PID, moduleFileName);
 
-    SAppData* appData = (SAppData*)lParam;
     SWinGroupArr* winAppGroupArr = &(appData->_WinGroups);
 
     SWinGroup* group = NULL;
@@ -1153,6 +1222,26 @@ static void InitializeSwitchApp(SAppData* appData)
 {
     SWinGroupArr* pWinGroups = &(appData->_WinGroups);
     pWinGroups->_Size = 0;
+    
+    // Get mouse monitor once if filtering by monitor is enabled
+    if (appData->_Config._AppFilterMode == AppFilterModeMouseMonitor)
+    {
+        POINT mousePos;
+        if (GetCursorPos(&mousePos))
+        {
+            appData->_MouseMonitor = MonitorFromPoint(mousePos, MONITOR_DEFAULTTONEAREST);
+        }
+        else
+        {
+            // Fall back to primary monitor if GetCursorPos fails
+            appData->_MouseMonitor = MonitorFromPoint((POINT){0, 0}, MONITOR_DEFAULTTOPRIMARY);
+        }
+    }
+    else
+    {
+        appData->_MouseMonitor = NULL; // Explicitly set NULL when not filtering by monitor
+    }
+    
     EnumDesktopWindows(NULL, FillWinGroups, (LPARAM)appData);
     appData->_Mode = ModeApp;
     appData->_Selection = 0;
@@ -1907,8 +1996,10 @@ int StartAltAppSwitcher(HINSTANCE hInstance)
         _AppData._Config._Scale = 1.75;
         _AppData._Config._DisplayName = DisplayNameSel;
         _AppData._Config._MultipleMonitorMode = MultipleMonitorModeMouse;
+        _AppData._Config._AppFilterMode = AppFilterModeAll;
         LoadConfig(&_AppData._Config);
         InitializeCriticalSection(&_AppData._WorkerCS);
+        _AppData._MouseMonitor = NULL;
 
         // Patch only for runtime use. Do not patch if used for serialization.
 #define PATCH_TILDE(key) key = key == VK_OEM_3 ? MapVirtualKey(41, MAPVK_VSC_TO_VK) : key;

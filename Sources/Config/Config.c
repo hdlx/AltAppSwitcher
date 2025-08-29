@@ -54,6 +54,12 @@ const EnumString multipleMonitorModeES[3] = {
     { "end", 0xFFFFFFFF }
 };
 
+const EnumString appFilterModeES[3] = {
+    { "all", AppFilterModeAll },
+    { "mouse monitor", AppFilterModeMouseMonitor },
+    { "end", 0xFFFFFFFF }
+};
+
 typedef struct StrPair
 {
     char Key[64];
@@ -177,6 +183,7 @@ TryGetFloat(keyValues, ENTRY, &DST)
     GET_ENUM("app switcher mode", config->_AppSwitcherMode, appSwitcherModeES, AppSwitcherModeApp);
     GET_ENUM("display name", config->_DisplayName, displayNameES, DisplayNameSel);
     GET_ENUM("multiple monitor mode", config->_MultipleMonitorMode, multipleMonitorModeES, MultipleMonitorModeMouse);
+    GET_ENUM("app filter mode", config->_AppFilterMode, appFilterModeES, AppFilterModeAll);
 
     GET_BOOL("allow mouse", config->_Mouse);
     GET_BOOL("check for updates", config->_CheckForUpdates);
@@ -237,6 +244,7 @@ WriteFloat(file, ENTRY, VALUE)
     WRITE_ENUM("app switcher mode", config->_AppSwitcherMode, appSwitcherModeES);
     WRITE_ENUM("display name", config->_DisplayName, displayNameES);
     WRITE_ENUM("multiple monitor mode", config->_MultipleMonitorMode, multipleMonitorModeES);
+    WRITE_ENUM("app filter mode", config->_AppFilterMode, appFilterModeES);
 
     WRITE_BOOL("allow mouse", config->_Mouse);
     WRITE_BOOL("check for updates", config->_CheckForUpdates);
