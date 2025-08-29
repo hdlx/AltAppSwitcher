@@ -466,7 +466,32 @@ static bool IsWindowOnMonitor(HWND hwnd, HMONITOR targetMonitor)
     // This considers the window's entire area, not just center point
     HMONITOR windowMonitor = MonitorFromRect(&windowRect, MONITOR_DEFAULTTONEAREST);
     
-    return windowMonitor == targetMonitor;
+    // Use CompareObjectHandles if available (Windows 10+) for more robust comparison
+    // Fall back to direct comparison for older Windows versions
+    static HMODULE kernel32 = NULL;
+    static BOOL (WINAPI *pCompareObjectHandles)(HANDLE, HANDLE) = NULL;
+    static bool initialized = false;
+    
+    if (!initialized)
+    {
+        kernel32 = GetModuleHandleA("kernel32.dll");
+        if (kernel32)
+        {
+            pCompareObjectHandles = (BOOL (WINAPI *)(HANDLE, HANDLE))
+                GetProcAddress(kernel32, "CompareObjectHandles");
+        }
+        initialized = true;
+    }
+    
+    if (pCompareObjectHandles)
+    {
+        return pCompareObjectHandles(windowMonitor, targetMonitor);
+    }
+    else
+    {
+        // Fallback to direct comparison for older Windows versions
+        return windowMonitor == targetMonitor;
+    }
 }
 
 static bool IsAltTabWindow(HWND hwnd)
@@ -917,6 +942,16 @@ static BOOL FillWinGroups(HWND hwnd, LPARAM lParam)
 {
     if (!IsAltTabWindow(hwnd))
         return true;
+
+    SAppData* appData = (SAppData*)lParam;
+    
+    // Filter apps by monitor if enabled - moved early to avoid expensive calls
+    if (appData->_Config._AppFilterMode == AppFilterModeMouseMonitor)
+    {
+        if (!IsWindowOnMonitor(hwnd, appData->_MouseMonitor))
+            return true;
+    }
+
     DWORD PID = 0;
     BOOL isUWP = false;
 
@@ -924,15 +959,6 @@ static BOOL FillWinGroups(HWND hwnd, LPARAM lParam)
     static char moduleFileName[512];
     GetProcessFileName(PID, moduleFileName);
 
-    SAppData* appData = (SAppData*)lParam;
-    
-    // Filter apps by monitor if enabled
-    if (appData->_Config._AppFilterMode == AppFilterModeMouseMonitor)
-    {
-        if (!IsWindowOnMonitor(hwnd, appData->_MouseMonitor))
-            return true;
-    }
-    
     SWinGroupArr* winAppGroupArr = &(appData->_WinGroups);
 
     SWinGroup* group = NULL;

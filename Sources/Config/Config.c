@@ -56,7 +56,7 @@ const EnumString multipleMonitorModeES[3] = {
 
 const EnumString appFilterModeES[3] = {
     { "all", AppFilterModeAll },
-    { "Mouse Monitor", AppFilterModeMouseMonitor },
+    { "mouse monitor", AppFilterModeMouseMonitor },
     { "end", 0xFFFFFFFF }
 };
 

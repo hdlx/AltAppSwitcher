@@ -42,8 +42,13 @@ app switcher mode: app
 display name: selected
 
 // Multiple monitor mode:
-// "mouse": Show apps on the monitor where mouse is located
-// "all": Show apps on all monitors
-// "main": Show apps on main monitor only
+// Controls where the switcher UI appears (placement), not which apps are listed.
+// "mouse": Place the UI on the monitor where the mouse cursor is located
+// "main":  Place the UI on the primary (main) monitor
 multiple monitor mode: mouse
 
+// App filter mode:
+// Controls which apps/windows are listed.
+// "all": Show apps from all monitors
+// "mouse monitor": Show only apps from the monitor where the mouse cursor is located
+app filter mode: all

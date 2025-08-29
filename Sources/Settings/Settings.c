@@ -57,7 +57,7 @@ static void SetupGUI(GUIData* gui, void* userData)
     CreateComboBox("App: MacOS-like, one entry per application.\nWindow: Windows-like, one entry per window (each window is considered an independent application)",
         &cfg->_AppSwitcherMode, appSwitcherModeES, gui);
     CreateText("App filter mode:", "", gui);
-    CreateComboBox("All: show apps from all monitors.\nMouse Monitor: show only apps from the monitor where mouse cursor is located.",
+    CreateComboBox("All: show apps from all monitors.\nmouse monitor: show only apps from the monitor where mouse cursor is located.",
         &cfg->_AppFilterMode, appFilterModeES, gui);
 
     GridLayout(1, gui);
