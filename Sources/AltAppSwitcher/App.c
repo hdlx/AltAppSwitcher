@@ -459,8 +459,28 @@ bool BelongsToCurrentDesktop(HWND window)
 static bool IsWindowOnMonitor(HWND hwnd, HMONITOR targetMonitor)
 {
     RECT windowRect;
-    if (!GetWindowRect(hwnd, &windowRect))
-        return false;
+    
+    // For minimized windows, use the restored position instead of current position
+    if (IsIconic(hwnd))
+    {
+        WINDOWPLACEMENT wp;
+        wp.length = sizeof(WINDOWPLACEMENT);
+        if (GetWindowPlacement(hwnd, &wp))
+        {
+            windowRect = wp.rcNormalPosition;
+        }
+        else
+        {
+            // Fallback to GetWindowRect if GetWindowPlacement fails
+            if (!GetWindowRect(hwnd, &windowRect))
+                return false;
+        }
+    }
+    else
+    {
+        if (!GetWindowRect(hwnd, &windowRect))
+            return false;
+    }
     
     // Use MonitorFromRect for more accurate monitor detection
     // This considers the window's entire area, not just center point
@@ -506,7 +526,8 @@ static bool IsAltTabWindow(HWND hwnd)
     //     return false;
     if (hwndRoot != hwnd)
         return false;
-    if (!IsWindowVisible(hwnd))
+    // Allow minimized windows to be included in Alt-Tab
+    if (!IsWindowVisible(hwnd) && !IsIconic(hwnd))
         return false;
     static char buf[512];
     GetClassName(hwnd, buf, 512);
