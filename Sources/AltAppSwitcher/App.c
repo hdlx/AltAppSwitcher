@@ -299,7 +299,8 @@ static const char* WindowsClassNamesToSkip[] =
     "MsgrIMEWindowClass",
     "SysShadow",
     "Button",
-    "Windows.UI.Core.CoreWindow"
+    "Windows.UI.Core.CoreWindow",
+    "Dwm"
 };
 
 static BOOL GetProcessFileName(DWORD PID, char* outFileName)
@@ -1174,6 +1175,9 @@ static void CreateWin(SAppData* appData)
 {
     if (appData->_MainWin)
         DestroyWin(appData->_MainWin);
+
+    if (appData->_WinGroups._Size == 0)
+        return;
 
     ComputeMetrics(appData->_WinGroups._Size, appData->_Config._Scale, &appData->_Metrics, appData->_Config._MultipleMonitorMode == MultipleMonitorModeMouse);
 
