@@ -527,8 +527,7 @@ static bool IsAltTabWindow(HWND hwnd)
     //     return false;
     if (hwndRoot != hwnd)
         return false;
-    // Allow minimized windows to be included in Alt-Tab
-    if (!IsWindowVisible(hwnd) && !IsIconic(hwnd))
+    if (!IsWindowVisible(hwnd)) // && !IsIconic(hwnd))
         return false;
     static char buf[512];
     GetClassName(hwnd, buf, 512);
@@ -544,6 +543,8 @@ static bool IsAltTabWindow(HWND hwnd)
         return false;
     WINDOWINFO wi;
     GetWindowInfo(hwnd, &wi);
+    if (!(wi.dwStyle & WS_VISIBLE))
+        return false;
     //Chrome has sometime WS_EX_TOOLWINDOW while beeing an alttabable window
     if ((wi.dwExStyle & WS_EX_TOOLWINDOW) != 0)
          return false;
