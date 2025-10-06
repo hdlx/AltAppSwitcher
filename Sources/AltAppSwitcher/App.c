@@ -1478,6 +1478,9 @@ static void ApplySwitchWin(HWND win)
 static LRESULT KbProc(int nCode, WPARAM wParam, LPARAM lParam)
 {
     const KBDLLHOOKSTRUCT kbStrut = *(KBDLLHOOKSTRUCT*)lParam;
+    if (kbStrut.flags & LLKHF_INJECTED)
+        CallNextHookEx(NULL, nCode, wParam, lParam);
+
     const bool isAppHold = kbStrut.vkCode == _KeyConfig->_AppHold;
     const bool isAppSwitch = kbStrut.vkCode == _KeyConfig->_AppSwitch;
     const bool isPrevApp = kbStrut.vkCode == _KeyConfig->_PrevApp;
@@ -1549,6 +1552,7 @@ static LRESULT KbProc(int nCode, WPARAM wParam, LPARAM lParam)
             mode = ModeNone;
             bypassMsg = true;
             PostThreadMessage(_MainThread, MSG_DEINIT_APP, kbStrut.vkCode, 0);
+            RestoreKey(kbStrut.vkCode);
         }
         else if (prevMode == ModeWin &&
             (switchApp || winHoldReleasing))
@@ -1556,12 +1560,14 @@ static LRESULT KbProc(int nCode, WPARAM wParam, LPARAM lParam)
             mode = switchAppInput ? ModeApp : ModeNone;
             bypassMsg = true;
             PostThreadMessage(_MainThread, MSG_DEINIT_WIN, kbStrut.vkCode, 0);
+            RestoreKey(kbStrut.vkCode);
         }
         else if (prevMode == ModeApp && cancel)
         {
             mode = ModeNone;
             bypassMsg = true;
             PostThreadMessage(_MainThread, MSG_CANCEL_APP, kbStrut.vkCode, 0);
+            RestoreKey(kbStrut.vkCode);
         }
 
         if (mode == ModeNone && switchApp)
@@ -2130,7 +2136,6 @@ int StartAltAppSwitcher(HINSTANCE hInstance)
         }
         case MSG_DEINIT_APP:
         {
-            RestoreKey(msg.wParam);
             if (_AppData._Mode == ModeNone)
                 break;
 #ifdef ASYNC_APPLY
@@ -2146,7 +2151,6 @@ int StartAltAppSwitcher(HINSTANCE hInstance)
         }
         case MSG_CANCEL_APP:
         {
-            RestoreKey(msg.wParam);
             _AppData._Mode = ModeNone;
             DestroyWin(_AppData._MainWin);
             ClearWinGroupArr(&_AppData._WinGroups);
@@ -2154,7 +2158,6 @@ int StartAltAppSwitcher(HINSTANCE hInstance)
         }
         case MSG_DEINIT_WIN:
         {
-            RestoreKey(msg.wParam);
             if (_AppData._Mode == ModeNone)
                 break;
             _AppData._Mode = ModeNone;
