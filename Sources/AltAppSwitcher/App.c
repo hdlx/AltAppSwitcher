@@ -1306,7 +1306,7 @@ static void RestoreWin(HWND win)
     if (placement.showCmd == SW_SHOWMINIMIZED)
     {
         ShowWindow(win, SW_RESTORE);
-        SetWindowPos(win, HWND_TOP, 0, 0, 0, 0, SWP_NOSIZE | SWP_NOMOVE | SWP_NOOWNERZORDER);
+        SetWindowPos(win, HWND_TOP, 0, 0, 0, 0, SWP_NOSIZE | SWP_NOMOVE | SWP_NOOWNERZORDER | SWP_NOZORDER);
     }
 }
 
@@ -1365,7 +1365,7 @@ static void ApplySwitchApp(const SWinGroup* winGroup)
         ret = AttachThreadInput(targetWinThread, curThread, TRUE);
         // ASSERT(ret != 0);
 
-        dwp = DeferWindowPos(dwp, win, prev, 0, 0, 0, 0, SWP_NOSIZE | SWP_NOMOVE | SWP_NOOWNERZORDER);
+        dwp = DeferWindowPos(dwp, win, prev, 0, 0, 0, 0, SWP_NOSIZE | SWP_NOMOVE);
         // ASSERT(dwp != 0);
         prev = win;
     }
