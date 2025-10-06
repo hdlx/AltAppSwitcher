@@ -519,15 +519,19 @@ static bool IsAltTabWindow(HWND hwnd)
 {
     if (hwnd == GetShellWindow()) //Desktop
         return false;
+    if (((uint64_t)hwnd) == 0x000600D4)
+    {
+        printf("here");
+    }
     // Start at the root owner
-    const HWND hwndRoot = GetAncestor(hwnd, GA_ROOTOWNER);
-    // See if we are the last active visible popup
-    // Useless and might be null ?
-    // if (GetLastActivePopup(hwndRoot) != hwnd)
-    //     return false;
-    if (hwndRoot != hwnd)
+    const HWND owner = GetAncestor(hwnd, GA_ROOTOWNER); (void)owner;
+    const HWND parent = GetAncestor(hwnd, GA_PARENT);
+    const HWND dw = GetDesktopWindow();
+    // Top window if: owner is self or desktop window.
+    if (parent != dw) // (owner != hdwn)
         return false;
-    if (!IsWindowVisible(hwnd)) // && !IsIconic(hwnd))
+
+    if (!IsWindowVisible(hwnd))
         return false;
     static char buf[512];
     GetClassName(hwnd, buf, 512);
