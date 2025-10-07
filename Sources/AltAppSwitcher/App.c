@@ -525,10 +525,10 @@ static bool IsAltTabWindow(HWND hwnd)
     }
     // Start at the root owner
     const HWND owner = GetAncestor(hwnd, GA_ROOTOWNER); (void)owner;
-    const HWND parent = GetAncestor(hwnd, GA_PARENT);
-    const HWND dw = GetDesktopWindow();
+    const HWND parent = GetAncestor(hwnd, GA_PARENT); (void)parent;
+    const HWND dw = GetDesktopWindow(); (void)dw;
     // Top window if: owner is self or desktop window.
-    if (parent != dw) // (owner != hdwn)
+    if (owner != hwnd)
         return false;
 
     if (!IsWindowVisible(hwnd))
