@@ -519,20 +519,37 @@ static bool IsAltTabWindow(HWND hwnd)
 {
     if (hwnd == GetShellWindow()) //Desktop
         return false;
-    if (((uint64_t)hwnd) == 0x000600D4)
+    if (((uint64_t)hwnd) == 0x0001050A)
     {
         printf("here");
     }
+
+    WINDOWINFO wi = {};
+    wi.cbSize = sizeof(WINDOWINFO);
+    GetWindowInfo(hwnd, &wi);
+    if (!(wi.dwStyle & WS_VISIBLE))
+        return false;
+    // Chrome has sometime WS_EX_TOOLWINDOW while beeing an alttabable window
+    if ((wi.dwExStyle & WS_EX_TOOLWINDOW) != 0)
+         return false;
+    if ((wi.dwExStyle & WS_EX_TOPMOST) != 0)
+        return false;
+
     // Start at the root owner
     const HWND owner = GetAncestor(hwnd, GA_ROOTOWNER); (void)owner;
     const HWND parent = GetAncestor(hwnd, GA_PARENT); (void)parent;
     const HWND dw = GetDesktopWindow(); (void)dw;
-    // Top window if: owner is self or desktop window.
-    if (owner != hwnd)
+    // Taskbar window if: owner is self or WS_EX_APPWINDOW is set
+    bool b = (wi.dwExStyle & WS_EX_APPWINDOW) != 0;(void)(b);
+    if ((owner != hwnd) && !(wi.dwExStyle & WS_EX_APPWINDOW))
+        return false;
+
+    if (!BelongsToCurrentDesktop(hwnd))
         return false;
 
     if (!IsWindowVisible(hwnd))
         return false;
+
     static char buf[512];
     GetClassName(hwnd, buf, 512);
     for (uint32_t i = 0; i < sizeof(WindowsClassNamesToSkip) / sizeof(WindowsClassNamesToSkip[0]); i++)
@@ -544,17 +561,6 @@ static bool IsAltTabWindow(HWND hwnd)
     if (!strcmp(buf, "ApplicationFrameWindow"))
        DwmGetWindowAttribute(hwnd, (DWORD)DWMWA_CLOAKED, (PVOID)&cloaked, (DWORD)sizeof(cloaked));
     if (cloaked)
-        return false;
-    WINDOWINFO wi;
-    GetWindowInfo(hwnd, &wi);
-    if (!(wi.dwStyle & WS_VISIBLE))
-        return false;
-    //Chrome has sometime WS_EX_TOOLWINDOW while beeing an alttabable window
-    if ((wi.dwExStyle & WS_EX_TOOLWINDOW) != 0)
-         return false;
-    if ((wi.dwExStyle & WS_EX_TOPMOST) != 0)
-        return false;
-    if (!BelongsToCurrentDesktop(hwnd))
         return false;
     return true;
 }
