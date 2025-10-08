@@ -46,6 +46,7 @@ typedef struct SWinGroup
     char _ModuleFileName[MAX_PATH];
     ATOM _WinClass;
     wchar_t _AppName[MAX_PATH];
+    wchar_t _Caption[MAX_PATH];
     HWND _Windows[64];
     uint32_t _WindowCount;
     GpBitmap* _IconBitmap;
@@ -993,8 +994,10 @@ static BOOL FillWinGroups(HWND hwnd, LPARAM lParam)
     GetWindowInfo(hwnd, &wi);
     ATOM winClass = wi.atomWindowType;
 
+#if 0
     HICON classIcon = (HICON)GetClassLongPtr(hwnd, GCLP_HICON);
     (void)classIcon;
+#endif
     // LONG_PTR winProc = GetWindowLongPtr(hwnd, GWLP_WNDPROC);
     // static char winProcStr[] = "FFFFFFFFFFFFFFFF";
     // sprintf(winProcStr, "%08lX", (unsigned long)winProc);
@@ -1002,22 +1005,30 @@ static BOOL FillWinGroups(HWND hwnd, LPARAM lParam)
 
     SWinGroupArr* winAppGroupArr = &(appData->_WinGroups);
 
-    SWinGroup* group = NULL;
-
     if (appData->_Config._AppSwitcherMode == AppSwitcherModeApp)
     {
         for (uint32_t i = 0; i < winAppGroupArr->_Size; i++)
         {
-            SWinGroup* const _group = &(winAppGroupArr->_Data[i]);
-            if (_group->_WinClass == winClass && !strcmp(_group->_ModuleFileName, moduleFileName))
+            SWinGroup* const group = &(winAppGroupArr->_Data[i]);
+            if (group->_WinClass == winClass && !strcmp(group->_ModuleFileName, moduleFileName))
             {
-                group = _group;
-                break;
+                // Group found
+                static wchar_t caption[MAX_PATH];
+                caption[0] = L'\0';
+                GetWindowTextW(hwnd, caption, MAX_PATH);
+                if (wcscmp(caption, group->_Caption))
+                {
+                    // If caption differs, set group caption to null string
+                    group->_Caption[0] = L'\0';
+                }
+                group->_Windows[group->_WindowCount++] = hwnd;
+                return true;
             }
         }
     }
 
-    if (group == NULL)
+    // No group found
+    SWinGroup* group = NULL;
     {
         const HANDLE process = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, FALSE, PID);
         if (!process)
@@ -1080,11 +1091,9 @@ static BOOL FillWinGroups(HWND hwnd, LPARAM lParam)
             GdipLoadImageFromFile(iconPath, &group->_IconBitmap);
         }
 
-        if (appData->_Config._AppSwitcherMode == AppSwitcherModeWindow)
         {
-            group->_AppName[0] = L'\0';
-            //static char temp[MAX_PATH];
-            GetWindowTextW(hwnd, group->_AppName, MAX_PATH);
+            group->_Caption[0] = L'\0';
+            GetWindowTextW(hwnd, group->_Caption, MAX_PATH);
         }
 
         if (group->_IconBitmap == NULL)
@@ -1313,6 +1322,7 @@ static void ClearWinGroupArr(SWinGroupArr* winGroups)
         }
         winGroups->_Data[i]._WindowCount = 0;
         winGroups->_Data[i]._AppName[0] = L'\0';
+        winGroups->_Data[i]._Caption[0] = L'\0';
     }
     winGroups->_Size = 0;
 }
@@ -1803,13 +1813,14 @@ static void Draw(SAppData* appData, HDC dc, RECT clientRect)
                 (int)(w),
                 (int)(h) };
             static wchar_t name[MAX_PATH];
-            int count = wcslen(pWinGroup->_AppName);
+            const wchar_t* displayName = wcslen(pWinGroup->_Caption) > 0 ? pWinGroup->_Caption : pWinGroup->_AppName;
+            int count = wcslen(displayName);
             if (count != 0)
             {
                 RectF rout;
                 int maxCount = 0;
-                GdipMeasureString(pGraphics, pWinGroup->_AppName, count, fontName, &r, pGraphRes->_pFormat, &rout, &maxCount, 0);
-                wcsncpy(name, pWinGroup->_AppName, min(maxCount, count));
+                GdipMeasureString(pGraphics, displayName, count, fontName, &r, pGraphRes->_pFormat, &rout, &maxCount, 0);
+                wcsncpy(name, displayName, min(maxCount, count));
                 if (count > maxCount)
                 {
                     wcscpy(&name[maxCount - 3], L"...");
