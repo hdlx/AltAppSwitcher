@@ -44,6 +44,7 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam);
 typedef struct SWinGroup
 {
     char _ModuleFileName[MAX_PATH];
+    LONG_PTR _WindowProc;
     wchar_t _AppName[MAX_PATH];
     HWND _Windows[64];
     uint32_t _WindowCount;
@@ -519,10 +520,6 @@ static bool IsAltTabWindow(HWND hwnd)
 {
     if (hwnd == GetShellWindow()) //Desktop
         return false;
-    if (((uint64_t)hwnd) == 0x0001050A)
-    {
-        printf("here");
-    }
 
     WINDOWINFO wi = {};
     wi.cbSize = sizeof(WINDOWINFO);
@@ -992,6 +989,11 @@ static BOOL FillWinGroups(HWND hwnd, LPARAM lParam)
     static char moduleFileName[512];
     GetProcessFileName(PID, moduleFileName);
 
+    LONG_PTR winProc = GetWindowLongPtr(hwnd, GWLP_WNDPROC);
+    // static char winProcStr[] = "FFFFFFFFFFFFFFFF";
+    // sprintf(winProcStr, "%08lX", (unsigned long)winProc);
+    // strcat(moduleFileName, winProcStr);
+
     SWinGroupArr* winAppGroupArr = &(appData->_WinGroups);
 
     SWinGroup* group = NULL;
@@ -1001,7 +1003,7 @@ static BOOL FillWinGroups(HWND hwnd, LPARAM lParam)
         for (uint32_t i = 0; i < winAppGroupArr->_Size; i++)
         {
             SWinGroup* const _group = &(winAppGroupArr->_Data[i]);
-            if (!strcmp(_group->_ModuleFileName, moduleFileName))
+            if (_group->_WindowProc == winProc && !strcmp(_group->_ModuleFileName, moduleFileName))
             {
                 group = _group;
                 break;
@@ -1030,6 +1032,7 @@ static BOOL FillWinGroups(HWND hwnd, LPARAM lParam)
 
         group = &winAppGroupArr->_Data[winAppGroupArr->_Size++];
         strcpy(group->_ModuleFileName, moduleFileName);
+        group->_WindowProc = winProc;
         ASSERT(group->_WindowCount == 0);
         // Icon
         ASSERT(group->_IconBitmap == NULL);
