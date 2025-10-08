@@ -44,7 +44,7 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam);
 typedef struct SWinGroup
 {
     char _ModuleFileName[MAX_PATH];
-    LONG_PTR _WindowProc;
+    ATOM _WinClass;
     wchar_t _AppName[MAX_PATH];
     HWND _Windows[64];
     uint32_t _WindowCount;
@@ -391,19 +391,19 @@ static BOOL FindUWPChild(HWND hwnd, LPARAM lParam)
     return TRUE;
 }
 
-static void FindActualPID(HWND hwnd, DWORD* PID, BOOL* isUWP)
+static void FindActualPID(HWND hwnd, DWORD* PID)
 {
     static char className[512];
     GetClassName(hwnd, className, 512);
-
+    BOOL isUWP = false;
     {
         wchar_t UMI[512];
         GetWindowThreadProcessId(hwnd, PID);
         const HANDLE proc = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, FALSE, *PID);
         uint32_t size = 512;
-        *isUWP = GetApplicationUserModelId(proc, &size, UMI) == ERROR_SUCCESS;
+        isUWP = GetApplicationUserModelId(proc, &size, UMI) == ERROR_SUCCESS;
         CloseHandle(proc);
-        if (*isUWP)
+        if (isUWP)
         {
             return;
         }
@@ -418,7 +418,7 @@ static void FindActualPID(HWND hwnd, DWORD* PID, BOOL* isUWP)
         if (params.OutUWPPID != 0)
         {
             *PID = params.OutUWPPID;
-            *isUWP = true;
+            isUWP = true;
             return;
         }
     }
@@ -432,13 +432,13 @@ static void FindActualPID(HWND hwnd, DWORD* PID, BOOL* isUWP)
         EnumDesktopWindows(NULL, FindPIDEnumFn, (LPARAM)&params);
 
         *PID = params.OutPID;
-        *isUWP = true;
+        isUWP = true;
         return;
     }
 
     {
         GetWindowThreadProcessId(hwnd, PID);
-        *isUWP = false;
+        isUWP = false;
         return;
     }
 }
@@ -983,13 +983,19 @@ static BOOL FillWinGroups(HWND hwnd, LPARAM lParam)
     }
 
     DWORD PID = 0;
-    BOOL isUWP = false;
 
-    FindActualPID(hwnd, &PID, &isUWP);
+    FindActualPID(hwnd, &PID);
     static char moduleFileName[512];
     GetProcessFileName(PID, moduleFileName);
 
-    LONG_PTR winProc = GetWindowLongPtr(hwnd, GWLP_WNDPROC);
+    WINDOWINFO wi = {};
+    wi.cbSize = sizeof(WINDOWINFO);
+    GetWindowInfo(hwnd, &wi);
+    ATOM winClass = wi.atomWindowType;
+
+    HICON classIcon = (HICON)GetClassLongPtr(hwnd, GCLP_HICON);
+    (void)classIcon;
+    // LONG_PTR winProc = GetWindowLongPtr(hwnd, GWLP_WNDPROC);
     // static char winProcStr[] = "FFFFFFFFFFFFFFFF";
     // sprintf(winProcStr, "%08lX", (unsigned long)winProc);
     // strcat(moduleFileName, winProcStr);
@@ -1003,7 +1009,7 @@ static BOOL FillWinGroups(HWND hwnd, LPARAM lParam)
         for (uint32_t i = 0; i < winAppGroupArr->_Size; i++)
         {
             SWinGroup* const _group = &(winAppGroupArr->_Data[i]);
-            if (_group->_WindowProc == winProc && !strcmp(_group->_ModuleFileName, moduleFileName))
+            if (_group->_WinClass == winClass && !strcmp(_group->_ModuleFileName, moduleFileName))
             {
                 group = _group;
                 break;
@@ -1032,18 +1038,23 @@ static BOOL FillWinGroups(HWND hwnd, LPARAM lParam)
 
         group = &winAppGroupArr->_Data[winAppGroupArr->_Size++];
         strcpy(group->_ModuleFileName, moduleFileName);
-        group->_WindowProc = winProc;
+        group->_WinClass = winClass;
         ASSERT(group->_WindowCount == 0);
+
         // Icon
         ASSERT(group->_IconBitmap == NULL);
-        bool stdIcon = false;
 
+#if 0
+        bool stdIcon = false;
         {
             HICON icon = ExtractIcon(process, group->_ModuleFileName, 0);
             stdIcon = icon != NULL;
             DestroyIcon(icon);
         }
+        (void)stdIcon;
+#endif
 
+        BOOL isUWP = false;
         {
             static wchar_t userModelID[256];
             userModelID[0] = L'\0';
@@ -1052,7 +1063,6 @@ static BOOL FillWinGroups(HWND hwnd, LPARAM lParam)
             isUWP = userModelID[0] != L'\0';
         }
 
-        (void)stdIcon;
         if (!isUWP)
         {
             group->_IconBitmap = GetIconFromExe(group->_ModuleFileName);
@@ -1122,8 +1132,7 @@ static BOOL FillCurrentWinGroup(HWND hwnd, LPARAM lParam)
     if (!IsAltTabWindow(hwnd))
         return true;
     DWORD PID = 0;
-    BOOL isUWP = false;
-    FindActualPID(hwnd, &PID, &isUWP);
+    FindActualPID(hwnd, &PID);
     SWinGroup* currentWinGroup = (SWinGroup*)(lParam);
     static char moduleFileName[512];
     GetProcessFileName(PID, moduleFileName);
@@ -1279,8 +1288,7 @@ static void InitializeSwitchWin(SAppData* appData)
     if (!win)
         return;
     DWORD PID;
-    BOOL isUWP = false;
-    FindActualPID(win, &PID, &isUWP);
+    FindActualPID(win, &PID);
     SWinGroup* pWinGroup = &(appData->_CurrentWinGroup);
     GetProcessFileName(PID, pWinGroup->_ModuleFileName);
     pWinGroup->_WindowCount = 0;
