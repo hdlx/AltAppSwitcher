@@ -1981,6 +1981,7 @@ static DWORD KbHookCb(LPVOID param)
 int StartAltAppSwitcher(HINSTANCE hInstance)
 {
     SetLastError(0);
+    ASSERT(SetPriorityClass(GetCurrentProcess(), HIGH_PRIORITY_CLASS));
 
     ULONG_PTR gdiplusToken = 0;
     {
