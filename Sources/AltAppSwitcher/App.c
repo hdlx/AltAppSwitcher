@@ -44,7 +44,9 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam);
 typedef struct SWinGroup
 {
     char _ModuleFileName[MAX_PATH];
+    ATOM _WinClass;
     wchar_t _AppName[MAX_PATH];
+    wchar_t _Caption[MAX_PATH];
     HWND _Windows[64];
     uint32_t _WindowCount;
     GpBitmap* _IconBitmap;
@@ -390,19 +392,19 @@ static BOOL FindUWPChild(HWND hwnd, LPARAM lParam)
     return TRUE;
 }
 
-static void FindActualPID(HWND hwnd, DWORD* PID, BOOL* isUWP)
+static void FindActualPID(HWND hwnd, DWORD* PID)
 {
     static char className[512];
     GetClassName(hwnd, className, 512);
-
+    BOOL isUWP = false;
     {
         wchar_t UMI[512];
         GetWindowThreadProcessId(hwnd, PID);
         const HANDLE proc = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, FALSE, *PID);
         uint32_t size = 512;
-        *isUWP = GetApplicationUserModelId(proc, &size, UMI) == ERROR_SUCCESS;
+        isUWP = GetApplicationUserModelId(proc, &size, UMI) == ERROR_SUCCESS;
         CloseHandle(proc);
-        if (*isUWP)
+        if (isUWP)
         {
             return;
         }
@@ -417,7 +419,7 @@ static void FindActualPID(HWND hwnd, DWORD* PID, BOOL* isUWP)
         if (params.OutUWPPID != 0)
         {
             *PID = params.OutUWPPID;
-            *isUWP = true;
+            isUWP = true;
             return;
         }
     }
@@ -431,13 +433,13 @@ static void FindActualPID(HWND hwnd, DWORD* PID, BOOL* isUWP)
         EnumDesktopWindows(NULL, FindPIDEnumFn, (LPARAM)&params);
 
         *PID = params.OutPID;
-        *isUWP = true;
+        isUWP = true;
         return;
     }
 
     {
         GetWindowThreadProcessId(hwnd, PID);
-        *isUWP = false;
+        isUWP = false;
         return;
     }
 }
@@ -519,16 +521,33 @@ static bool IsAltTabWindow(HWND hwnd)
 {
     if (hwnd == GetShellWindow()) //Desktop
         return false;
+
+    WINDOWINFO wi = {};
+    wi.cbSize = sizeof(WINDOWINFO);
+    GetWindowInfo(hwnd, &wi);
+    if (!(wi.dwStyle & WS_VISIBLE))
+        return false;
+    // Chrome has sometime WS_EX_TOOLWINDOW while beeing an alttabable window
+    if ((wi.dwExStyle & WS_EX_TOOLWINDOW) != 0)
+         return false;
+    if ((wi.dwExStyle & WS_EX_TOPMOST) != 0)
+        return false;
+
     // Start at the root owner
-    const HWND hwndRoot = GetAncestor(hwnd, GA_ROOTOWNER);
-    // See if we are the last active visible popup
-    // Useless and might be null ?
-    // if (GetLastActivePopup(hwndRoot) != hwnd)
-    //     return false;
-    if (hwndRoot != hwnd)
+    const HWND owner = GetAncestor(hwnd, GA_ROOTOWNER); (void)owner;
+    const HWND parent = GetAncestor(hwnd, GA_PARENT); (void)parent;
+    const HWND dw = GetDesktopWindow(); (void)dw;
+    // Taskbar window if: owner is self or WS_EX_APPWINDOW is set
+    bool b = (wi.dwExStyle & WS_EX_APPWINDOW) != 0;(void)(b);
+    if ((owner != hwnd) && !(wi.dwExStyle & WS_EX_APPWINDOW))
         return false;
-    if (!IsWindowVisible(hwnd)) // && !IsIconic(hwnd))
+
+    if (!BelongsToCurrentDesktop(hwnd))
         return false;
+
+    if (!IsWindowVisible(hwnd))
+        return false;
+
     static char buf[512];
     GetClassName(hwnd, buf, 512);
     for (uint32_t i = 0; i < sizeof(WindowsClassNamesToSkip) / sizeof(WindowsClassNamesToSkip[0]); i++)
@@ -540,17 +559,6 @@ static bool IsAltTabWindow(HWND hwnd)
     if (!strcmp(buf, "ApplicationFrameWindow"))
        DwmGetWindowAttribute(hwnd, (DWORD)DWMWA_CLOAKED, (PVOID)&cloaked, (DWORD)sizeof(cloaked));
     if (cloaked)
-        return false;
-    WINDOWINFO wi;
-    GetWindowInfo(hwnd, &wi);
-    if (!(wi.dwStyle & WS_VISIBLE))
-        return false;
-    //Chrome has sometime WS_EX_TOOLWINDOW while beeing an alttabable window
-    if ((wi.dwExStyle & WS_EX_TOOLWINDOW) != 0)
-         return false;
-    if ((wi.dwExStyle & WS_EX_TOPMOST) != 0)
-        return false;
-    if (!BelongsToCurrentDesktop(hwnd))
         return false;
     return true;
 }
@@ -960,6 +968,30 @@ static GpBitmap* GetIconFromExe(const char* exePath)
 
     return out;
 }
+static BOOL IsRunWindow(HWND hwnd)
+{
+    {
+        WINDOWINFO wi = {};
+        wi.cbSize = sizeof(WINDOWINFO);
+        GetWindowInfo(hwnd, &wi);
+        if (wi.atomWindowType != 0x8002)
+            return false;
+    }
+
+    const HWND owner = GetAncestor(hwnd, GA_ROOTOWNER);
+    if (owner == NULL)
+        return false;
+
+    {
+        WINDOWINFO wi = {};
+        wi.cbSize = sizeof(WINDOWINFO);
+        GetWindowInfo(owner, &wi);
+        if (wi.atomWindowType != 0xC01A)
+            return false;
+    }
+
+    return true;
+}
 
 static BOOL FillWinGroups(HWND hwnd, LPARAM lParam)
 {
@@ -976,30 +1008,48 @@ static BOOL FillWinGroups(HWND hwnd, LPARAM lParam)
     }
 
     DWORD PID = 0;
-    BOOL isUWP = false;
 
-    FindActualPID(hwnd, &PID, &isUWP);
+    FindActualPID(hwnd, &PID);
     static char moduleFileName[512];
     GetProcessFileName(PID, moduleFileName);
 
-    SWinGroupArr* winAppGroupArr = &(appData->_WinGroups);
+    ATOM winClass = IsRunWindow(hwnd) ? 0x8002 : 0; // Run
 
-    SWinGroup* group = NULL;
+#if 0
+    HICON classIcon = (HICON)GetClassLongPtr(hwnd, GCLP_HICON);
+    (void)classIcon;
+#endif
+    // LONG_PTR winProc = GetWindowLongPtr(hwnd, GWLP_WNDPROC);
+    // static char winProcStr[] = "FFFFFFFFFFFFFFFF";
+    // sprintf(winProcStr, "%08lX", (unsigned long)winProc);
+    // strcat(moduleFileName, winProcStr);
+
+    SWinGroupArr* winAppGroupArr = &(appData->_WinGroups);
 
     if (appData->_Config._AppSwitcherMode == AppSwitcherModeApp)
     {
         for (uint32_t i = 0; i < winAppGroupArr->_Size; i++)
         {
-            SWinGroup* const _group = &(winAppGroupArr->_Data[i]);
-            if (!strcmp(_group->_ModuleFileName, moduleFileName))
+            SWinGroup* const group = &(winAppGroupArr->_Data[i]);
+            if (group->_WinClass == winClass && !strcmp(group->_ModuleFileName, moduleFileName))
             {
-                group = _group;
-                break;
+                // Group found
+                static wchar_t caption[MAX_PATH];
+                caption[0] = L'\0';
+                GetWindowTextW(hwnd, caption, MAX_PATH);
+                if (wcscmp(caption, group->_Caption))
+                {
+                    // If caption differs, set group caption to null string
+                    group->_Caption[0] = L'\0';
+                }
+                group->_Windows[group->_WindowCount++] = hwnd;
+                return true;
             }
         }
     }
 
-    if (group == NULL)
+    // No group found
+    SWinGroup* group = NULL;
     {
         const HANDLE process = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, FALSE, PID);
         if (!process)
@@ -1020,17 +1070,23 @@ static BOOL FillWinGroups(HWND hwnd, LPARAM lParam)
 
         group = &winAppGroupArr->_Data[winAppGroupArr->_Size++];
         strcpy(group->_ModuleFileName, moduleFileName);
+        group->_WinClass = winClass;
         ASSERT(group->_WindowCount == 0);
+
         // Icon
         ASSERT(group->_IconBitmap == NULL);
-        bool stdIcon = false;
 
+#if 0
+        bool stdIcon = false;
         {
             HICON icon = ExtractIcon(process, group->_ModuleFileName, 0);
             stdIcon = icon != NULL;
             DestroyIcon(icon);
         }
+        (void)stdIcon;
+#endif
 
+        BOOL isUWP = false;
         {
             static wchar_t userModelID[256];
             userModelID[0] = L'\0';
@@ -1039,7 +1095,6 @@ static BOOL FillWinGroups(HWND hwnd, LPARAM lParam)
             isUWP = userModelID[0] != L'\0';
         }
 
-        (void)stdIcon;
         if (!isUWP)
         {
             group->_IconBitmap = GetIconFromExe(group->_ModuleFileName);
@@ -1057,11 +1112,9 @@ static BOOL FillWinGroups(HWND hwnd, LPARAM lParam)
             GdipLoadImageFromFile(iconPath, &group->_IconBitmap);
         }
 
-        if (appData->_Config._AppSwitcherMode == AppSwitcherModeWindow)
         {
-            group->_AppName[0] = L'\0';
-            //static char temp[MAX_PATH];
-            GetWindowTextW(hwnd, group->_AppName, MAX_PATH);
+            group->_Caption[0] = L'\0';
+            GetWindowTextW(hwnd, group->_Caption, MAX_PATH);
         }
 
         if (group->_IconBitmap == NULL)
@@ -1109,8 +1162,7 @@ static BOOL FillCurrentWinGroup(HWND hwnd, LPARAM lParam)
     if (!IsAltTabWindow(hwnd))
         return true;
     DWORD PID = 0;
-    BOOL isUWP = false;
-    FindActualPID(hwnd, &PID, &isUWP);
+    FindActualPID(hwnd, &PID);
     SWinGroup* currentWinGroup = (SWinGroup*)(lParam);
     static char moduleFileName[512];
     GetProcessFileName(PID, moduleFileName);
@@ -1266,8 +1318,7 @@ static void InitializeSwitchWin(SAppData* appData)
     if (!win)
         return;
     DWORD PID;
-    BOOL isUWP = false;
-    FindActualPID(win, &PID, &isUWP);
+    FindActualPID(win, &PID);
     SWinGroup* pWinGroup = &(appData->_CurrentWinGroup);
     GetProcessFileName(PID, pWinGroup->_ModuleFileName);
     pWinGroup->_WindowCount = 0;
@@ -1292,6 +1343,7 @@ static void ClearWinGroupArr(SWinGroupArr* winGroups)
         }
         winGroups->_Data[i]._WindowCount = 0;
         winGroups->_Data[i]._AppName[0] = L'\0';
+        winGroups->_Data[i]._Caption[0] = L'\0';
     }
     winGroups->_Size = 0;
 }
@@ -1782,13 +1834,14 @@ static void Draw(SAppData* appData, HDC dc, RECT clientRect)
                 (int)(w),
                 (int)(h) };
             static wchar_t name[MAX_PATH];
-            int count = wcslen(pWinGroup->_AppName);
+            const wchar_t* displayName = wcslen(pWinGroup->_Caption) > 0 ? pWinGroup->_Caption : pWinGroup->_AppName;
+            int count = wcslen(displayName);
             if (count != 0)
             {
                 RectF rout;
                 int maxCount = 0;
-                GdipMeasureString(pGraphics, pWinGroup->_AppName, count, fontName, &r, pGraphRes->_pFormat, &rout, &maxCount, 0);
-                wcsncpy(name, pWinGroup->_AppName, min(maxCount, count));
+                GdipMeasureString(pGraphics, displayName, count, fontName, &r, pGraphRes->_pFormat, &rout, &maxCount, 0);
+                wcsncpy(name, displayName, min(maxCount, count));
                 if (count > maxCount)
                 {
                     wcscpy(&name[maxCount - 3], L"...");
@@ -1949,6 +2002,7 @@ static DWORD KbHookCb(LPVOID param)
 int StartAltAppSwitcher(HINSTANCE hInstance)
 {
     SetLastError(0);
+    ASSERT(SetPriorityClass(GetCurrentProcess(), HIGH_PRIORITY_CLASS));
 
     ULONG_PTR gdiplusToken = 0;
     {
