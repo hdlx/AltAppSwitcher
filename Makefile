@@ -77,7 +77,7 @@ ALLAAS += $(AASBUILDDIR)/Updater.exe
 ALLAAS += $(AASASSETS)
 ALLAAS += $(DLL)
 
-AASARCHIVE = $(BUILDDIR)/Deploy/AltAppSwitcher_$(ARCH).zip
+AASARCHIVE = $(OUTPUTDIR)/Deploy/AltAppSwitcher_$(ARCH).zip
 
 COMPILECOMMANDS = $(SOURCEDIR)/compile_commands.json
 
