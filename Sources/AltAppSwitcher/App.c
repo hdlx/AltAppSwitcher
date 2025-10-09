@@ -1166,7 +1166,8 @@ static BOOL FillCurrentWinGroup(HWND hwnd, LPARAM lParam)
     SWinGroup* currentWinGroup = (SWinGroup*)(lParam);
     static char moduleFileName[512];
     GetProcessFileName(PID, moduleFileName);
-    if (strcmp(moduleFileName, currentWinGroup->_ModuleFileName))
+    ATOM winClass = IsRunWindow(hwnd) ? 0x8002 : 0; // Run
+    if (strcmp(moduleFileName, currentWinGroup->_ModuleFileName) || currentWinGroup->_WinClass != winClass)
         return true;
     currentWinGroup->_Windows[currentWinGroup->_WindowCount] = hwnd;
     currentWinGroup->_WindowCount++;
@@ -1321,6 +1322,7 @@ static void InitializeSwitchWin(SAppData* appData)
     FindActualPID(win, &PID);
     SWinGroup* pWinGroup = &(appData->_CurrentWinGroup);
     GetProcessFileName(PID, pWinGroup->_ModuleFileName);
+    pWinGroup->_WinClass = IsRunWindow(win) ? 0x8002 : 0; // Run
     pWinGroup->_WindowCount = 0;
     if (appData->_Config._AppSwitcherMode == AppSwitcherModeApp)
         EnumDesktopWindows(NULL, FillCurrentWinGroup, (LPARAM)pWinGroup);
