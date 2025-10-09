@@ -968,6 +968,30 @@ static GpBitmap* GetIconFromExe(const char* exePath)
 
     return out;
 }
+static BOOL IsRunWindow(HWND hwnd)
+{
+    {
+        WINDOWINFO wi = {};
+        wi.cbSize = sizeof(WINDOWINFO);
+        GetWindowInfo(hwnd, &wi);
+        if (wi.atomWindowType != 0x8002)
+            return false;
+    }
+
+    const HWND owner = GetAncestor(hwnd, GA_ROOTOWNER);
+    if (owner == NULL)
+        return false;
+
+    {
+        WINDOWINFO wi = {};
+        wi.cbSize = sizeof(WINDOWINFO);
+        GetWindowInfo(owner, &wi);
+        if (wi.atomWindowType != 0xC01A)
+            return false;
+    }
+
+    return true;
+}
 
 static BOOL FillWinGroups(HWND hwnd, LPARAM lParam)
 {
@@ -989,10 +1013,7 @@ static BOOL FillWinGroups(HWND hwnd, LPARAM lParam)
     static char moduleFileName[512];
     GetProcessFileName(PID, moduleFileName);
 
-    WINDOWINFO wi = {};
-    wi.cbSize = sizeof(WINDOWINFO);
-    GetWindowInfo(hwnd, &wi);
-    ATOM winClass = wi.atomWindowType == 0x8002 ? 0x8002 : 0; // Run
+    ATOM winClass = IsRunWindow(hwnd) ? 0x8002 : 0; // Run
 
 #if 0
     HICON classIcon = (HICON)GetClassLongPtr(hwnd, GCLP_HICON);
