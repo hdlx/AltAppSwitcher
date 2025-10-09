@@ -992,7 +992,7 @@ static BOOL FillWinGroups(HWND hwnd, LPARAM lParam)
     WINDOWINFO wi = {};
     wi.cbSize = sizeof(WINDOWINFO);
     GetWindowInfo(hwnd, &wi);
-    ATOM winClass = wi.atomWindowType;
+    ATOM winClass = wi.atomWindowType == 0x8002 ? 0x8002 : 0;
 
 #if 0
     HICON classIcon = (HICON)GetClassLongPtr(hwnd, GCLP_HICON);
