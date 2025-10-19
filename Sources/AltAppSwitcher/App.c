@@ -904,10 +904,17 @@ static GpBitmap* GetIconFromExe(const char* exePath)
     HBITMAP hbm = NULL;
     HBITMAP hbmMask = NULL;
     {
+        //HICON icon = LoadImage(module, MAKEINTRESOURCE(iconResID), IMAGE_ICON, 0, 0, LR_DEFAULTSIZE | LR_SHARED);
+        //ASSERT(icon);
         HRSRC iconResInfo = FindResource(module, MAKEINTRESOURCE(iconResID), RT_ICON);
+        ASSERT(iconResInfo);
         HGLOBAL iconRes = LoadResource(module, iconResInfo);
+        ASSERT(iconRes);
         BYTE* data = (BYTE*)LockResource(iconRes);
-        HICON icon = CreateIconFromResourceEx(data, resByteSize, true, 0x00030000, 0, 0, 0);
+        DWORD resByteSize0 = SizeofResource(module, iconResInfo);
+       // ASSERT(resByteSize == resByteSize0);
+        HICON icon = CreateIconFromResourceEx(data, resByteSize0, true, 0x00030000, 0, 0, LR_DEFAULTCOLOR);
+        ASSERT(icon);
         UnlockResource(iconRes);
         FreeResource(iconRes);
         ICONINFO ii;
