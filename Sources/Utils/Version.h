@@ -1,2 +1,2 @@
 #define MAJOR 0
-#define MINOR 43
+#define MINOR 44
