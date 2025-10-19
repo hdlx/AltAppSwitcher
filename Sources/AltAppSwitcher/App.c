@@ -875,7 +875,6 @@ static GpBitmap* GetIconFromExe(const char* exePath)
 
     // Finds icon resource in module
     uint32_t iconResID = 0xFFFFFFFF;
-    uint32_t resByteSize = 0;
     {
         char name[256];
         char* pName = name;
@@ -888,6 +887,7 @@ static GpBitmap* GetIconFromExe(const char* exePath)
         }
         HGLOBAL hGlobal = LoadResource(module, iconGrp);
         GRPICONDIR* iconGrpData = (GRPICONDIR*)LockResource(hGlobal);
+        uint32_t resByteSize = 0;
         for (uint32_t i = 0; i < iconGrpData->idCount; i++)
         {
             const GRPICONDIRENTRY* entry = &iconGrpData->idEntries[i];
@@ -900,20 +900,18 @@ static GpBitmap* GetIconFromExe(const char* exePath)
         UnlockResource(hGlobal);
         FreeResource(iconGrp);
     }
+    
     // Loads a bitmap from icon resource (bitmap must be freed later)
     HBITMAP hbm = NULL;
     HBITMAP hbmMask = NULL;
     {
-        //HICON icon = LoadImage(module, MAKEINTRESOURCE(iconResID), IMAGE_ICON, 0, 0, LR_DEFAULTSIZE | LR_SHARED);
-        //ASSERT(icon);
         HRSRC iconResInfo = FindResource(module, MAKEINTRESOURCE(iconResID), RT_ICON);
         ASSERT(iconResInfo);
         HGLOBAL iconRes = LoadResource(module, iconResInfo);
         ASSERT(iconRes);
         BYTE* data = (BYTE*)LockResource(iconRes);
-        DWORD resByteSize0 = SizeofResource(module, iconResInfo);
-       // ASSERT(resByteSize == resByteSize0);
-        HICON icon = CreateIconFromResourceEx(data, resByteSize0, true, 0x00030000, 0, 0, LR_DEFAULTCOLOR);
+        const DWORD resByteSize = SizeofResource(module, iconResInfo);
+        HICON icon = CreateIconFromResourceEx(data, resByteSize, true, 0x00030000, 0, 0, LR_DEFAULTCOLOR);
         ASSERT(icon);
         UnlockResource(iconRes);
         FreeResource(iconRes);
