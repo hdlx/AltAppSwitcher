@@ -39,7 +39,7 @@ def MakeDirs(conf, arch):
     MakeDirIfNeeded(f"./Output/{conf}_{arch}/Objects/Sources")
     MakeDirIfNeeded(f"./Output/{conf}_{arch}/Objects/SDK")
     MakeDirIfNeeded(f"./Output/{conf}_{arch}/AAS")
-    MakeDirIfNeeded(f"./Output/{conf}_{arch}/Deploy")
+    MakeDirIfNeeded(f"./Output/Deploy")
     CopyDirStructure("./Sources", f"./Output/{conf}_{arch}/Objects/Sources")
     CopyDirStructure("./SDK", f"./Output/{conf}_{arch}/Objects/SDK")
 
