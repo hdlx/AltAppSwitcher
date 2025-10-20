@@ -1714,7 +1714,7 @@ static void Draw(SAppData* appData, HDC dc, RECT clientRect)
     ASSERT(Ok == GdipCreateFromHDC(pGraphRes->_DC, &pGraphics));
     // gdiplus/gdiplusenums.h
     GdipSetSmoothingMode(pGraphics, SmoothingModeAntiAlias);
-    GdipSetPixelOffsetMode(pGraphics, PixelOffsetModeNone);
+    GdipSetPixelOffsetMode(pGraphics, PixelOffsetModeHighQuality);
     GdipSetInterpolationMode(pGraphics, InterpolationModeHighQualityBilinear); // InterpolationModeHighQualityBicubic
     GdipSetTextRenderingHint(pGraphics, TextRenderingHintClearTypeGridFit);
 
@@ -1780,7 +1780,24 @@ static void Draw(SAppData* appData, HDC dc, RECT clientRect)
         // Also check palette to see if monochrome
         if (pWinGroup->_IconBitmap)
         {
-            GdipDrawImageRectI(pGraphics, pWinGroup->_IconBitmap, x + padIcon, y + padIcon, iconSize, iconSize);
+            unsigned int bitmapWidth; 
+            GdipGetImageWidth(pWinGroup->_IconBitmap, &bitmapWidth);
+            // If very low res, use nearest neighbor upscale
+            if (bitmapWidth < (iconSize / 4))
+            {
+                InterpolationMode backupInterpMode = InterpolationModeInvalid;
+                GdipGetInterpolationMode(pGraphics, &backupInterpMode);
+                GdipSetInterpolationMode(pGraphics, InterpolationModeNearestNeighbor); // InterpolationModeHighQualityBicubic
+                // Ensure draw size is a multiple of bitmap size so upscaled pixel size is constant.
+                unsigned int ratio = iconSize / bitmapWidth;
+                unsigned int targetIconSize = ratio * bitmapWidth;
+                float extraPad = (float)(iconSize - targetIconSize) / 2.0f;
+                GdipDrawImageRectI(pGraphics, pWinGroup->_IconBitmap, x + padIcon + extraPad, y + padIcon + extraPad, targetIconSize, targetIconSize);
+                GdipSetInterpolationMode(pGraphics, backupInterpMode);
+            }
+            else
+            
+                GdipDrawImageRectI(pGraphics, pWinGroup->_IconBitmap, x + padIcon, y + padIcon, iconSize, iconSize);
         }
 
         // Digit
