@@ -534,12 +534,13 @@ static bool IsAltTabWindow(HWND hwnd)
         return false;
 
     // Start at the root owner
-    const HWND owner = GetAncestor(hwnd, GA_ROOTOWNER); (void)owner;
+    const HWND owner = GetWindow(hwnd, GW_OWNER); (void)owner;
     const HWND parent = GetAncestor(hwnd, GA_PARENT); (void)parent;
     const HWND dw = GetDesktopWindow(); (void)dw;
     // Taskbar window if: owner is self or WS_EX_APPWINDOW is set
     bool b = (wi.dwExStyle & WS_EX_APPWINDOW) != 0;(void)(b);
-    if ((owner != hwnd) && !(wi.dwExStyle & WS_EX_APPWINDOW))
+    bool isOwned = owner != hwnd && owner != NULL;
+    if ((isOwned) && !(wi.dwExStyle & WS_EX_APPWINDOW))
         return false;
 
     if (!BelongsToCurrentDesktop(hwnd))
