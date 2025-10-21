@@ -1783,7 +1783,7 @@ static void Draw(SAppData* appData, HDC dc, RECT clientRect)
             unsigned int bitmapWidth; 
             GdipGetImageWidth(pWinGroup->_IconBitmap, &bitmapWidth);
             // If very low res, use nearest neighbor upscale
-            if (bitmapWidth < (iconSize / 4))
+            if (bitmapWidth < 64)
             {
                 InterpolationMode backupInterpMode = InterpolationModeInvalid;
                 GdipGetInterpolationMode(pGraphics, &backupInterpMode);
