@@ -533,15 +533,6 @@ static bool IsEligibleWindow(HWND hwnd, const SAppData* appData)
     if ((wi.dwExStyle & WS_EX_TOPMOST) != 0)
         return false;
 
-    if (appData->_Config._RestoreMinimizedWindows)
-    {
-        WINDOWPLACEMENT placement;
-        GetWindowPlacement(hwnd, &placement);
-        placement.length = sizeof(WINDOWPLACEMENT);
-        if (placement.showCmd == SW_SHOWMINIMIZED)
-            return false;
-    }
-
     // Start at the root owner
     const HWND owner = GetWindow(hwnd, GW_OWNER); (void)owner;
     const HWND parent = GetAncestor(hwnd, GA_PARENT); (void)parent;
@@ -1399,7 +1390,7 @@ typedef struct ApplySwitchAppData
 } ApplySwitchAppData;
 
 
-static void ApplySwitchApp(const SWinGroup* winGroup)
+static void ApplySwitchApp(const SWinGroup* winGroup, bool restoreMinimized)
 {
     // Set focus for all win, not only the last one. This way when the active window is closed,
     // the second to last window of the group becomes the active one.
@@ -1411,10 +1402,13 @@ static void ApplySwitchApp(const SWinGroup* winGroup)
 
     int winCount = (int)winGroup->_WindowCount;
 
-    for (int i = winCount - 1; i >= 0 ; i--)
+    if (restoreMinimized)
     {
-        const HWND win = winGroup->_Windows[Modulo(i + 1, winCount)];
-        RestoreWin(win);
+        for (int i = winCount - 1; i >= 0 ; i--)
+        {
+            const HWND win = winGroup->_Windows[Modulo(i + 1, winCount)];
+            RestoreWin(win);
+        }
     }
 
     HWND prev = HWND_TOP;
@@ -1913,7 +1907,7 @@ LRESULT CALLBACK WorkerWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lP
     }
     case MSG_APPLY_APP:
     {
-        ApplySwitchApp(&appData->_WinGroups._Data[appData->_Selection]);
+        ApplySwitchApp(&appData->_WinGroups._Data[appData->_Selection], appData->_Config._RestoreMinimizedWindows);
         PostQuitMessage(0);
         return 0;
     }
@@ -1925,7 +1919,7 @@ LRESULT CALLBACK WorkerWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lP
     }
     case MSG_APPLY_APP_MOUSE:
     {
-        ApplySwitchApp(&appData->_WinGroups._Data[appData->_MouseSelection]);
+        ApplySwitchApp(&appData->_WinGroups._Data[appData->_MouseSelection], appData->_Config._RestoreMinimizedWindows);
         PostQuitMessage(0);
         return 0;
     }

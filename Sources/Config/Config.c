@@ -135,12 +135,12 @@ void DefaultConfig(Config* config)
     config->_Key._WinHold = VK_LMENU;
     config->_Key._WinSwitch = VK_OEM_3;
     config->_Key._Invert = VK_LSHIFT;
-    config->_Key._PrevApp = 0xFFFFFFFF;
+    config->_Key._PrevApp = VK_OEM_3;
     config->_Mouse = true;
     config->_CheckForUpdates = true;
     config->_ThemeMode = ThemeModeAuto;
     config->_AppSwitcherMode = AppSwitcherModeApp;
-    config->_Scale = 1.75;
+    config->_Scale = 2.5;
     config->_DisplayName = DisplayNameSel;
     config->_MultipleMonitorMode = MultipleMonitorModeMouse;
     config->_AppFilterMode = AppFilterModeAll;
