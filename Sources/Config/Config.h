@@ -55,7 +55,7 @@ typedef struct Config
     AppSwitcherMode _AppSwitcherMode;
     MultipleMonitorMode _MultipleMonitorMode;
     AppFilterMode _AppFilterMode;
-    bool _IgnoreMinimizedWindows;
+    bool _RestoreMinimizedWindows;
 } Config;
 
 typedef struct EnumString
@@ -73,3 +73,4 @@ extern const EnumString appFilterModeES[3];
 
 void LoadConfig(Config* config);
 void WriteConfig(const Config* config);
+void DefaultConfig(Config* config);

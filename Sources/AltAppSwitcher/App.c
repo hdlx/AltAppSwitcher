@@ -533,7 +533,7 @@ static bool IsEligibleWindow(HWND hwnd, const SAppData* appData)
     if ((wi.dwExStyle & WS_EX_TOPMOST) != 0)
         return false;
 
-    if (appData->_Config._IgnoreMinimizedWindows)
+    if (appData->_Config._RestoreMinimizedWindows)
     {
         WINDOWPLACEMENT placement;
         GetWindowPlacement(hwnd, &placement);
@@ -2084,20 +2084,6 @@ int StartAltAppSwitcher(HINSTANCE hInstance)
         _MainThread = GetCurrentThreadId();
         _KeyConfig = &_AppData._Config._Key;
         // Init. and loads config
-        _AppData._Config._Key._AppHold = VK_LMENU;
-        _AppData._Config._Key._AppSwitch = VK_TAB;
-        _AppData._Config._Key._WinHold = VK_LMENU;
-        _AppData._Config._Key._WinSwitch = VK_OEM_3;
-        _AppData._Config._Key._Invert = VK_LSHIFT;
-        _AppData._Config._Key._PrevApp = 0xFFFFFFFF;
-        _AppData._Config._Mouse = true;
-        _AppData._Config._CheckForUpdates = true;
-        _AppData._Config._ThemeMode = ThemeModeAuto;
-        _AppData._Config._AppSwitcherMode = AppSwitcherModeApp;
-        _AppData._Config._Scale = 1.75;
-        _AppData._Config._DisplayName = DisplayNameSel;
-        _AppData._Config._MultipleMonitorMode = MultipleMonitorModeMouse;
-        _AppData._Config._AppFilterMode = AppFilterModeAll;
         LoadConfig(&_AppData._Config);
         InitializeCriticalSection(&_AppData._WorkerCS);
         _AppData._MouseMonitor = NULL;

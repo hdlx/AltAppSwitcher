@@ -44,8 +44,8 @@ static void SetupGUI(GUIData* gui, void* userData)
     CreateComboBox("Display app name.", &cfg->_DisplayName, displayNameES, gui);
     CreateText("Multiple monitor:", "", gui);
     CreateComboBox("Multiple monitor display mode.", &cfg->_MultipleMonitorMode, multipleMonitorModeES, gui);
-    CreateText("Ignore minimized windows:", "", gui);
-    CreateBoolControl("", &cfg->_IgnoreMinimizedWindows, gui);
+    CreateText("Restore minimized windows:", "", gui);
+    CreateBoolControl("", &cfg->_RestoreMinimizedWindows, gui);
 
     GridLayout(1, gui);
     CreateText("Other:", "", gui);

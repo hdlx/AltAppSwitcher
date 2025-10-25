@@ -1,5 +1,4 @@
 #include "Config.h"
-#include "_Generated/ConfigStr.h"
 #include <stdbool.h>
 #include <stdio.h>
 #include <Winuser.h>
@@ -129,17 +128,35 @@ static bool TryGetEnum(const StrPair* keyValues, const char* token,
     return false;
 }
 
+void DefaultConfig(Config* config)
+{
+    config->_Key._AppHold = VK_LMENU;
+    config->_Key._AppSwitch = VK_TAB;
+    config->_Key._WinHold = VK_LMENU;
+    config->_Key._WinSwitch = VK_OEM_3;
+    config->_Key._Invert = VK_LSHIFT;
+    config->_Key._PrevApp = 0xFFFFFFFF;
+    config->_Mouse = true;
+    config->_CheckForUpdates = true;
+    config->_ThemeMode = ThemeModeAuto;
+    config->_AppSwitcherMode = AppSwitcherModeApp;
+    config->_Scale = 1.75;
+    config->_DisplayName = DisplayNameSel;
+    config->_MultipleMonitorMode = MultipleMonitorModeMouse;
+    config->_AppFilterMode = AppFilterModeAll;
+    config->_RestoreMinimizedWindows = true;
+}
+
 void LoadConfig(Config* config)
 {
+    DefaultConfig(config);
     char configFile[MAX_PATH] = {};
     ConfigPath(configFile);
     FILE* file = fopen(configFile ,"rb");
     if (file == NULL)
     {
-        file = fopen(configFile ,"a");
-        fprintf(file, ConfigStr);
-        fclose(file);
-        fopen(configFile ,"rb");
+        WriteConfig(config);
+        return;
     }
 
 #define GET_ENUM(ENTRY, DST, ENUM_STRING, DEFAULT)\
@@ -184,7 +201,8 @@ TryGetFloat(keyValues, ENTRY, &DST)
     GET_ENUM("display name", config->_DisplayName, displayNameES, DisplayNameSel);
     GET_ENUM("multiple monitor mode", config->_MultipleMonitorMode, multipleMonitorModeES, MultipleMonitorModeMouse);
     GET_ENUM("app filter mode", config->_AppFilterMode, appFilterModeES, AppFilterModeAll);
-    GET_BOOL("ignore minimized windows", config->_IgnoreMinimizedWindows);
+    config->_RestoreMinimizedWindows = true;
+    GET_BOOL("restore minimized windows", config->_RestoreMinimizedWindows);
 
     GET_BOOL("allow mouse", config->_Mouse);
     GET_BOOL("check for updates", config->_CheckForUpdates);
@@ -246,7 +264,7 @@ WriteFloat(file, ENTRY, VALUE)
     WRITE_ENUM("display name", config->_DisplayName, displayNameES);
     WRITE_ENUM("multiple monitor mode", config->_MultipleMonitorMode, multipleMonitorModeES);
     WRITE_ENUM("app filter mode", config->_AppFilterMode, appFilterModeES);
-    WRITE_BOOL("ignore minimized windows", config->_IgnoreMinimizedWindows);
+    WRITE_BOOL("restore minimized windows", config->_RestoreMinimizedWindows);
 
     WRITE_BOOL("allow mouse", config->_Mouse);
     WRITE_BOOL("check for updates", config->_CheckForUpdates);
