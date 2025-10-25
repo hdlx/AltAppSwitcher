@@ -1528,9 +1528,10 @@ static void ApplyWithTimeout(SAppData* appData, unsigned int msg)
 }
 #endif
 
-static void ApplySwitchWin(HWND win)
+static void ApplySwitchWin(HWND win, bool restoreMinimized)
 {
-    RestoreWin(win);
+    if (restoreMinimized)
+        RestoreWin(win);
     CoInitializeEx(NULL, COINIT_APARTMENTTHREADED);
     IUIAutomation* UIA = NULL;
     DWORD res = CoCreateInstance(&CLSID_CUIAutomation, NULL, CLSCTX_INPROC_SERVER, &IID_IUIAutomation, (void**)&UIA);
@@ -1913,7 +1914,7 @@ LRESULT CALLBACK WorkerWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lP
     }
     case MSG_APPLY_WIN:
     {
-        ApplySwitchWin(appData->_CurrentWinGroup._Windows[appData->_Selection]);
+        ApplySwitchWin(appData->_CurrentWinGroup._Windows[appData->_Selection], appData->_Config._RestoreMinimizedWindows);
         PostQuitMessage(0);
         return 0;
     }
@@ -2184,7 +2185,7 @@ int StartAltAppSwitcher(HINSTANCE hInstance)
             ApplyWithTimeout(&_AppData, MSG_APPLY_WIN);
 #else
             HWND win = _AppData._CurrentWinGroup._Windows[_AppData._Selection];
-            ApplySwitchWin(win);
+            ApplySwitchWin(win, appData->_Config._RestoreMinimizedWindows);
 #endif
 
             break;
@@ -2200,7 +2201,7 @@ int StartAltAppSwitcher(HINSTANCE hInstance)
             ApplyWithTimeout(&_AppData, MSG_APPLY_WIN);
 #else
             HWND win = _AppData._CurrentWinGroup._Windows[_AppData._Selection];
-            ApplySwitchWin(win);
+            ApplySwitchWin(win, appData->_Config._RestoreMinimizedWindows);
 #endif
             break;
         }

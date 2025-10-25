@@ -100,7 +100,6 @@ static bool TryGetFloat(const StrPair* keyValues, const char* token, float* floa
     unsigned int entry = Find(keyValues, token);
     if (entry == 0xFFFFFFFF)
     {
-        DebugBreak();
         return false;
     }
     *floatToSet = strtof(keyValues[entry].Value, NULL);
@@ -108,12 +107,11 @@ static bool TryGetFloat(const StrPair* keyValues, const char* token, float* floa
 }
 
 static bool TryGetEnum(const StrPair* keyValues, const char* token,
-    unsigned int* outValue, const EnumString* enumStrings, unsigned int defaultValue)
+    unsigned int* outValue, const EnumString* enumStrings)
 {
     unsigned int entry = Find(keyValues, token);
     if (entry == 0xFFFFFFFF)
     {
-        *outValue = defaultValue;
         return false;
     }
     for (unsigned int i = 0; enumStrings[i].Value != 0xFFFFFFFF; i++)
@@ -159,8 +157,8 @@ void LoadConfig(Config* config)
         return;
     }
 
-#define GET_ENUM(ENTRY, DST, ENUM_STRING, DEFAULT)\
-TryGetEnum(keyValues, ENTRY, &DST, ENUM_STRING, DEFAULT)
+#define GET_ENUM(ENTRY, DST, ENUM_STRING)\
+TryGetEnum(keyValues, ENTRY, &DST, ENUM_STRING)
 
 #define GET_BOOL(ENTRY, DST)\
 TryGetBool(keyValues, ENTRY, &DST)
@@ -189,18 +187,18 @@ TryGetFloat(keyValues, ENTRY, &DST)
     }
     fclose(file);
 
-    GET_ENUM("app hold key", config->_Key._AppHold, keyES, AAS_NONE_VK);
-    GET_ENUM("next app key", config->_Key._AppSwitch, keyES, AAS_NONE_VK);
-    GET_ENUM("window hold key", config->_Key._WinHold, keyES, AAS_NONE_VK);
-    GET_ENUM("next window key", config->_Key._WinSwitch, keyES, AAS_NONE_VK);
-    GET_ENUM("invert order key", config->_Key._Invert, keyES, AAS_NONE_VK);
-    GET_ENUM("previous app key", config->_Key._PrevApp, keyES, AAS_NONE_VK);
+    GET_ENUM("app hold key", config->_Key._AppHold, keyES);
+    GET_ENUM("next app key", config->_Key._AppSwitch, keyES);
+    GET_ENUM("window hold key", config->_Key._WinHold, keyES);
+    GET_ENUM("next window key", config->_Key._WinSwitch, keyES);
+    GET_ENUM("invert order key", config->_Key._Invert, keyES);
+    GET_ENUM("previous app key", config->_Key._PrevApp, keyES);
 
-    GET_ENUM("theme", config->_ThemeMode, themeES, ThemeModeAuto);
-    GET_ENUM("app switcher mode", config->_AppSwitcherMode, appSwitcherModeES, AppSwitcherModeApp);
-    GET_ENUM("display name", config->_DisplayName, displayNameES, DisplayNameSel);
-    GET_ENUM("multiple monitor mode", config->_MultipleMonitorMode, multipleMonitorModeES, MultipleMonitorModeMouse);
-    GET_ENUM("app filter mode", config->_AppFilterMode, appFilterModeES, AppFilterModeAll);
+    GET_ENUM("theme", config->_ThemeMode, themeES);
+    GET_ENUM("app switcher mode", config->_AppSwitcherMode, appSwitcherModeES);
+    GET_ENUM("display name", config->_DisplayName, displayNameES);
+    GET_ENUM("multiple monitor mode", config->_MultipleMonitorMode, multipleMonitorModeES);
+    GET_ENUM("app filter mode", config->_AppFilterMode, appFilterModeES);
     config->_RestoreMinimizedWindows = true;
     GET_BOOL("restore minimized windows", config->_RestoreMinimizedWindows);
 
