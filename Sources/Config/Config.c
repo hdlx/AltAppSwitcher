@@ -184,6 +184,7 @@ TryGetFloat(keyValues, ENTRY, &DST)
     GET_ENUM("display name", config->_DisplayName, displayNameES, DisplayNameSel);
     GET_ENUM("multiple monitor mode", config->_MultipleMonitorMode, multipleMonitorModeES, MultipleMonitorModeMouse);
     GET_ENUM("app filter mode", config->_AppFilterMode, appFilterModeES, AppFilterModeAll);
+    GET_BOOL("ignore minimized windows", config->_IgnoreMinimizedWindows);
 
     GET_BOOL("allow mouse", config->_Mouse);
     GET_BOOL("check for updates", config->_CheckForUpdates);
@@ -245,6 +246,7 @@ WriteFloat(file, ENTRY, VALUE)
     WRITE_ENUM("display name", config->_DisplayName, displayNameES);
     WRITE_ENUM("multiple monitor mode", config->_MultipleMonitorMode, multipleMonitorModeES);
     WRITE_ENUM("app filter mode", config->_AppFilterMode, appFilterModeES);
+    WRITE_BOOL("ignore minimized windows", config->_IgnoreMinimizedWindows);
 
     WRITE_BOOL("allow mouse", config->_Mouse);
     WRITE_BOOL("check for updates", config->_CheckForUpdates);

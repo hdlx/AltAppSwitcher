@@ -55,6 +55,7 @@ typedef struct Config
     AppSwitcherMode _AppSwitcherMode;
     MultipleMonitorMode _MultipleMonitorMode;
     AppFilterMode _AppFilterMode;
+    bool _IgnoreMinimizedWindows;
 } Config;
 
 typedef struct EnumString

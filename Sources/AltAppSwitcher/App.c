@@ -517,9 +517,9 @@ static bool IsWindowOnMonitor(HWND hwnd, HMONITOR targetMonitor)
     }
 }
 
-static bool IsAltTabWindow(HWND hwnd)
+static bool IsEligibleWindow(HWND hwnd, const SAppData* appData)
 {
-    if (hwnd == GetShellWindow()) //Desktop
+    if (hwnd == GetShellWindow()) // Desktop
         return false;
 
     WINDOWINFO wi = {};
@@ -532,6 +532,15 @@ static bool IsAltTabWindow(HWND hwnd)
          return false;
     if ((wi.dwExStyle & WS_EX_TOPMOST) != 0)
         return false;
+
+    if (appData->_Config._IgnoreMinimizedWindows)
+    {
+        WINDOWPLACEMENT placement;
+        GetWindowPlacement(hwnd, &placement);
+        placement.length = sizeof(WINDOWPLACEMENT);
+        if (placement.showCmd == SW_SHOWMINIMIZED)
+            return false;
+    }
 
     // Start at the root owner
     const HWND owner = GetWindow(hwnd, GW_OWNER); (void)owner;
@@ -561,6 +570,14 @@ static bool IsAltTabWindow(HWND hwnd)
        DwmGetWindowAttribute(hwnd, (DWORD)DWMWA_CLOAKED, (PVOID)&cloaked, (DWORD)sizeof(cloaked));
     if (cloaked)
         return false;
+
+    // Filter apps by monitor if enabled
+    if (appData->_Config._AppFilterMode == AppFilterModeMouseMonitor)
+    {
+        if (!IsWindowOnMonitor(hwnd, appData->_MouseMonitor))
+            return true;
+    }
+
     return true;
 }
 
@@ -1001,17 +1018,10 @@ static BOOL IsRunWindow(HWND hwnd)
 
 static BOOL FillWinGroups(HWND hwnd, LPARAM lParam)
 {
-    if (!IsAltTabWindow(hwnd))
-        return true;
-
     SAppData* appData = (SAppData*)lParam;
-    
-    // Filter apps by monitor if enabled - moved early to avoid expensive calls
-    if (appData->_Config._AppFilterMode == AppFilterModeMouseMonitor)
-    {
-        if (!IsWindowOnMonitor(hwnd, appData->_MouseMonitor))
-            return true;
-    }
+
+    if (!IsEligibleWindow(hwnd, appData))
+        return true;
 
     DWORD PID = 0;
 
@@ -1165,11 +1175,12 @@ static BOOL FillWinGroups(HWND hwnd, LPARAM lParam)
 
 static BOOL FillCurrentWinGroup(HWND hwnd, LPARAM lParam)
 {
-    if (!IsAltTabWindow(hwnd))
+    SAppData* appData = (SAppData*)(lParam);
+    if (!IsEligibleWindow(hwnd, appData))
         return true;
     DWORD PID = 0;
     FindActualPID(hwnd, &PID);
-    SWinGroup* currentWinGroup = (SWinGroup*)(lParam);
+    SWinGroup* currentWinGroup = &appData->_CurrentWinGroup;
     static char moduleFileName[512];
     GetProcessFileName(PID, moduleFileName);
     ATOM winClass = IsRunWindow(hwnd) ? 0x8002 : 0; // Run
@@ -1318,7 +1329,7 @@ static void InitializeSwitchWin(SAppData* appData)
     HWND win = GetForegroundWindow();
     while (true)
     {
-        if (!win || IsAltTabWindow(win))
+        if (!win || IsEligibleWindow(win, appData))
             break;
         win = GetParent(win);
     }
@@ -1331,7 +1342,7 @@ static void InitializeSwitchWin(SAppData* appData)
     pWinGroup->_WinClass = IsRunWindow(win) ? 0x8002 : 0; // Run
     pWinGroup->_WindowCount = 0;
     if (appData->_Config._AppSwitcherMode == AppSwitcherModeApp)
-        EnumDesktopWindows(NULL, FillCurrentWinGroup, (LPARAM)pWinGroup);
+        EnumDesktopWindows(NULL, FillCurrentWinGroup, (LPARAM)appData);
     else
     {
         pWinGroup->_Windows[0] = win;
