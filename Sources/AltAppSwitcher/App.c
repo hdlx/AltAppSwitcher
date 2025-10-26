@@ -517,7 +517,7 @@ static bool IsWindowOnMonitor(HWND hwnd, HMONITOR targetMonitor)
     }
 }
 
-static bool IsEligibleWindow(HWND hwnd, const SAppData* appData)
+static bool IsEligibleWindow(HWND hwnd, const SAppData* appData, bool ignoreMinimizedWindows)
 {
     if (hwnd == GetShellWindow()) // Desktop
         return false;
@@ -567,6 +567,15 @@ static bool IsEligibleWindow(HWND hwnd, const SAppData* appData)
     {
         if (!IsWindowOnMonitor(hwnd, appData->_MouseMonitor))
             return true;
+    }
+
+    if (ignoreMinimizedWindows)
+    {
+        WINDOWPLACEMENT placement;
+        placement.length = sizeof(WINDOWPLACEMENT);
+        GetWindowPlacement(hwnd, &placement);
+        if (placement.showCmd == SW_SHOWMINIMIZED)
+            return false;
     }
 
     return true;
@@ -1011,7 +1020,7 @@ static BOOL FillWinGroups(HWND hwnd, LPARAM lParam)
 {
     SAppData* appData = (SAppData*)lParam;
 
-    if (!IsEligibleWindow(hwnd, appData))
+    if (!IsEligibleWindow(hwnd, appData, false))
         return true;
 
     DWORD PID = 0;
@@ -1167,7 +1176,7 @@ static BOOL FillWinGroups(HWND hwnd, LPARAM lParam)
 static BOOL FillCurrentWinGroup(HWND hwnd, LPARAM lParam)
 {
     SAppData* appData = (SAppData*)(lParam);
-    if (!IsEligibleWindow(hwnd, appData))
+    if (!IsEligibleWindow(hwnd, appData, !appData->_Config._RestoreMinimizedWindows))
         return true;
     DWORD PID = 0;
     FindActualPID(hwnd, &PID);
@@ -1320,7 +1329,7 @@ static void InitializeSwitchWin(SAppData* appData)
     HWND win = GetForegroundWindow();
     while (true)
     {
-        if (!win || IsEligibleWindow(win, appData))
+        if (!win || IsEligibleWindow(win, appData, false))
             break;
         win = GetParent(win);
     }
@@ -1363,8 +1372,8 @@ static void RestoreWin(HWND win)
     if (!IsWindow(win))
         return;
     WINDOWPLACEMENT placement;
-    GetWindowPlacement(win, &placement);
     placement.length = sizeof(WINDOWPLACEMENT);
+    GetWindowPlacement(win, &placement);
     if (placement.showCmd == SW_SHOWMINIMIZED)
     {
         ShowWindow(win, SW_RESTORE);
