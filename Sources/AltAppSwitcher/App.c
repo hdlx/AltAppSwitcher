@@ -35,11 +35,14 @@
 #include "Utils/Error.h"
 #include "Utils/MessageDef.h"
 #include "Utils/File.h"
-LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam);
+
+LRESULT CALLBACK MainWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam);
 
 #define MEM_INIT(ARG) memset(&ARG, 0,  sizeof(ARG))
 
 #define ASYNC_APPLY
+
+#define MAX_WIN_GROUPS 64u
 
 typedef struct SWinGroup
 {
@@ -47,7 +50,7 @@ typedef struct SWinGroup
     ATOM _WinClass;
     wchar_t _AppName[MAX_PATH];
     wchar_t _Caption[MAX_PATH];
-    HWND _Windows[64];
+    HWND _Windows[MAX_WIN_GROUPS];
     uint32_t _WindowCount;
     GpBitmap* _IconBitmap;
 } SWinGroup;
@@ -60,7 +63,7 @@ typedef struct SWinArr
 
 typedef struct SWinGroupArr
 {
-    SWinGroup _Data[64];
+    SWinGroup _Data[MAX_WIN_GROUPS];
     uint32_t _Size;
 } SWinGroupArr;
 
@@ -163,6 +166,9 @@ static DWORD _MainThread;
 #define MSG_APPLY_APP (WM_USER + 1)
 #define MSG_APPLY_WIN (WM_USER + 2)
 #define MSG_APPLY_APP_MOUSE (WM_USER + 3)
+
+// Main window
+#define MSG_FOCUS (WM_USER + 1)
 
 static void RestoreKey(WORD keyCode)
 {
@@ -1231,8 +1237,9 @@ static void ComputeMetrics(uint32_t iconCount, float scale, Metrics *metrics, bo
     metrics->_Pad = iconSize * padRatio; 
 }
 
-static const char CLASS_NAME[] = "AltAppSwitcher";
+static const char MAIN_CLASS_NAME[] = "AltAppSwitcher";
 static const char WORKER_CLASS_NAME[] = "AASWorker";
+static const char FOCUS_CLASS_NAME[] = "AASFocus";
 
 static void DestroyWin(HWND win)
 {
@@ -1241,6 +1248,7 @@ static void DestroyWin(HWND win)
 }
 
 static void Draw(SAppData* appData, HDC dc, RECT clientRect);
+static void UIASetFocus(HWND win, IUIAutomation* UIA);
 
 static void CreateWin(SAppData* appData)
 {
@@ -1254,7 +1262,7 @@ static void CreateWin(SAppData* appData)
 
     HWND hwnd = CreateWindowEx(
         WS_EX_TOPMOST | WS_EX_TOOLWINDOW | WS_EX_LAYERED, // Optional window styles (WS_EX_)
-        CLASS_NAME, // Window class
+        MAIN_CLASS_NAME, // Window class
         "", // Window text
         WS_BORDER | WS_POPUP, // Window style
         // Pos and size
@@ -1937,9 +1945,30 @@ LRESULT CALLBACK WorkerWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lP
     return DefWindowProc(hwnd, uMsg, wParam, lParam);
 }
 
-LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
+LRESULT FocusWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
+{
+    switch (uMsg)
+    { 
+        case WM_CREATE:
+            return 0;
+        case WM_PAINT:
+            return 0;
+        case WM_SIZE:
+            return 0;
+        case WM_DESTROY:
+            return 0;
+        case WM_SETFOCUS:
+            return 0;
+        default:
+            return DefWindowProc(hwnd, uMsg, wParam, lParam); 
+    }
+    return 0;
+} 
+
+LRESULT CALLBACK MainWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 {
     static SAppData* appData = NULL;
+    static HWND focusWindows[MAX_WIN_GROUPS];
     switch (uMsg)
     {
     case WM_MOUSEMOVE:
@@ -1973,8 +2002,31 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
             ReleaseDC(hwnd, winDC);
         }
         SetCapture(hwnd);
-        // Otherwise cursor is busy on hover. I Don't understand why.
+        // Otherwise cursor is busy on hover. I don't understand why.
         SetCursor(LoadCursor(NULL, IDC_ARROW));
+
+        for (int i = 0; i < appData->_WinGroups._Size; i++)
+        {
+            const int iconContainerSize = (int)appData->_Metrics._Container;
+            const int pad = (int)appData->_Metrics._Pad;
+            int x = pad + i * (iconContainerSize);
+            focusWindows[i] = CreateWindowEx(0, FOCUS_CLASS_NAME, NULL,
+                WS_CHILD /* | WS_VISIBLE */,
+                x, pad, iconContainerSize, iconContainerSize,
+                hwnd, NULL, appData->_Instance, NULL);
+        }
+
+        return 0;
+    }
+    case MSG_FOCUS:
+    {
+        CoInitializeEx(NULL, COINIT_APARTMENTTHREADED);
+        IUIAutomation* UIA = NULL;
+        DWORD res = CoCreateInstance(&CLSID_CUIAutomation, NULL, CLSCTX_INPROC_SERVER, &IID_IUIAutomation, (void**)&UIA);
+        ASSERT(SUCCEEDED(res))
+        UIASetFocus(focusWindows[appData->_Selection], UIA);
+        IUIAutomation_Release(UIA);
+        CoUninitialize();
         return 0;
     }
     case WM_LBUTTONUP:
@@ -2039,6 +2091,21 @@ static DWORD KbHookCb(LPVOID param)
     return (DWORD)0;
 }
 
+#if 0
+static BOOL GetFirstWindow(HWND win, LPARAM lParam)
+{
+    *(HWND*)lParam = win;
+    return false;
+}
+
+static HWND GetFirstChild(HWND win)
+{
+    HWND child = NULL;
+    EnumChildWindows(win, GetFirstWindow, (LPARAM)&child);
+    return child;
+}
+#endif
+
 int StartAltAppSwitcher(HINSTANCE hInstance)
 {
     SetLastError(0);
@@ -2057,9 +2124,9 @@ int StartAltAppSwitcher(HINSTANCE hInstance)
 
     {
         WNDCLASS wc = { };
-        wc.lpfnWndProc   = WindowProc;
+        wc.lpfnWndProc   = MainWindowProc;
         wc.hInstance     = hInstance;
-        wc.lpszClassName = CLASS_NAME;
+        wc.lpszClassName = MAIN_CLASS_NAME;
         wc.cbWndExtra = sizeof(SAppData*);
         wc.style = CS_HREDRAW | CS_VREDRAW;
         wc.hbrBackground = GetSysColorBrush(COLOR_WINDOW);
@@ -2074,6 +2141,17 @@ int StartAltAppSwitcher(HINSTANCE hInstance)
         wc.cbWndExtra = sizeof(SAppData*);
         wc.style = 0;
         wc.hbrBackground = NULL;
+        RegisterClass(&wc);
+    }
+
+    {
+        WNDCLASS wc = { };
+        wc.lpfnWndProc   = DefWindowProc;
+        wc.hInstance     = hInstance;
+        wc.lpszClassName = FOCUS_CLASS_NAME;
+        wc.cbWndExtra = 0;
+        wc.style = CS_HREDRAW | CS_VREDRAW;
+        wc.hbrBackground = GetSysColorBrush(COLOR_HIGHLIGHT);
         RegisterClass(&wc);
     }
 
@@ -2171,6 +2249,7 @@ int StartAltAppSwitcher(HINSTANCE hInstance)
             _AppData._Selection = Modulo(_AppData._Selection, _AppData._WinGroups._Size);
             InvalidateRect(_AppData._MainWin, 0, FALSE);
             UpdateWindow(_AppData._MainWin);
+            SendNotifyMessage(_AppData._MainWin, MSG_FOCUS, 0,0 );
             break;
         }
         case MSG_PREV_APP:
@@ -2181,6 +2260,7 @@ int StartAltAppSwitcher(HINSTANCE hInstance)
             _AppData._Selection = Modulo(_AppData._Selection, _AppData._WinGroups._Size);
             InvalidateRect(_AppData._MainWin, 0, FALSE);
             UpdateWindow(_AppData._MainWin);
+            SendNotifyMessage(_AppData._MainWin, MSG_FOCUS, 0,0 );
             break;
         }
         case MSG_NEXT_WIN:
@@ -2266,7 +2346,8 @@ int StartAltAppSwitcher(HINSTANCE hInstance)
     }
 
     GdiplusShutdown(gdiplusToken);
-    UnregisterClass(CLASS_NAME, hInstance);
+    UnregisterClass(MAIN_CLASS_NAME, hInstance);
+    UnregisterClass(WORKER_CLASS_NAME, hInstance);
 
     if (restartAAS)
     {
