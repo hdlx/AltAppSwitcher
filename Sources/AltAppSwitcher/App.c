@@ -1241,10 +1241,10 @@ static const char MAIN_CLASS_NAME[] = "AltAppSwitcher";
 static const char WORKER_CLASS_NAME[] = "AASWorker";
 static const char FOCUS_CLASS_NAME[] = "AASFocus";
 
-static void DestroyWin(HWND win)
+static void DestroyWin(HWND* win)
 {
-    DestroyWindow(win);
-    win = NULL;
+    DestroyWindow(*win);
+    *win = NULL;
 }
 
 static void Draw(SAppData* appData, HDC dc, RECT clientRect);
@@ -1253,7 +1253,7 @@ static void UIASetFocus(HWND win);
 static void CreateWin(SAppData* appData)
 {
     if (appData->_MainWin)
-        DestroyWin(appData->_MainWin);
+        DestroyWin(&appData->_MainWin);
 
     if (appData->_WinGroups._Size == 0)
         return;
@@ -1300,9 +1300,19 @@ static void CreateWin(SAppData* appData)
     SetLayeredWindowAttributes(hwnd, 0, 255, LWA_ALPHA);
     //AnimateWindow(hwnd, 1, AW_ACTIVATE | AW_BLEND);
 }
+static void ClearWinGroupArr(SWinGroupArr* winGroups);
 
 static void InitializeSwitchApp(SAppData* appData)
 {
+    // This should not be needed here. To investigate (crash in release, unattached only)
+    if (appData->_Mode != ModeNone)
+    {
+        appData->_Mode = ModeNone;
+        appData->_Selection = 0;
+        DestroyWin(&appData->_MainWin);
+        ClearWinGroupArr(&appData->_WinGroups);
+    }
+
     SWinGroupArr* pWinGroups = &(appData->_WinGroups);
     pWinGroups->_Size = 0;
     
@@ -1359,6 +1369,7 @@ static void InitializeSwitchWin(SAppData* appData)
     appData->_Selection = 0;
     appData->_Mode = ModeWin;
 }
+
 static void ClearWinGroupArr(SWinGroupArr* winGroups)
 {
     for (uint32_t i = 0; i < winGroups->_Size; i++)
@@ -2032,7 +2043,7 @@ LRESULT CALLBACK MainWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lPar
         if (!IsInside(GET_X_LPARAM(lParam), GET_Y_LPARAM(lParam), hwnd))
         {
             appData->_Mode = ModeNone;
-            DestroyWin(appData->_MainWin);
+            DestroyWin(&appData->_MainWin);
             ClearWinGroupArr(&appData->_WinGroups);
             return 0;
         }
@@ -2046,7 +2057,7 @@ LRESULT CALLBACK MainWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lPar
         appData->_Mode = ModeNone;
         appData->_Selection = 0;
         appData->_MouseSelection = 0;
-        DestroyWin(appData->_MainWin);
+        DestroyWin(&appData->_MainWin);
         ClearWinGroupArr(&appData->_WinGroups);
         return 0;
     }
@@ -2303,14 +2314,14 @@ int StartAltAppSwitcher(HINSTANCE hInstance)
 #endif
             _AppData._Mode = ModeNone;
             _AppData._Selection = 0;
-            DestroyWin(_AppData._MainWin);
+            DestroyWin(&_AppData._MainWin);
             ClearWinGroupArr(&_AppData._WinGroups);
             break;
         }
         case MSG_CANCEL_APP:
         {
             _AppData._Mode = ModeNone;
-            DestroyWin(_AppData._MainWin);
+            DestroyWin(&_AppData._MainWin);
             ClearWinGroupArr(&_AppData._WinGroups);
             break;
         }
