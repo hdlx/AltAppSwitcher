@@ -1248,7 +1248,7 @@ static void DestroyWin(HWND win)
 }
 
 static void Draw(SAppData* appData, HDC dc, RECT clientRect);
-static void UIASetFocus(HWND win, IUIAutomation* UIA);
+static void UIASetFocus(HWND win);
 
 static void CreateWin(SAppData* appData)
 {
@@ -1389,14 +1389,22 @@ static void RestoreWin(HWND win)
     }
 }
 
-static void UIASetFocus(HWND win, IUIAutomation* UIA)
+static void UIASetFocus(HWND win)
 {
+    CoInitializeEx(NULL, COINIT_APARTMENTTHREADED);
+    IUIAutomation* UIA = NULL;
+    DWORD res = CoCreateInstance(&CLSID_CUIAutomation, NULL, CLSCTX_INPROC_SERVER, &IID_IUIAutomation, (void**)&UIA);
+    ASSERT(SUCCEEDED(res))
+
     IUIAutomationElement* el = NULL;
-    DWORD res = IUIAutomation_ElementFromHandle(UIA, win, &el);
+    res = IUIAutomation_ElementFromHandle(UIA, win, &el);
     VERIFY(SUCCEEDED(res));
     res = IUIAutomationElement_SetFocus(el);
     VERIFY(SUCCEEDED(res));
     IUIAutomationElement_Release(el);
+
+    IUIAutomation_Release(UIA);
+    CoUninitialize();
 }
 
 typedef struct ApplySwitchAppData
@@ -1549,13 +1557,7 @@ static void ApplySwitchWin(HWND win, bool restoreMinimized)
 {
     if (restoreMinimized)
         RestoreWin(win);
-    CoInitializeEx(NULL, COINIT_APARTMENTTHREADED);
-    IUIAutomation* UIA = NULL;
-    DWORD res = CoCreateInstance(&CLSID_CUIAutomation, NULL, CLSCTX_INPROC_SERVER, &IID_IUIAutomation, (void**)&UIA);
-    ASSERT(SUCCEEDED(res))
-    UIASetFocus(win, UIA);
-    IUIAutomation_Release(UIA);
-    CoUninitialize();
+    UIASetFocus(win);
 }
 
 static LRESULT KbProc(int nCode, WPARAM wParam, LPARAM lParam)
@@ -1958,6 +1960,7 @@ LRESULT FocusWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
         case WM_DESTROY:
             return 0;
         case WM_SETFOCUS:
+        //    printf("focus set\n");
             return 0;
         default:
             return DefWindowProc(hwnd, uMsg, wParam, lParam); 
@@ -2020,13 +2023,8 @@ LRESULT CALLBACK MainWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lPar
     }
     case MSG_FOCUS:
     {
-        CoInitializeEx(NULL, COINIT_APARTMENTTHREADED);
-        IUIAutomation* UIA = NULL;
-        DWORD res = CoCreateInstance(&CLSID_CUIAutomation, NULL, CLSCTX_INPROC_SERVER, &IID_IUIAutomation, (void**)&UIA);
-        ASSERT(SUCCEEDED(res))
-        UIASetFocus(focusWindows[appData->_Selection], UIA);
-        IUIAutomation_Release(UIA);
-        CoUninitialize();
+        UIASetFocus(focusWindows[appData->_Selection]);
+      //  SetFocus(focusWindows[appData->_Selection]);
         return 0;
     }
     case WM_LBUTTONUP:
@@ -2146,7 +2144,7 @@ int StartAltAppSwitcher(HINSTANCE hInstance)
 
     {
         WNDCLASS wc = { };
-        wc.lpfnWndProc   = DefWindowProc;
+        wc.lpfnWndProc   = DefWindowProc; /*FocusWindowProc;*/
         wc.hInstance     = hInstance;
         wc.lpszClassName = FOCUS_CLASS_NAME;
         wc.cbWndExtra = 0;
