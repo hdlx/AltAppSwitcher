@@ -1304,15 +1304,6 @@ static void ClearWinGroupArr(SWinGroupArr* winGroups);
 
 static void InitializeSwitchApp(SAppData* appData)
 {
-    // This should not be needed here. To investigate (crash in release, unattached only)
-    if (appData->_Mode != ModeNone)
-    {
-        appData->_Mode = ModeNone;
-        appData->_Selection = 0;
-        DestroyWin(&appData->_MainWin);
-        ClearWinGroupArr(&appData->_WinGroups);
-    }
-
     SWinGroupArr* pWinGroups = &(appData->_WinGroups);
     pWinGroups->_Size = 0;
     
@@ -2242,12 +2233,14 @@ int StartAltAppSwitcher(HINSTANCE hInstance)
         {
         case MSG_INIT_APP:
         {
-            InitializeSwitchApp(&_AppData);
+            if (_AppData._Mode == ModeNone)
+                InitializeSwitchApp(&_AppData);
             break;
         }
         case MSG_INIT_WIN:
         {
-            InitializeSwitchWin(&_AppData);
+            if (_AppData._Mode == ModeNone)
+                InitializeSwitchWin(&_AppData);
             break;
         }
         case MSG_NEXT_APP:
