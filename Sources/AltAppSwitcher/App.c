@@ -1386,8 +1386,8 @@ static void RestoreWin(HWND win)
     GetWindowPlacement(win, &placement);
     if (placement.showCmd == SW_SHOWMINIMIZED)
     {
-        ShowWindow(win, SW_RESTORE);
-        SetWindowPos(win, HWND_TOP, 0, 0, 0, 0, SWP_NOSIZE | SWP_NOMOVE | SWP_NOOWNERZORDER | SWP_NOZORDER);
+        ShowWindowAsync(win, SW_RESTORE);
+        //SetWindowPos(win, HWND_TOP, 0, 0, 0, 0, SWP_NOSIZE | SWP_NOMOVE | SWP_NOOWNERZORDER | SWP_NOZORDER);
     }
 }
 
