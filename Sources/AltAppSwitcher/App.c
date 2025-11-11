@@ -180,7 +180,11 @@ static void RestoreKey(WORD keyCode)
         const UINT uSent = SendInput(1, &input, sizeof(INPUT));
         ASSERT(uSent == 1);
     }
+
+    usleep(1000);
+
     {
+        // Needed ?
         INPUT input = {};
         input.type = INPUT_KEYBOARD;
         input.ki.wVk = _KeyConfig->_Invert;
@@ -196,7 +200,21 @@ static void RestoreKey(WORD keyCode)
         const UINT uSent = SendInput(1, &input, sizeof(INPUT));
         ASSERT(uSent == 1);
     }
+
+    usleep(1000);
+
     {
+        INPUT input = {};
+        input.type = INPUT_KEYBOARD;
+        input.ki.wVk = VK_RCONTROL;
+        input.ki.dwFlags = KEYEVENTF_KEYUP;
+        const UINT uSent = SendInput(1, &input, sizeof(INPUT));
+        ASSERT(uSent == 1);
+    }
+
+    if (GetKeyState(VK_RCONTROL) & 0x8000)
+    {
+        usleep(1000);
         INPUT input = {};
         input.type = INPUT_KEYBOARD;
         input.ki.wVk = VK_RCONTROL;
