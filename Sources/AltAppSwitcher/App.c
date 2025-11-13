@@ -161,6 +161,7 @@ static DWORD _MainThread;
 #define MSG_DEINIT_WIN (WM_USER + 7)
 #define MSG_DEINIT_APP (WM_USER + 8)
 #define MSG_CANCEL_APP (WM_USER + 9)
+#define MSG_RESTORE_KEY (WM_USER + 12)
 
 // Apply thread
 #define MSG_APPLY_APP (WM_USER + 1)
@@ -172,6 +173,10 @@ static DWORD _MainThread;
 
 static void RestoreKey(WORD keyCode)
 {
+    // if (GetAsyncKeyState(VK_RCONTROL) & 0x8000)
+    // {
+    //     printf("WHY\n");
+    // }
     {
         INPUT input = {};
         input.type = INPUT_KEYBOARD;
@@ -202,8 +207,9 @@ static void RestoreKey(WORD keyCode)
     }
 
     usleep(1000);
-
+    if (GetAsyncKeyState(VK_RCONTROL) & 0x8000)
     {
+        // printf("need reset key 0\n");
         INPUT input = {};
         input.type = INPUT_KEYBOARD;
         input.ki.wVk = VK_RCONTROL;
@@ -212,9 +218,10 @@ static void RestoreKey(WORD keyCode)
         ASSERT(uSent == 1);
     }
 
+    usleep(1000);
     if (GetKeyState(VK_RCONTROL) & 0x8000)
     {
-        usleep(1000);
+        // printf("need reset key 1\n");
         INPUT input = {};
         input.type = INPUT_KEYBOARD;
         input.ki.wVk = VK_RCONTROL;
@@ -1657,7 +1664,7 @@ static LRESULT KbProc(int nCode, WPARAM wParam, LPARAM lParam)
             mode = ModeNone;
             bypassMsg = true;
             PostThreadMessage(_MainThread, MSG_DEINIT_APP, kbStrut.vkCode, 0);
-            RestoreKey(kbStrut.vkCode);
+            PostThreadMessage(_MainThread, MSG_RESTORE_KEY, kbStrut.vkCode, 0);
         }
         else if (prevMode == ModeWin &&
             (switchApp || winHoldReleasing))
@@ -1665,14 +1672,14 @@ static LRESULT KbProc(int nCode, WPARAM wParam, LPARAM lParam)
             mode = switchAppInput ? ModeApp : ModeNone;
             bypassMsg = true;
             PostThreadMessage(_MainThread, MSG_DEINIT_WIN, kbStrut.vkCode, 0);
-            RestoreKey(kbStrut.vkCode);
+            PostThreadMessage(_MainThread, MSG_RESTORE_KEY, kbStrut.vkCode, 0);
         }
         else if (prevMode == ModeApp && cancel)
         {
             mode = ModeNone;
             bypassMsg = true;
             PostThreadMessage(_MainThread, MSG_CANCEL_APP, kbStrut.vkCode, 0);
-            RestoreKey(kbStrut.vkCode);
+            PostThreadMessage(_MainThread, MSG_RESTORE_KEY, kbStrut.vkCode, 0);
         }
 
         if (mode == ModeNone && switchApp)
@@ -2352,6 +2359,11 @@ int StartAltAppSwitcher(HINSTANCE hInstance)
         case MSG_CLOSE_AAS:
         {
             closeAAS = true;
+            break;
+        }
+        case MSG_RESTORE_KEY:
+        {
+            RestoreKey(msg.wParam);
             break;
         }
         }
