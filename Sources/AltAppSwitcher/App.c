@@ -128,6 +128,7 @@ typedef struct SAppData
     HWND _MainWin;
     HINSTANCE _Instance;
     Mode _Mode;
+    bool _Invert;
     int _Selection;
     int _MouseSelection;
     SGraphicsResources _GraphicsResources;
@@ -152,14 +153,12 @@ static const KeyConfig* _KeyConfig;
 static DWORD _MainThread;
 
 // Main thread
-#define MSG_INIT_WIN (WM_USER + 1)
-#define MSG_INIT_APP (WM_USER + 2)
+#define MSG_INVERT_PUSH (WM_USER + 1)
+#define MSG_INVERT_REL (WM_USER + 2)
 #define MSG_NEXT_WIN (WM_USER + 3)
 #define MSG_NEXT_APP (WM_USER + 4)
-#define MSG_PREV_WIN (WM_USER + 5)
 #define MSG_PREV_APP (WM_USER + 6)
-#define MSG_DEINIT_WIN (WM_USER + 7)
-#define MSG_DEINIT_APP (WM_USER + 8)
+#define MSG_DEINIT (WM_USER + 7)
 #define MSG_CANCEL_APP (WM_USER + 9)
 #define MSG_RESTORE_KEY (WM_USER + 12)
 
@@ -1593,123 +1592,100 @@ static LRESULT KbProc(int nCode, WPARAM wParam, LPARAM lParam)
     if (kbStrut.flags & LLKHF_INJECTED)
         CallNextHookEx(NULL, nCode, wParam, lParam);
 
-    const bool isAppHold = kbStrut.vkCode == _KeyConfig->_AppHold;
-    const bool isAppSwitch = kbStrut.vkCode == _KeyConfig->_AppSwitch;
-    const bool isPrevApp = kbStrut.vkCode == _KeyConfig->_PrevApp;
-    const bool isWinHold = kbStrut.vkCode == _KeyConfig->_WinHold;
-    const bool isWinSwitch = kbStrut.vkCode == _KeyConfig->_WinSwitch;
-    const bool isInvert = kbStrut.vkCode == _KeyConfig->_Invert;
-    const bool isTab = kbStrut.vkCode == VK_TAB;
-    const bool isShift = kbStrut.vkCode == VK_LSHIFT;
-    const bool isEscape = kbStrut.vkCode == VK_ESCAPE;
+    const bool appHoldKey = kbStrut.vkCode == _KeyConfig->_AppHold;
+    const bool nextAppKey = kbStrut.vkCode == _KeyConfig->_AppSwitch;
+    const bool prevAppKey = kbStrut.vkCode == _KeyConfig->_PrevApp;
+    const bool winHoldKey = kbStrut.vkCode == _KeyConfig->_WinHold;
+    const bool nextWinKey = kbStrut.vkCode == _KeyConfig->_WinSwitch;
+    const bool invertKey = kbStrut.vkCode == _KeyConfig->_Invert;
+    const bool tabKey = kbStrut.vkCode == VK_TAB;
+    const bool shiftKey = kbStrut.vkCode == VK_LSHIFT;
+    const bool escKey = kbStrut.vkCode == VK_ESCAPE;
     const bool isWatchedKey =
-        isAppHold ||
-        isAppSwitch ||
-        isWinHold ||
-        isWinSwitch ||
-        isInvert ||
-        isTab ||
-        isShift ||
-        (isPrevApp && _KeyConfig->_PrevApp != 0xFFFFFFFF) ||
-        isEscape;
-
+        appHoldKey ||
+        nextAppKey ||
+        prevAppKey ||
+        winHoldKey ||
+        nextWinKey ||
+        invertKey ||
+        tabKey ||
+        shiftKey ||
+        escKey;
     if (!isWatchedKey)
         return CallNextHookEx(NULL, nCode, wParam, lParam);
 
-    static KeyState keyState =  { false, false, false };
     static Mode mode = ModeNone;
 
-    const KeyState prevKeyState = keyState;
-
     const bool rel = kbStrut.flags & LLKHF_UP;
-
-    // Update keyState
-    {
-        if (isAppHold)
-            keyState._HoldAppDown = !rel;
-        if (isWinHold)
-            keyState._HoldWinDown = !rel;
-        if (isInvert)
-            keyState._InvertKeyDown = !rel;
-    }
 
     // Update target app state
     bool bypassMsg = false;
     const Mode prevMode = mode;
     {
-        const bool switchWinInput = isWinSwitch && !rel;
-        const bool switchAppInput = isAppSwitch && !rel;
-        const bool prevAppInput = isPrevApp && !rel;
-        const bool winHoldReleasing = prevKeyState._HoldWinDown && !keyState._HoldWinDown;
-        const bool appHoldReleasing = prevKeyState._HoldAppDown && !keyState._HoldAppDown;
-        const bool escapeInput = isEscape && !rel;
-
-        const bool switchApp =
-            switchAppInput &&
-            keyState._HoldAppDown;
-        const bool prevApp =
-            prevAppInput &&
-            keyState._HoldAppDown;
-        const bool switchWin =
-            switchWinInput &&
-            keyState._HoldWinDown;
-        const bool cancel =
-            escapeInput &&
-            keyState._HoldAppDown;
+        const bool prevAppInput = prevAppKey && !rel;
+        const bool escapeInput = escKey && !rel;
+        const bool winHoldRelease = winHoldKey && rel;
+        const bool appHoldRelease = appHoldKey && rel;
+        const bool invertPush = invertKey && !rel;
+        const bool invertRelease = invertKey && rel;
+        const bool nextApp = nextAppKey && !rel;
+        const bool prevApp = prevAppInput && !rel;
+        const bool nextWin = nextWinKey && !rel;
+        const bool cancel = escapeInput;
+        const bool isWinHold = GetAsyncKeyState(_KeyConfig->_WinHold) & 0x8000;
+        const bool isAppHold = GetAsyncKeyState(_KeyConfig->_AppHold) & 0x8000;
 
         // Denit.
-        if ((prevMode == ModeApp) &&
-            (switchWin || appHoldReleasing) && !prevApp)
+        if (prevMode == ModeApp &&
+            appHoldRelease)
         {
             mode = ModeNone;
+            PostThreadMessage(_MainThread, MSG_DEINIT, 0, 0);
+            PostThreadMessage(_MainThread, MSG_RESTORE_KEY, _KeyConfig->_AppHold, 0);
             bypassMsg = true;
-            PostThreadMessage(_MainThread, MSG_DEINIT_APP, kbStrut.vkCode, 0);
-            PostThreadMessage(_MainThread, MSG_RESTORE_KEY, kbStrut.vkCode, 0);
         }
-        else if (prevMode == ModeWin &&
-            (switchApp || winHoldReleasing))
+        else if (prevMode == ModeWin && 
+            winHoldRelease)
         {
-            mode = switchAppInput ? ModeApp : ModeNone;
+            mode = ModeNone;
+            PostThreadMessage(_MainThread, MSG_DEINIT, 0, 0);
+            PostThreadMessage(_MainThread, MSG_RESTORE_KEY, _KeyConfig->_WinHold, 0);
             bypassMsg = true;
-            PostThreadMessage(_MainThread, MSG_DEINIT_WIN, kbStrut.vkCode, 0);
-            PostThreadMessage(_MainThread, MSG_RESTORE_KEY, kbStrut.vkCode, 0);
         }
         else if (prevMode == ModeApp && cancel)
         {
             mode = ModeNone;
+            PostThreadMessage(_MainThread, MSG_CANCEL_APP, 0, 0);
+            PostThreadMessage(_MainThread, MSG_RESTORE_KEY, _KeyConfig->_AppHold, 0);
             bypassMsg = true;
-            PostThreadMessage(_MainThread, MSG_CANCEL_APP, kbStrut.vkCode, 0);
-            PostThreadMessage(_MainThread, MSG_RESTORE_KEY, kbStrut.vkCode, 0);
         }
 
-        if (mode == ModeNone && switchApp)
+        if (nextApp && isAppHold)
+        {
             mode = ModeApp;
-        else if (mode == ModeNone && switchWin)
-            mode = ModeWin; 
+            PostThreadMessage(_MainThread, MSG_NEXT_APP, 0, 0);
+            bypassMsg = true;
+        }
+        else if (nextWin && isWinHold)
+        {
+            mode = ModeWin;
+            PostThreadMessage(_MainThread, MSG_NEXT_WIN, 0, 0);
+            bypassMsg = true;
+        }
+        else if (invertPush)
+        {
+            PostThreadMessage(_MainThread, MSG_INVERT_PUSH, 0, 0);
+        }
+        else if (invertRelease)
+        {
+            PostThreadMessage(_MainThread, MSG_INVERT_REL, 0, 0);
+        }
 
-        if (mode == ModeApp && prevMode != ModeApp)
+        if (prevApp && isAppHold) // Not *else* if because the key can be shared
         {
+            mode = ModeApp;
+            PostThreadMessage(_MainThread, MSG_PREV_APP, 0, 0);
             bypassMsg = true;
-            PostThreadMessage(_MainThread, MSG_INIT_APP, 0, 0);
-        }
-        else if (mode == ModeWin && prevMode != ModeWin)
-        {
-            bypassMsg = true;
-            PostThreadMessage(_MainThread, MSG_INIT_WIN, 0, 0);
-        }
-
-        if (mode == ModeApp)
-        {
-            bypassMsg = true;
-            if (switchApp)
-                PostThreadMessage(_MainThread, keyState._InvertKeyDown ? MSG_PREV_APP : MSG_NEXT_APP, 0, 0);
-            else if (prevApp)
-                PostThreadMessage(_MainThread, MSG_PREV_APP, 0, 0);
-        }
-        else if (switchWin)
-        {
-            bypassMsg = true;
-            PostThreadMessage(_MainThread, keyState._InvertKeyDown ? MSG_PREV_WIN : MSG_NEXT_WIN, 0, 0);
         }
     }
 
@@ -2131,6 +2107,25 @@ static HWND GetFirstChild(HWND win)
 }
 #endif
 
+static void DeinitApp(SAppData* appData)
+{
+#ifdef ASYNC_APPLY
+    ApplyWithTimeout(appData, MSG_APPLY_APP);
+#else
+    ApplySwitchApp(&appData->_WinGroups._Data[appData->_Selection]);
+#endif
+    appData->_Mode = ModeNone;
+    appData->_Selection = 0;
+    DestroyWin(&appData->_MainWin);
+    ClearWinGroupArr(&appData->_WinGroups);
+}
+
+static void DeinitWin(SAppData* appData)
+{
+    appData->_Mode = ModeNone;
+    appData->_Selection = 0;
+}
+
 int StartAltAppSwitcher(HINSTANCE hInstance)
 {
     SetLastError(0);
@@ -2183,6 +2178,7 @@ int StartAltAppSwitcher(HINSTANCE hInstance)
     {
         _AppData._Mode = ModeNone;
         _AppData._Selection = 0;
+        _AppData._Invert = false;
         _AppData._MainWin = NULL;
         _AppData._Instance = hInstance;
         _AppData._WinGroups._Size = 0;
@@ -2256,23 +2252,13 @@ int StartAltAppSwitcher(HINSTANCE hInstance)
     {
         switch (msg.message)
         {
-        case MSG_INIT_APP:
-        {
-            if (_AppData._Mode == ModeNone)
-                InitializeSwitchApp(&_AppData);
-            break;
-        }
-        case MSG_INIT_WIN:
-        {
-            if (_AppData._Mode == ModeNone)
-                InitializeSwitchWin(&_AppData);
-            break;
-        }
         case MSG_NEXT_APP:
         {
+            if (_AppData._Mode == ModeWin)
+                DeinitWin(&_AppData);
             if (_AppData._Mode == ModeNone)
                 InitializeSwitchApp(&_AppData);
-            _AppData._Selection++;
+            _AppData._Selection += _AppData._Invert ? -1 : 1;
             _AppData._Selection = Modulo(_AppData._Selection, _AppData._WinGroups._Size);
             InvalidateRect(_AppData._MainWin, 0, FALSE);
             UpdateWindow(_AppData._MainWin);
@@ -2281,9 +2267,10 @@ int StartAltAppSwitcher(HINSTANCE hInstance)
         }
         case MSG_PREV_APP:
         {
-            if (_AppData._Mode == ModeNone)
-                InitializeSwitchApp(&_AppData);
-            _AppData._Selection--;
+            // Prev app does not have the ability to init the mode
+            if (_AppData._Mode != ModeApp)
+                break;
+            _AppData._Selection += _AppData._Invert ? 1 : -1;
             _AppData._Selection = Modulo(_AppData._Selection, _AppData._WinGroups._Size);
             InvalidateRect(_AppData._MainWin, 0, FALSE);
             UpdateWindow(_AppData._MainWin);
@@ -2292,48 +2279,26 @@ int StartAltAppSwitcher(HINSTANCE hInstance)
         }
         case MSG_NEXT_WIN:
         {
-            if (_AppData._Mode == ModeNone)
-                InitializeSwitchWin(&_AppData);
-            _AppData._Selection++;
-            _AppData._Selection = Modulo(_AppData._Selection, _AppData._CurrentWinGroup._WindowCount);
-
-#ifdef ASYNC_APPLY
-            ApplyWithTimeout(&_AppData, MSG_APPLY_WIN);
-#else
-            HWND win = _AppData._CurrentWinGroup._Windows[_AppData._Selection];
-            ApplySwitchWin(win, appData->_Config._RestoreMinimizedWindows);
-#endif
-
-            break;
-        }
-        case MSG_PREV_WIN:
-        {
-            if (_AppData._Mode == ModeNone)
-                InitializeSwitchWin(&_AppData);
-            _AppData._Selection--;
-            _AppData._Selection = Modulo(_AppData._Selection, _AppData._CurrentWinGroup._WindowCount);
-
-#ifdef ASYNC_APPLY
-            ApplyWithTimeout(&_AppData, MSG_APPLY_WIN);
-#else
-            HWND win = _AppData._CurrentWinGroup._Windows[_AppData._Selection];
-            ApplySwitchWin(win, appData->_Config._RestoreMinimizedWindows);
-#endif
-            break;
-        }
-        case MSG_DEINIT_APP:
-        {
-            if (_AppData._Mode == ModeNone)
+            if (_AppData._Mode == ModeApp)
                 break;
+            if (_AppData._Mode == ModeNone)
+                InitializeSwitchWin(&_AppData);
+            _AppData._Selection += _AppData._Invert ? -1 : 1;
+            _AppData._Selection = Modulo(_AppData._Selection, _AppData._CurrentWinGroup._WindowCount);
 #ifdef ASYNC_APPLY
-            ApplyWithTimeout(&_AppData, MSG_APPLY_APP);
+            ApplyWithTimeout(&_AppData, MSG_APPLY_WIN);
 #else
-            ApplySwitchApp(&_AppData._WinGroups._Data[_AppData._Selection]);
+            HWND win = _AppData._CurrentWinGroup._Windows[_AppData._Selection];
+            ApplySwitchWin(win, appData->_Config._RestoreMinimizedWindows);
 #endif
-            _AppData._Mode = ModeNone;
-            _AppData._Selection = 0;
-            DestroyWin(&_AppData._MainWin);
-            ClearWinGroupArr(&_AppData._WinGroups);
+            break;
+        }
+        case MSG_DEINIT:
+        {
+            if (_AppData._Mode == ModeApp)
+                DeinitApp(&_AppData);
+            else if (_AppData._Mode == ModeWin)
+                DeinitWin(&_AppData);
             break;
         }
         case MSG_CANCEL_APP:
@@ -2341,14 +2306,6 @@ int StartAltAppSwitcher(HINSTANCE hInstance)
             _AppData._Mode = ModeNone;
             DestroyWin(&_AppData._MainWin);
             ClearWinGroupArr(&_AppData._WinGroups);
-            break;
-        }
-        case MSG_DEINIT_WIN:
-        {
-            if (_AppData._Mode == ModeNone)
-                break;
-            _AppData._Mode = ModeNone;
-            _AppData._Selection = 0;
             break;
         }
         case MSG_RESTART_AAS:
@@ -2359,6 +2316,16 @@ int StartAltAppSwitcher(HINSTANCE hInstance)
         case MSG_CLOSE_AAS:
         {
             closeAAS = true;
+            break;
+        }
+        case MSG_INVERT_PUSH:
+        {
+            _AppData._Invert = true;
+            break;
+        }
+        case MSG_INVERT_REL:
+        {
+            _AppData._Invert = false;
             break;
         }
         case MSG_RESTORE_KEY:
