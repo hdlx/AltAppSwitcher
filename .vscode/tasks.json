@@ -7,6 +7,11 @@
             "label": "Build x86_64 Debug",
             "type": "shell",
             "command": "start ./Kill.bat; mingw32-make ARCH=x86_64 CONF=Debug"
+        },
+        {
+            "label": "Build x86_64 Release",
+            "type": "shell",
+            "command": "start ./Kill.bat; mingw32-make ARCH=x86_64 CONF=Release"
         }
     ]
 }

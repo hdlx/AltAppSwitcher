@@ -3,11 +3,21 @@
 		{
 			"type": "lldb",
 			"request": "launch",
-			"name": "AAS x86_64",
+			"name": "AAS x86_64 Debug",
 			"program": "${workspaceFolder}/Output/Debug_x86_64/AAS/AltAppSwitcher.exe",
 			"args": [],
 			"cwd": "${workspaceFolder}/Output/Debug_x86_64/AAS",
 			"preLaunchTask": "Build x86_64 Debug",
+			"console": "integratedTerminal"
+		},
+		{
+			"type": "lldb",
+			"request": "launch",
+			"name": "AAS x86_64 Release",
+			"program": "${workspaceFolder}/Output/Release_x86_64/AAS/AltAppSwitcher.exe",
+			"args": [],
+			"cwd": "${workspaceFolder}/Output/Release_x86_64/AAS",
+			"preLaunchTask": "Build x86_64 Release",
 			"console": "integratedTerminal"
 		},
 		{
