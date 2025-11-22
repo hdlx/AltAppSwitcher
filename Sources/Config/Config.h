@@ -44,6 +44,12 @@ typedef enum AppFilterMode
     AppFilterModeMouseMonitor,
 } AppFilterMode;
 
+typedef enum DesktopFilter
+{
+    DesktopFilterCurrent,
+    DesktopFilterAll,
+} DesktopFilter;
+
 typedef struct Config
 {
     KeyConfig _Key;
@@ -56,6 +62,7 @@ typedef struct Config
     MultipleMonitorMode _MultipleMonitorMode;
     AppFilterMode _AppFilterMode;
     bool _RestoreMinimizedWindows;
+    DesktopFilter _DesktopFilter;
 } Config;
 
 typedef struct EnumString
@@ -70,6 +77,7 @@ extern const EnumString appSwitcherModeES[3];
 extern const EnumString displayNameES[4];
 extern const EnumString multipleMonitorModeES[3];
 extern const EnumString appFilterModeES[3];
+extern const EnumString desktopFilterES[3];
 
 void LoadConfig(Config* config);
 void WriteConfig(const Config* config);

@@ -572,7 +572,7 @@ static bool IsEligibleWindow(HWND hwnd, const SAppData* appData, bool ignoreMini
     if ((isOwned) && !(wi.dwExStyle & WS_EX_APPWINDOW))
         return false;
 
-    if (!BelongsToCurrentDesktop(hwnd))
+    if (appData->_Config._DesktopFilter == DesktopFilterCurrent && !BelongsToCurrentDesktop(hwnd))
         return false;
 
     if (!IsWindowVisible(hwnd))
@@ -1348,8 +1348,7 @@ static void InitializeSwitchApp(SAppData* appData)
     {
         appData->_MouseMonitor = NULL; // Explicitly set NULL when not filtering by monitor
     }
-    
-    EnumDesktopWindows(NULL, FillWinGroups, (LPARAM)appData);
+    EnumWindows(FillWinGroups, (LPARAM)appData);
     appData->_Mode = ModeApp;
     appData->_Selection = 0;
     appData->_MouseSelection = 0;
@@ -1481,13 +1480,12 @@ static void ApplySwitchApp(const SWinGroup* winGroup, bool restoreMinimized)
         // ASSERT(dwp != 0);
         prev = win;
     }
+    ret = EndDeferWindowPos(dwp);
 
 #if 1
-    UIASetFocus(winGroup->_Windows[Modulo(1, winCount)]);
+    UIASetFocus(winGroup->_Windows[0]);
 #endif
 
-
-    ret = EndDeferWindowPos(dwp);
     // ASSERT(ret != 0);
 
     for (int i = winCount - 1; i >= 0 ; i--)

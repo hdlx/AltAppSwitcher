@@ -59,6 +59,13 @@ const EnumString appFilterModeES[3] = {
     { "end", 0xFFFFFFFF }
 };
 
+const EnumString desktopFilterES[3] =
+{
+    { "current", DesktopFilterCurrent },
+    { "all", DesktopFilterAll },
+    { "end", 0xFFFFFFFF }
+};
+
 typedef struct StrPair
 {
     char Key[64];
@@ -143,6 +150,7 @@ void DefaultConfig(Config* config)
     config->_MultipleMonitorMode = MultipleMonitorModeMouse;
     config->_AppFilterMode = AppFilterModeAll;
     config->_RestoreMinimizedWindows = true;
+    config->_DesktopFilter = DesktopFilterCurrent;
 }
 
 void LoadConfig(Config* config)
@@ -199,7 +207,7 @@ TryGetFloat(keyValues, ENTRY, &DST)
     GET_ENUM("display name", config->_DisplayName, displayNameES);
     GET_ENUM("multiple monitor mode", config->_MultipleMonitorMode, multipleMonitorModeES);
     GET_ENUM("app filter mode", config->_AppFilterMode, appFilterModeES);
-    config->_RestoreMinimizedWindows = true;
+    GET_ENUM("desktop filter", config->_DesktopFilter, desktopFilterES);
     GET_BOOL("restore minimized windows", config->_RestoreMinimizedWindows);
 
     GET_BOOL("allow mouse", config->_Mouse);
@@ -262,6 +270,7 @@ WriteFloat(file, ENTRY, VALUE)
     WRITE_ENUM("display name", config->_DisplayName, displayNameES);
     WRITE_ENUM("multiple monitor mode", config->_MultipleMonitorMode, multipleMonitorModeES);
     WRITE_ENUM("app filter mode", config->_AppFilterMode, appFilterModeES);
+    WRITE_ENUM("desktop filter", config->_DesktopFilter, desktopFilterES);
     WRITE_BOOL("restore minimized windows", config->_RestoreMinimizedWindows);
 
     WRITE_BOOL("allow mouse", config->_Mouse);

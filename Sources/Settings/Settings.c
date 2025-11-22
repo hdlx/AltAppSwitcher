@@ -61,7 +61,9 @@ static void SetupGUI(GUIData* gui, void* userData)
     CreateText("App filter mode:", "", gui);
     CreateComboBox("All: show apps from all monitors.\nmouse monitor: show only apps from the monitor where mouse cursor is located.",
         &cfg->_AppFilterMode, appFilterModeES, gui);
-
+    CreateText("Desktop filter:", "", gui);
+    CreateComboBox("",
+        &cfg->_DesktopFilter, desktopFilterES, gui);
     GridLayout(1, gui);
     CreateButton("Apply", (HMENU)APPLY_BUTTON_ID, gui);
 }
