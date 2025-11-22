@@ -1470,8 +1470,8 @@ static void ApplySwitchApp(const SWinGroup* winGroup, bool restoreMinimized)
         const HWND win = winGroup->_Windows[Modulo(i + 1, winCount)];
         if (!IsWindow(win))
             continue;
-#if 0
-        UIASetFocus(win, UIA);
+#if 1
+        UIASetFocus(win);
 #endif
 
         // This seems more consistent than SetFocus
@@ -2026,8 +2026,9 @@ LRESULT CALLBACK MainWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lPar
     }
     case MSG_FOCUS:
     {
-        UIASetFocus(focusWindows[appData->_Selection]);
-      //  SetFocus(focusWindows[appData->_Selection]);
+        // uia set focus here gives inconsistent app behavior IDK why.
+        // UIASetFocus(focusWindows[appData->_Selection]);
+        SetFocus(focusWindows[appData->_Selection]);
         return 0;
     }
     case WM_LBUTTONUP:
