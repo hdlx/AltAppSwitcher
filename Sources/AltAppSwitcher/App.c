@@ -1470,9 +1470,6 @@ static void ApplySwitchApp(const SWinGroup* winGroup, bool restoreMinimized)
         const HWND win = winGroup->_Windows[Modulo(i + 1, winCount)];
         if (!IsWindow(win))
             continue;
-#if 1
-        UIASetFocus(win);
-#endif
 
         // This seems more consistent than SetFocus
         // Check if this works with focus when closing multiple win
@@ -1485,6 +1482,11 @@ static void ApplySwitchApp(const SWinGroup* winGroup, bool restoreMinimized)
         // ASSERT(dwp != 0);
         prev = win;
     }
+
+#if 1
+    UIASetFocus(winGroup->_Windows[Modulo(1, winCount)]);
+#endif
+
 
     ret = EndDeferWindowPos(dwp);
     // ASSERT(ret != 0);
