@@ -551,22 +551,21 @@ static bool IsEligibleWindow(HWND hwnd, const SAppData* appData, bool ignoreMini
 {
     if (hwnd == GetShellWindow()) // Desktop
         return false;
-
     WINDOWINFO wi = {};
     wi.cbSize = sizeof(WINDOWINFO);
     GetWindowInfo(hwnd, &wi);
     if (!(wi.dwStyle & WS_VISIBLE))
         return false;
     // Chrome has sometime WS_EX_TOOLWINDOW while beeing an alttabable window
-    if ((wi.dwExStyle & WS_EX_TOOLWINDOW) != 0)
+    if ((wi.dwExStyle & WS_EX_TOOLWINDOW))
          return false;
-    if ((wi.dwExStyle & WS_EX_TOPMOST) != 0)
+    if ((wi.dwExStyle & WS_EX_TOPMOST) && !(wi.dwExStyle & WS_EX_APPWINDOW))
         return false;
 
     // Start at the root owner
     const HWND owner = GetWindow(hwnd, GW_OWNER); (void)owner;
-    const HWND parent = GetAncestor(hwnd, GA_PARENT); (void)parent;
-    const HWND dw = GetDesktopWindow(); (void)dw;
+    // const HWND parent = GetAncestor(hwnd, GA_PARENT); (void)parent;
+    // const HWND dw = GetDesktopWindow(); (void)dw;
     // Taskbar window if: owner is self or WS_EX_APPWINDOW is set
     bool b = (wi.dwExStyle & WS_EX_APPWINDOW) != 0;(void)(b);
     bool isOwned = owner != hwnd && owner != NULL;
