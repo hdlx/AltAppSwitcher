@@ -1483,7 +1483,7 @@ static void ApplySwitchApp(const SWinGroup* winGroup, bool restoreMinimized)
     ret = EndDeferWindowPos(dwp);
 
 #if 1
-    UIASetFocus(winGroup->_Windows[0]);
+    SetFocus(winGroup->_Windows[0]); 
 #endif
 
     // ASSERT(ret != 0);
