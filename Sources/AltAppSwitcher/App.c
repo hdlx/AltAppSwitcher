@@ -96,9 +96,11 @@ typedef struct Metrics
     uint32_t _WinX;
     uint32_t _WinY;
     float _Container;
-    float _Selection;
     float _Icon;
     float _Pad;
+    float _DigitBoxHeight;
+    float _DigitBoxPad;
+    float _PathThickness;
 } Metrics;
 
 typedef enum Mode
@@ -131,6 +133,7 @@ typedef struct SAppData
     bool _Invert;
     int _Selection;
     int _MouseSelection;
+    bool _CloseHover;
     SGraphicsResources _GraphicsResources;
     SWinGroupArr _WinGroups;
     SWinGroup _CurrentWinGroup;
@@ -1242,7 +1245,6 @@ static void ComputeMetrics(uint32_t iconCount, float scale, Metrics *metrics, bo
     const int centerX = monitorSize[0] / 2;
     const int screenWidth = monitorSize[0];
     const float containerRatio = 1.25f;
-    const float selectRatio = 1.25f; // Same as container, legacy was different
     float iconSize = GetSystemMetrics(SM_CXICON) * scale;
     const float padRatio = max(0.25 * iconSize, 16.0f) / iconSize; // Keep room for app name
     const uint32_t sizeX = min(iconSize * (iconCount * containerRatio + 2.0f * padRatio), screenWidth * 0.9);
@@ -1256,8 +1258,10 @@ static void ComputeMetrics(uint32_t iconCount, float scale, Metrics *metrics, bo
     metrics->_WinY = sizeY;
     metrics->_Icon = iconSize;
     metrics->_Container = iconSize * containerRatio;
-    metrics->_Selection =  iconSize * selectRatio;
     metrics->_Pad = iconSize * padRatio; 
+    metrics->_DigitBoxHeight = min(max(metrics->_Container * 0.15f, 16.0f), metrics->_Container * 0.5f); // Min size of 16 for text
+    metrics->_PathThickness = 2.0f;
+    metrics->_DigitBoxPad = 0.15 * metrics->_DigitBoxHeight + metrics->_PathThickness;
 }
 
 static const char MAIN_CLASS_NAME[] = "AltAppSwitcher";
@@ -1722,6 +1726,21 @@ static bool IsInside(int x, int y, HWND win)
     return x > r.left && x < r.right && y > r.top && y < r.bottom;
 }
 
+static void CloseButtonRect(float* outRect, const Metrics* m, uint32_t idx)
+{
+    const float w = m->_DigitBoxHeight;
+    const float p = m->_DigitBoxPad;
+    RectF r = {
+            m->_Pad + m->_Container * (idx + 1) - w - p,
+            m->_Pad + p,
+            w,
+            w };
+    outRect[0] = r.X;
+    outRect[1] = r.Y;
+    outRect[2] = r.X + r.Width;
+    outRect[3] = r.Y + r.Height;
+}
+
 static void Draw(SAppData* appData, HDC dc, RECT clientRect)
 {
     HWND hwnd = appData->_MainWin;
@@ -1747,18 +1766,14 @@ static void Draw(SAppData* appData, HDC dc, RECT clientRect)
 
     const float containerSize = appData->_Metrics._Container;
     const float iconSize = appData->_Metrics._Icon;
-    const float selectSize = appData->_Metrics._Selection;
+    const float selectSize = containerSize;
     const float pad = appData->_Metrics._Pad;
     const float padSelect = (containerSize - selectSize) * 0.5f;
     const float padIcon = (containerSize - iconSize) * 0.5f;
-    const float digitBoxHeight = min(max(selectSize * 0.15f, 16.0f), selectSize * 0.5f);
-    const float digitBoxPad = digitBoxHeight * 0.15f;
-    const float digitHeight = digitBoxHeight * 0.75f;
-    const float digitPad = digitBoxHeight * 0.1f; (void)digitPad; // Implicit as text centering is handled by gdip
+    const float digitHeight = appData->_Metrics._DigitBoxHeight * 0.75f;
     const float nameHeight = pad * 0.6f;
     const float namePad = pad * 0.2f;
-    const float pathThickness = 2.0f;
-
+ 
     float x = pad;
     float y = pad;
 
@@ -1771,8 +1786,6 @@ static void Draw(SAppData* appData, HDC dc, RECT clientRect)
         ASSERT(Ok == GdipCreateFontFamilyFromName(L"Segoe UI", fc, &pFontFamily));
         ASSERT(Ok == GdipCreateFont(pFontFamily, nameHeight, FontStyleRegular, (int)MetafileFrameUnitPixel, &fontName));
     }
-
-
 
     // Selection box
     {
@@ -1791,6 +1804,47 @@ static void Draw(SAppData* appData, HDC dc, RECT clientRect)
             GpPen* pPen;
             GdipCreatePen1(gdipColor, 2, UnitPixel, &pPen);
             DrawRoundedRect(pGraphics, pPen, NULL, &selRect, 10);
+            GdipDeletePen(pPen);
+        }
+    }
+
+    // Close button
+    {
+        const uint32_t mouseSelIdx = (uint32_t)appData->_MouseSelection;
+        float r0[4];
+        CloseButtonRect(r0, &appData->_Metrics, mouseSelIdx);
+        const float w0 = r0[2] - r0[0];
+        const float w1 = w0 * 0.5;
+        float r1[4];
+        r1[0] = r0[0] + w1 * 0.5;
+        r1[1] = r0[1] + w1 * 0.5;
+        r1[2] = r0[2] - w1 * 0.5;
+        r1[3] = r0[3] - w1 * 0.5;
+        r1[0] = round(r1[0]);
+        r1[1] = round(r1[1]);
+        r1[2] = round(r1[2]);
+        r1[3] = round(r1[3]);
+        if (appData->_CloseHover)
+        {
+            RectF _r0 = { r0[0], r0[1], w0, w0 };
+            _r0.X = round(_r0.X);
+            _r0.Y = round(_r0.Y);
+            _r0.Width = round(_r0.Width);
+            _r0.Height = round(_r0.Height);
+            DrawRoundedRect(pGraphics, NULL, pGraphRes->_pBrushText, &_r0, 5);
+
+            GpPen* pPen;
+            GdipCreatePen2(pGraphRes->_pBrushBg, 2, UnitPixel, &pPen);
+            GdipDrawLineI(pGraphics, pPen, r1[0], r1[1], r1[2], r1[3]);
+            GdipDrawLineI(pGraphics, pPen, r1[2], r1[1], r1[0], r1[3]);
+            GdipDeletePen(pPen);
+        }
+        else
+        {
+            GpPen* pPen;
+            GdipCreatePen2(pGraphRes->_pBrushText, 2, UnitPixel, &pPen);
+            GdipDrawLineI(pGraphics, pPen, r1[0], r1[1], r1[2], r1[3]);
+            GdipDrawLineI(pGraphics, pPen, r1[2], r1[1], r1[0], r1[3]);
             GdipDeletePen(pPen);
         }
     }
@@ -1823,7 +1877,6 @@ static void Draw(SAppData* appData, HDC dc, RECT clientRect)
                 GdipSetInterpolationMode(pGraphics, backupInterpMode);
             }
             else
-            
                 GdipDrawImageRectI(pGraphics, pWinGroup->_IconBitmap, x + padIcon, y + padIcon, iconSize, iconSize);
         }
 
@@ -1833,9 +1886,9 @@ static void Draw(SAppData* appData, HDC dc, RECT clientRect)
             WCHAR str[] = L"\0\0";
             const uint32_t winCount = min(pWinGroup->_WindowCount, 99);
             const uint32_t digitsCount = winCount > 9 ? 2 : 1;
-            const float w = digitBoxHeight;
-            const float h = digitBoxHeight;
-            const float p = digitBoxPad + pathThickness;
+            const float w = appData->_Metrics._DigitBoxHeight;
+            const float h = appData->_Metrics._DigitBoxHeight;
+            const float p = appData->_Metrics._DigitBoxPad;
             RectF r = {
                 (x + padSelect + selectSize - p - w),
                 (y + padSelect + selectSize - p - h),
@@ -1982,8 +2035,12 @@ LRESULT CALLBACK MainWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lPar
             return 0;
         const int iconContainerSize = (int)appData->_Metrics._Container;
         const int pad = (int)appData->_Metrics._Pad;
-        const int posX = GET_X_LPARAM(lParam);
-        appData->_MouseSelection = min(max(0, (posX - pad) / iconContainerSize), (int)appData->_WinGroups._Size - 1);
+        const int x = GET_X_LPARAM(lParam);
+        const int y = GET_Y_LPARAM(lParam);
+        appData->_MouseSelection = min(max(0, (x - pad) / iconContainerSize), (int)appData->_WinGroups._Size - 1);
+        float r[4];
+        CloseButtonRect(r, &appData->_Metrics, appData->_MouseSelection);
+        appData->_CloseHover = x < r[2] && x > r[0] && y > r[1] && y < r[3];
         InvalidateRect(appData->_MainWin, 0, FALSE);
         UpdateWindow(appData->_MainWin);
         return 0;
@@ -2041,6 +2098,22 @@ LRESULT CALLBACK MainWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lPar
         }
         if (!appData->_Config._Mouse)
             return 0;
+
+        if (appData->_CloseHover)
+        {
+            const SWinGroup* winGroup = &appData->_WinGroups._Data[appData->_MouseSelection];
+            for (int i =  0; i < winGroup->_WindowCount; i++)
+            {
+                const HWND win = winGroup->_Windows[i];
+                // WINBOOL res = CloseWindow(win);
+                // ASSERT(res);
+              //  PostMessage(win, WM_QUIT, 0, 0);
+                PostMessage(win, WM_CLOSE, 0, 0);
+            }
+            ClearWinGroupArr(&appData->_WinGroups);
+            InitializeSwitchApp(appData);
+            return 0;
+        }
 #ifdef ASYNC_APPLY
         ApplyWithTimeout(appData, MSG_APPLY_APP_MOUSE);
 #else
@@ -2049,6 +2122,7 @@ LRESULT CALLBACK MainWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lPar
         appData->_Mode = ModeNone;
         appData->_Selection = 0;
         appData->_MouseSelection = 0;
+        appData->_CloseHover = false;
         DestroyWin(&appData->_MainWin);
         ClearWinGroupArr(&appData->_WinGroups);
         return 0;
