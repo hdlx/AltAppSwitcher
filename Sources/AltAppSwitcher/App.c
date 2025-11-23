@@ -460,7 +460,7 @@ static void FindActualPID(HWND hwnd, DWORD* PID)
         params.InHostWindow = hwnd;
         params.OutPID = 0;
 
-        EnumDesktopWindows(NULL, FindPIDEnumFn, (LPARAM)&params);
+        EnumWindows(FindPIDEnumFn, (LPARAM)&params);
 
         *PID = params.OutPID;
         isUWP = true;
@@ -1373,7 +1373,7 @@ static void InitializeSwitchWin(SAppData* appData)
     pWinGroup->_WinClass = IsRunWindow(win) ? 0x8002 : 0; // Run
     pWinGroup->_WindowCount = 0;
     if (appData->_Config._AppSwitcherMode == AppSwitcherModeApp)
-        EnumDesktopWindows(NULL, FillCurrentWinGroup, (LPARAM)appData);
+        EnumWindows(FillCurrentWinGroup, (LPARAM)appData);
     else
     {
         pWinGroup->_Windows[0] = win;
