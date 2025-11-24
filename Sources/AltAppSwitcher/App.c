@@ -172,6 +172,7 @@ static DWORD _MainThread;
 
 // Main window
 #define MSG_FOCUS (WM_USER + 1)
+#define MSG_REFRESH (WM_USER + 2)
 
 static void RestoreKey(WORD keyCode)
 {
@@ -2024,6 +2025,27 @@ LRESULT FocusWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
     return 0;
 } 
 
+static HWINEVENTHOOK g_CloseHook[MAX_WIN_GROUPS];
+static uint32_t g_CloseHookCount = 0;
+static HWND g_MainWinForCloseHook;
+static uint32_t g_CloseHookCounter = 0;
+
+void CALLBACK CloseWinHook(HWINEVENTHOOK hook, DWORD event, HWND hwnd,
+    LONG idObject, LONG idChild, DWORD dwEventThread, DWORD dwmsEventTime)
+{
+    if (event == EVENT_OBJECT_DESTROY &&
+    /*  hwnd == g_hwndTarget &&*/
+        idObject == OBJID_WINDOW &&
+        idChild == INDEXID_CONTAINER)
+    {
+        g_CloseHookCounter--;
+        if (g_CloseHookCounter == 0)
+        {
+            PostMessage(g_MainWinForCloseHook, MSG_REFRESH, 0, 0);
+        }
+    }
+}
+
 LRESULT CALLBACK MainWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 {
     static SAppData* appData = NULL;
@@ -2088,6 +2110,29 @@ LRESULT CALLBACK MainWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lPar
         SetFocus(focusWindows[appData->_Selection]);
         return 0;
     }
+    case MSG_REFRESH:
+    {
+        // Free hooks
+        {
+            for (uint32_t i = 0; i < g_CloseHookCount; i++)
+            {
+                ASSERT(g_CloseHook[i]);
+                UnhookWinEvent(g_CloseHook[i]);
+                g_CloseHook[i] = 0;
+            }
+            g_CloseHookCount = 0;
+            g_MainWinForCloseHook = 0;
+        }
+        ClearWinGroupArr(&appData->_WinGroups);
+        InitializeSwitchApp(appData);
+        return 0;
+    }
+    {
+        // uia set focus here gives inconsistent app behavior IDK why.
+        // UIASetFocus(focusWindows[appData->_Selection]);
+        SetFocus(focusWindows[appData->_Selection]);
+        return 0;
+    }
     case WM_LBUTTONUP:
     {
         if (!IsInside(GET_X_LPARAM(lParam), GET_Y_LPARAM(lParam), hwnd))
@@ -2103,16 +2148,35 @@ LRESULT CALLBACK MainWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lPar
         if (appData->_CloseHover)
         {
             const SWinGroup* winGroup = &appData->_WinGroups._Data[appData->_MouseSelection];
+            // Free hooks
+            {
+                for (uint32_t i = 0; i < g_CloseHookCount; i++)
+                {
+                    ASSERT(g_CloseHook[i]);
+                    UnhookWinEvent(g_CloseHook[i]);
+                    g_CloseHook[i] = 0;
+                }
+                g_CloseHookCount = 0;
+                g_MainWinForCloseHook = 0;
+            }
+            g_CloseHookCount = winGroup->_WindowCount;
+            g_CloseHookCounter = winGroup->_WindowCount;
+            g_MainWinForCloseHook = hwnd;
             for (int i =  0; i < winGroup->_WindowCount; i++)
             {
                 const HWND win = winGroup->_Windows[i];
-                // WINBOOL res = CloseWindow(win);
-                // ASSERT(res);
-              //  PostMessage(win, WM_QUIT, 0, 0);
+
+                DWORD pid;
+                const DWORD tid = GetWindowThreadProcessId(win,
+                    &pid);
+                if (tid)
+                {
+                    // Init new hooks
+                    g_CloseHook[i] = SetWinEventHook(EVENT_OBJECT_DESTROY, EVENT_OBJECT_DESTROY,
+                        NULL, CloseWinHook, pid, tid, WINEVENT_OUTOFCONTEXT);
+                }
                 PostMessage(win, WM_CLOSE, 0, 0);
             }
-            ClearWinGroupArr(&appData->_WinGroups);
-            InitializeSwitchApp(appData);
             return 0;
         }
 #ifdef ASYNC_APPLY
@@ -2130,6 +2194,17 @@ LRESULT CALLBACK MainWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lPar
     }
     case WM_DESTROY:
     {
+        // Free hooks
+        {
+            for (uint32_t i = 0; i < g_CloseHookCount; i++)
+            {
+                ASSERT(g_CloseHook[i]);
+                UnhookWinEvent(g_CloseHook[i]);
+                g_CloseHook[i] = 0;
+            }
+            g_CloseHookCount = 0;
+            g_MainWinForCloseHook = 0;
+        }
         DeleteDC(appData->_GraphicsResources._DC);
         DeleteObject(appData->_GraphicsResources._Bitmap);
         return 0;
