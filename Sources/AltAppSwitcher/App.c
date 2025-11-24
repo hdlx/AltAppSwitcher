@@ -1808,47 +1808,6 @@ static void Draw(SAppData* appData, HDC dc, RECT clientRect)
         }
     }
 
-    // Close button
-    {
-        const uint32_t mouseSelIdx = (uint32_t)appData->_MouseSelection;
-        float r0[4];
-        CloseButtonRect(r0, &appData->_Metrics, mouseSelIdx);
-        const float w0 = r0[2] - r0[0];
-        const float w1 = w0 * 0.5;
-        float r1[4];
-        r1[0] = r0[0] + w1 * 0.5;
-        r1[1] = r0[1] + w1 * 0.5;
-        r1[2] = r0[2] - w1 * 0.5;
-        r1[3] = r0[3] - w1 * 0.5;
-        r1[0] = round(r1[0]);
-        r1[1] = round(r1[1]);
-        r1[2] = round(r1[2]);
-        r1[3] = round(r1[3]);
-        if (appData->_CloseHover)
-        {
-            RectF _r0 = { r0[0], r0[1], w0, w0 };
-            _r0.X = round(_r0.X);
-            _r0.Y = round(_r0.Y);
-            _r0.Width = round(_r0.Width);
-            _r0.Height = round(_r0.Height);
-            DrawRoundedRect(pGraphics, NULL, pGraphRes->_pBrushText, &_r0, 5);
-
-            GpPen* pPen;
-            GdipCreatePen2(pGraphRes->_pBrushBg, 2, UnitPixel, &pPen);
-            GdipDrawLineI(pGraphics, pPen, r1[0], r1[1], r1[2], r1[3]);
-            GdipDrawLineI(pGraphics, pPen, r1[2], r1[1], r1[0], r1[3]);
-            GdipDeletePen(pPen);
-        }
-        else
-        {
-            GpPen* pPen;
-            GdipCreatePen2(pGraphRes->_pBrushText, 2, UnitPixel, &pPen);
-            GdipDrawLineI(pGraphics, pPen, r1[0], r1[1], r1[2], r1[3]);
-            GdipDrawLineI(pGraphics, pPen, r1[2], r1[1], r1[0], r1[3]);
-            GdipDeletePen(pPen);
-        }
-    }
-
     for (uint32_t i = 0; i < appData->_WinGroups._Size; i++)
     {
         const SWinGroup* pWinGroup = &appData->_WinGroups._Data[i];
@@ -1958,6 +1917,48 @@ static void Draw(SAppData* appData, HDC dc, RECT clientRect)
 
         x += containerSize;
     }
+
+    // Close button
+    {
+        const uint32_t mouseSelIdx = (uint32_t)appData->_MouseSelection;
+        float r0[4];
+        CloseButtonRect(r0, &appData->_Metrics, mouseSelIdx);
+        const float w0 = r0[2] - r0[0];
+        const float w1 = w0 * 0.5;
+        float r1[4];
+        r1[0] = r0[0] + w1 * 0.5;
+        r1[1] = r0[1] + w1 * 0.5;
+        r1[2] = r0[2] - w1 * 0.5;
+        r1[3] = r0[3] - w1 * 0.5;
+        r1[0] = round(r1[0]);
+        r1[1] = round(r1[1]);
+        r1[2] = round(r1[2]);
+        r1[3] = round(r1[3]);
+        if (appData->_CloseHover)
+        {
+            RectF _r0 = { r0[0], r0[1], w0, w0 };
+            _r0.X = round(_r0.X);
+            _r0.Y = round(_r0.Y);
+            _r0.Width = round(_r0.Width);
+            _r0.Height = round(_r0.Height);
+            DrawRoundedRect(pGraphics, NULL, pGraphRes->_pBrushText, &_r0, 5);
+
+            GpPen* pPen;
+            GdipCreatePen2(pGraphRes->_pBrushBg, 2, UnitPixel, &pPen);
+            GdipDrawLineI(pGraphics, pPen, r1[0], r1[1], r1[2], r1[3]);
+            GdipDrawLineI(pGraphics, pPen, r1[2], r1[1], r1[0], r1[3]);
+            GdipDeletePen(pPen);
+        }
+        else
+        {
+            GpPen* pPen;
+            GdipCreatePen2(pGraphRes->_pBrushText, 2, UnitPixel, &pPen);
+            GdipDrawLineI(pGraphics, pPen, r1[0], r1[1], r1[2], r1[3]);
+            GdipDrawLineI(pGraphics, pPen, r1[2], r1[1], r1[0], r1[3]);
+            GdipDeletePen(pPen);
+        }
+    }
+
     BitBlt(GetDC(hwnd), clientRect.left, clientRect.top, clientRect.right - clientRect.left, clientRect.bottom - clientRect.top, pGraphRes->_DC, 0, 0, SRCCOPY);
 
     // Always restore old bitmap (see fn doc)
