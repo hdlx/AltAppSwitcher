@@ -26,7 +26,6 @@
 #include <PropKey.h>
 #include <winuser.h>
 #include <winnt.h>
-#include <pthread.h>
 #include <time.h>
 #include <Shobjidl.h>
 #include "AppxPackaging.h"
@@ -2023,29 +2022,34 @@ LRESULT FocusWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
             return DefWindowProc(hwnd, uMsg, wParam, lParam); 
     }
     return 0;
-} 
+}
 
-static HWINEVENTHOOK g_CloseHook[MAX_WIN_GROUPS];
-static uint32_t g_CloseHookCount = 0;
-static HWND g_MainWinForCloseHook;
-
-void CALLBACK CloseWinHook(HWINEVENTHOOK hook, DWORD event, HWND hwnd,
-    LONG idObject, LONG idChild, DWORD dwEventThread, DWORD dwmsEventTime)
+typedef struct CloseThreadData
 {
-    if (event == EVENT_OBJECT_DESTROY &&
-    /*  hwnd == g_hwndTarget &&*/
-        idObject == OBJID_WINDOW &&
-        idChild == INDEXID_CONTAINER)
+    HWND Win[MAX_WIN_GROUPS];
+    uint32_t Count;
+    HWND MainWin;
+} CloseThreadData;
+
+static DWORD CloseThread(LPVOID data)
+{
+    const CloseThreadData* d = (const CloseThreadData*)data;
+    for (int i =  0; i < d->Count; i++)
     {
-        PostMessage(g_MainWinForCloseHook, MSG_REFRESH, 0, 0);
+        const HWND win = d->Win[i];
+        while (IsWindow(win))
+        {
+            usleep(1000);
+        }
     }
+    PostMessage(d->MainWin, MSG_REFRESH, 0, 0);
+    return 0;
 }
 
 LRESULT CALLBACK MainWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 {
     static SAppData* appData = NULL;
     static HWND focusWindows[MAX_WIN_GROUPS];
-    static uint32_t hookCounter = 0;
     switch (uMsg)
     {
     case WM_MOUSEMOVE:
@@ -2110,19 +2114,6 @@ LRESULT CALLBACK MainWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lPar
     {
         ClearWinGroupArr(&appData->_WinGroups);
         InitializeSwitchApp(appData);
-        //hookCounter--;
-        // Free hooks
-        if (hookCounter == 0)
-        {
-            for (uint32_t i = 0; i < g_CloseHookCount; i++)
-            {
-                ASSERT(g_CloseHook[i]);
-                UnhookWinEvent(g_CloseHook[i]);
-                g_CloseHook[i] = 0;
-            }
-            g_CloseHookCount = 0;
-            g_MainWinForCloseHook = 0;
-        }
         return 0;
     }
     {
@@ -2145,36 +2136,30 @@ LRESULT CALLBACK MainWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lPar
 
         if (appData->_CloseHover)
         {
+            static HANDLE ht = 0;
+            static CloseThreadData ctd = {};
+            if (ht)
+                TerminateThread(ht, 0);
+            ctd.Count = 0;
+
+            ctd.MainWin = hwnd;
             const SWinGroup* winGroup = &appData->_WinGroups._Data[appData->_MouseSelection];
-            // Free hooks
-            {
-                for (uint32_t i = 0; i < g_CloseHookCount; i++)
-                {
-                    ASSERT(g_CloseHook[i]);
-                    UnhookWinEvent(g_CloseHook[i]);
-                    g_CloseHook[i] = 0;
-                }
-                g_CloseHookCount = 0;
-                g_MainWinForCloseHook = 0;
-            }
-            g_CloseHookCount = winGroup->_WindowCount;
-            hookCounter = winGroup->_WindowCount;
-            g_MainWinForCloseHook = hwnd;
             for (int i =  0; i < winGroup->_WindowCount; i++)
             {
                 const HWND win = winGroup->_Windows[i];
+                ctd.Count++;
+                ctd.Win[i] = win;
+            }
 
-                DWORD pid;
-                const DWORD tid = GetWindowThreadProcessId(win,
-                    &pid);
-                if (tid)
-                {
-                    // Init new hooks
-                    g_CloseHook[i] = SetWinEventHook(EVENT_OBJECT_DESTROY, EVENT_OBJECT_DESTROY,
-                        NULL, CloseWinHook, pid, tid, WINEVENT_OUTOFCONTEXT);
-                }
+            DWORD tid;
+            ht = CreateThread(NULL, 0, CloseThread, (void*)&ctd, 0, &tid);
+
+            for (int i =  0; i < winGroup->_WindowCount; i++)
+            {
+                const HWND win = winGroup->_Windows[i];
                 PostMessage(win, WM_CLOSE, 0, 0);
             }
+
             return 0;
         }
 #ifdef ASYNC_APPLY
@@ -2193,16 +2178,16 @@ LRESULT CALLBACK MainWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lPar
     case WM_DESTROY:
     {
         // Free hooks
-        {
-            for (uint32_t i = 0; i < g_CloseHookCount; i++)
-            {
-                ASSERT(g_CloseHook[i]);
-                UnhookWinEvent(g_CloseHook[i]);
-                g_CloseHook[i] = 0;
-            }
-            g_CloseHookCount = 0;
-            g_MainWinForCloseHook = 0;
-        }
+        // {
+        //     for (uint32_t i = 0; i < g_CloseHookCount; i++)
+        //     {
+        //         ASSERT(g_CloseHook[i]);
+        //         UnhookWinEvent(g_CloseHook[i]);
+        //         g_CloseHook[i] = 0;
+        //     }
+        //     g_CloseHookCount = 0;
+        //     g_MainWinForCloseHook = 0;
+        // }
         DeleteDC(appData->_GraphicsResources._DC);
         DeleteObject(appData->_GraphicsResources._Bitmap);
         return 0;
