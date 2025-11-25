@@ -2028,7 +2028,6 @@ LRESULT FocusWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 static HWINEVENTHOOK g_CloseHook[MAX_WIN_GROUPS];
 static uint32_t g_CloseHookCount = 0;
 static HWND g_MainWinForCloseHook;
-static uint32_t g_CloseHookCounter = 0;
 
 void CALLBACK CloseWinHook(HWINEVENTHOOK hook, DWORD event, HWND hwnd,
     LONG idObject, LONG idChild, DWORD dwEventThread, DWORD dwmsEventTime)
@@ -2038,11 +2037,7 @@ void CALLBACK CloseWinHook(HWINEVENTHOOK hook, DWORD event, HWND hwnd,
         idObject == OBJID_WINDOW &&
         idChild == INDEXID_CONTAINER)
     {
-        g_CloseHookCounter--;
-        if (g_CloseHookCounter == 0)
-        {
-            PostMessage(g_MainWinForCloseHook, MSG_REFRESH, 0, 0);
-        }
+        PostMessage(g_MainWinForCloseHook, MSG_REFRESH, 0, 0);
     }
 }
 
@@ -2050,6 +2045,7 @@ LRESULT CALLBACK MainWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lPar
 {
     static SAppData* appData = NULL;
     static HWND focusWindows[MAX_WIN_GROUPS];
+    static uint32_t hookCounter = 0;
     switch (uMsg)
     {
     case WM_MOUSEMOVE:
@@ -2112,7 +2108,11 @@ LRESULT CALLBACK MainWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lPar
     }
     case MSG_REFRESH:
     {
+        ClearWinGroupArr(&appData->_WinGroups);
+        InitializeSwitchApp(appData);
+        //hookCounter--;
         // Free hooks
+        if (hookCounter == 0)
         {
             for (uint32_t i = 0; i < g_CloseHookCount; i++)
             {
@@ -2123,8 +2123,6 @@ LRESULT CALLBACK MainWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lPar
             g_CloseHookCount = 0;
             g_MainWinForCloseHook = 0;
         }
-        ClearWinGroupArr(&appData->_WinGroups);
-        InitializeSwitchApp(appData);
         return 0;
     }
     {
@@ -2160,7 +2158,7 @@ LRESULT CALLBACK MainWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lPar
                 g_MainWinForCloseHook = 0;
             }
             g_CloseHookCount = winGroup->_WindowCount;
-            g_CloseHookCounter = winGroup->_WindowCount;
+            hookCounter = winGroup->_WindowCount;
             g_MainWinForCloseHook = hwnd;
             for (int i =  0; i < winGroup->_WindowCount; i++)
             {
