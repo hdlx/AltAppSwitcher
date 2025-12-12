@@ -161,6 +161,7 @@ static DWORD _MainThread;
 #define MSG_DEINIT (WM_USER + 7)
 #define MSG_CANCEL_APP (WM_USER + 9)
 #define MSG_RESTORE_KEY (WM_USER + 12)
+#define MSG_PREV_WIN (WM_USER + 13)
 
 // Apply thread
 #define MSG_APPLY_APP (WM_USER + 1)
@@ -1600,6 +1601,11 @@ static LRESULT KbProc(int nCode, WPARAM wParam, LPARAM lParam)
     const bool tabKey = kbStrut.vkCode == VK_TAB;
     const bool shiftKey = kbStrut.vkCode == VK_LSHIFT;
     const bool escKey = kbStrut.vkCode == VK_ESCAPE;
+    // Vim keys: h=left, j=up, k=down, l=right (and arrow keys)
+    const bool vimNextKey = kbStrut.vkCode == 'L' || kbStrut.vkCode == 'J' ||
+                            kbStrut.vkCode == VK_RIGHT || kbStrut.vkCode == VK_DOWN;
+    const bool vimPrevKey = kbStrut.vkCode == 'H' || kbStrut.vkCode == 'K' ||
+                            kbStrut.vkCode == VK_LEFT || kbStrut.vkCode == VK_UP;
     const bool isWatchedKey =
         appHoldKey ||
         nextAppKey ||
@@ -1609,7 +1615,9 @@ static LRESULT KbProc(int nCode, WPARAM wParam, LPARAM lParam)
         invertKey ||
         tabKey ||
         shiftKey ||
-        escKey;
+        escKey ||
+        vimNextKey ||
+        vimPrevKey;
     if (!isWatchedKey)
         return CallNextHookEx(NULL, nCode, wParam, lParam);
 
@@ -1633,6 +1641,9 @@ static LRESULT KbProc(int nCode, WPARAM wParam, LPARAM lParam)
         const bool cancel = escapeInput;
         const bool isWinHold = GetAsyncKeyState(_KeyConfig->_WinHold) & 0x8000;
         const bool isAppHold = GetAsyncKeyState(_KeyConfig->_AppHold) & 0x8000;
+        // Vim/Arrow navigation
+        const bool vimNext = vimNextKey && !rel;
+        const bool vimPrev = vimPrevKey && !rel;
 
         // Denit.
         if (prevMode == ModeApp &&
@@ -1684,6 +1695,28 @@ static LRESULT KbProc(int nCode, WPARAM wParam, LPARAM lParam)
         {
             mode = ModeApp;
             PostThreadMessage(_MainThread, MSG_PREV_APP, 0, 0);
+            bypassMsg = true;
+        }
+
+        // Vim/Arrow key navigation (h/left/k/up = prev, l/right/j/down = next)
+        if (vimNext && prevMode == ModeApp)
+        {
+            PostThreadMessage(_MainThread, MSG_NEXT_APP, 0, 0);
+            bypassMsg = true;
+        }
+        else if (vimPrev && prevMode == ModeApp)
+        {
+            PostThreadMessage(_MainThread, MSG_PREV_APP, 0, 0);
+            bypassMsg = true;
+        }
+        else if (vimNext && prevMode == ModeWin)
+        {
+            PostThreadMessage(_MainThread, MSG_NEXT_WIN, 0, 0);
+            bypassMsg = true;
+        }
+        else if (vimPrev && prevMode == ModeWin)
+        {
+            PostThreadMessage(_MainThread, MSG_PREV_WIN, 0, 0);
             bypassMsg = true;
         }
     }
@@ -2284,6 +2317,21 @@ int StartAltAppSwitcher(HINSTANCE hInstance)
             if (_AppData._Mode == ModeNone)
                 InitializeSwitchWin(&_AppData);
             _AppData._Selection += _AppData._Invert ? -1 : 1;
+            _AppData._Selection = Modulo(_AppData._Selection, _AppData._CurrentWinGroup._WindowCount);
+#ifdef ASYNC_APPLY
+            ApplyWithTimeout(&_AppData, MSG_APPLY_WIN);
+#else
+            HWND win = _AppData._CurrentWinGroup._Windows[_AppData._Selection];
+            ApplySwitchWin(win, appData->_Config._RestoreMinimizedWindows);
+#endif
+            break;
+        }
+        case MSG_PREV_WIN:
+        {
+            // Prev win does not have the ability to init the mode
+            if (_AppData._Mode != ModeWin)
+                break;
+            _AppData._Selection += _AppData._Invert ? 1 : -1;
             _AppData._Selection = Modulo(_AppData._Selection, _AppData._CurrentWinGroup._WindowCount);
 #ifdef ASYNC_APPLY
             ApplyWithTimeout(&_AppData, MSG_APPLY_WIN);
