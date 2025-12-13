@@ -33,7 +33,7 @@ Run `RemoveFromStartup.bat` to revert this.
 
 ## Building from source
 > [!WARNING]
-Please be careful: **MSVCRT** is not used anymore. Please use **UCRT** version of llvm-mingw.
+The C runtime used by this project is not **MSVCRT** anymore. Please use **UCRT** version of llvm-mingw.
 
 This is a C project relying on C standard library and Windows API. I'm using [Clang (mingw ucrt)](https://github.com/mstorsjo/llvm-mingw) and VS Code / VS Codium.
 Here is my setup:
