@@ -2006,22 +2006,15 @@ LRESULT CALLBACK WorkerWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lP
 LRESULT FocusWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 {
     switch (uMsg)
-    { 
-        case WM_CREATE:
-            return 0;
-        case WM_PAINT:
-            return 0;
-        case WM_SIZE:
-            return 0;
-        case WM_DESTROY:
-            return 0;
-        case WM_SETFOCUS:
-        //    printf("focus set\n");
-            return 0;
-        default:
-            return DefWindowProc(hwnd, uMsg, wParam, lParam); 
+    {
+    case WM_DESTROY:
+    case WM_CREATE:
+    case WM_PAINT:
+    case WM_SIZE:
+    case WM_SETFOCUS:
+        break;
     }
-    return 0;
+    return DefWindowProc(hwnd, uMsg, wParam, lParam); 
 }
 
 typedef struct CloseThreadData
@@ -2299,7 +2292,7 @@ int StartAltAppSwitcher(HINSTANCE hInstance)
 
     {
         WNDCLASS wc = { };
-        wc.lpfnWndProc   = DefWindowProc; /*FocusWindowProc;*/
+        wc.lpfnWndProc   = DefWindowProc;
         wc.hInstance     = hInstance;
         wc.lpszClassName = FOCUS_CLASS_NAME;
         wc.cbWndExtra = 0;
