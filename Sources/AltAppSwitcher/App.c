@@ -1697,7 +1697,6 @@ static LRESULT KbProc(int nCode, WPARAM wParam, LPARAM lParam)
 
         if (prevApp && isAppHold) // Not *else* if because the key can be shared
         {
-            mode = ModeApp;
             PostThreadMessage(_MainThread, MSG_PREV_APP, 0, 0);
             bypassMsg = true;
         }
