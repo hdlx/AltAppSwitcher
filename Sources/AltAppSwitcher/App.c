@@ -1583,6 +1583,8 @@ static void ApplySwitchWin(HWND win, bool restoreMinimized)
 {
     if (restoreMinimized)
         RestoreWin(win);
+    keybd_event(VK_MENU, 0, 0, 0);
+    keybd_event(VK_MENU, 0, KEYEVENTF_KEYUP, 0);
     UIASetFocus(win);
 }
 
