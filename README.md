@@ -32,12 +32,15 @@ Run `RemoveFromStartup.bat` to revert this.
 - Releases might be flagged as malicious by antiviruses. This is a false positive (detection relies on machine learning).
 
 ## Building from source
-This is a C project relying on C standard library and Windows API. I'm using [Clang (mingw)](https://github.com/mstorsjo/llvm-mingw) and VS Code / VS Codium.
+> [!WARNING]
+The C runtime used by this project is not **MSVCRT** anymore. Please use **UCRT** version of llvm-mingw.
+
+This is a C project relying on C standard library and Windows API. I'm using [Clang (mingw ucrt)](https://github.com/mstorsjo/llvm-mingw) and VS Code / VS Codium.
 Here is my setup:
 ### Dependencies:
 - **Clang and Windows libraries:**\
-Download **Clang MinGW**, unzip and add `Bin` subfolder to "Path" so `clang` (and other tools from MinGW) can be called from a terminal.\
-I'm using `llvm-mingw-20240619-msvcrt-x86_64` from [Clang (mingw)](https://github.com/mstorsjo/llvm-mingw) at the time of writing.
+Download **UCRT Clang MinGW**, unzip and add `Bin` subfolder to "Path" so `clang` (and other tools from MinGW) can be called from a terminal.\
+I'm using `llvm-mingw-20251202-ucrt-x86_64` from [Clang (mingw)](https://github.com/mstorsjo/llvm-mingw) at the time of writing.
 - **Python:**\
 Download **Python** and install or add to "Path" so `python` can be called from a terminal.\
 Alternatively, you can use MinGW-provided Python under `Python/bin`.
