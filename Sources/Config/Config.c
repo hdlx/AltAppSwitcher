@@ -151,6 +151,7 @@ void DefaultConfig(Config* config)
     config->_AppFilterMode = AppFilterModeAll;
     config->_RestoreMinimizedWindows = true;
     config->_DesktopFilter = DesktopFilterCurrent;
+    config->_DebugDisableIconFocus = false;
 }
 
 void LoadConfig(Config* config)
@@ -209,6 +210,7 @@ TryGetFloat(keyValues, ENTRY, &DST)
     GET_ENUM("app filter mode", config->_AppFilterMode, appFilterModeES);
     GET_ENUM("desktop filter", config->_DesktopFilter, desktopFilterES);
     GET_BOOL("restore minimized windows", config->_RestoreMinimizedWindows);
+    GET_BOOL("debug disable icon focus", config->_DebugDisableIconFocus);
 
     GET_BOOL("allow mouse", config->_Mouse);
     GET_BOOL("check for updates", config->_CheckForUpdates);
@@ -272,6 +274,7 @@ WriteFloat(file, ENTRY, VALUE)
     WRITE_ENUM("app filter mode", config->_AppFilterMode, appFilterModeES);
     WRITE_ENUM("desktop filter", config->_DesktopFilter, desktopFilterES);
     WRITE_BOOL("restore minimized windows", config->_RestoreMinimizedWindows);
+    WRITE_BOOL("debug disable icon focus", config->_DebugDisableIconFocus);
 
     WRITE_BOOL("allow mouse", config->_Mouse);
     WRITE_BOOL("check for updates", config->_CheckForUpdates);

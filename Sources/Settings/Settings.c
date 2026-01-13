@@ -64,6 +64,10 @@ static void SetupGUI(GUIData* gui, void* userData)
     CreateText("Desktop filter:", "", gui);
     CreateComboBox("",
         &cfg->_DesktopFilter, desktopFilterES, gui);
+
+    CreateText("Debug only: disable icon focus", "", gui);
+    CreateBoolControl("", &cfg->_DebugDisableIconFocus, gui);
+
     GridLayout(1, gui);
     CreateButton("Apply", (HMENU)APPLY_BUTTON_ID, gui);
 }

@@ -63,6 +63,7 @@ typedef struct Config
     AppFilterMode _AppFilterMode;
     bool _RestoreMinimizedWindows;
     DesktopFilter _DesktopFilter;
+    bool _DebugDisableIconFocus;
 } Config;
 
 typedef struct EnumString

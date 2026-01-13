@@ -2115,15 +2115,18 @@ LRESULT CALLBACK MainWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lPar
         // Otherwise cursor is busy on hover. I don't understand why.
         SetCursor(LoadCursor(NULL, IDC_ARROW));
 
-        for (int i = 0; i < appData->_WinGroups._Size; i++)
+        if (!appData->_Config._DebugDisableIconFocus)
         {
-            const int iconContainerSize = (int)appData->_Metrics._Container;
-            const int pad = (int)appData->_Metrics._Pad;
-            int x = pad + i * (iconContainerSize);
-            focusWindows[i] = CreateWindowEx(0, FOCUS_CLASS_NAME, NULL,
-                WS_CHILD /* | WS_VISIBLE */,
-                x, pad, iconContainerSize, iconContainerSize,
-                hwnd, NULL, appData->_Instance, NULL);
+            for (int i = 0; i < appData->_WinGroups._Size; i++)
+            {
+                const int iconContainerSize = (int)appData->_Metrics._Container;
+                const int pad = (int)appData->_Metrics._Pad;
+                int x = pad + i * (iconContainerSize);
+                focusWindows[i] = CreateWindowEx(0, FOCUS_CLASS_NAME, NULL,
+                    WS_CHILD /* | WS_VISIBLE */,
+                    x, pad, iconContainerSize, iconContainerSize,
+                    hwnd, NULL, appData->_Instance, NULL);
+            }
         }
 
         return 0;
@@ -2132,19 +2135,14 @@ LRESULT CALLBACK MainWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lPar
     {
         // uia set focus here gives inconsistent app behavior IDK why.
         // UIASetFocus(focusWindows[appData->_Selection]);
-        SetFocus(focusWindows[appData->_Selection]);
+        if (!appData->_Config._DebugDisableIconFocus)
+            SetFocus(focusWindows[appData->_Selection]);
         return 0;
     }
     case MSG_REFRESH:
     {
         ClearWinGroupArr(&appData->_WinGroups);
         InitializeSwitchApp(appData);
-        return 0;
-    }
-    {
-        // uia set focus here gives inconsistent app behavior IDK why.
-        // UIASetFocus(focusWindows[appData->_Selection]);
-        SetFocus(focusWindows[appData->_Selection]);
         return 0;
     }
     case WM_LBUTTONUP:
@@ -2420,7 +2418,8 @@ int StartAltAppSwitcher(HINSTANCE hInstance)
             _AppData._Selection = Modulo(_AppData._Selection, _AppData._WinGroups._Size);
             InvalidateRect(_AppData._MainWin, 0, FALSE);
             UpdateWindow(_AppData._MainWin);
-            SendNotifyMessage(_AppData._MainWin, MSG_FOCUS, 0,0 );
+            if (!_AppData._Config._DebugDisableIconFocus)
+                SendNotifyMessage(_AppData._MainWin, MSG_FOCUS, 0,0 );
             break;
         }
         case MSG_PREV_APP:
@@ -2432,7 +2431,8 @@ int StartAltAppSwitcher(HINSTANCE hInstance)
             _AppData._Selection = Modulo(_AppData._Selection, _AppData._WinGroups._Size);
             InvalidateRect(_AppData._MainWin, 0, FALSE);
             UpdateWindow(_AppData._MainWin);
-            SendNotifyMessage(_AppData._MainWin, MSG_FOCUS, 0,0 );
+            if (!_AppData._Config._DebugDisableIconFocus)
+                SendNotifyMessage(_AppData._MainWin, MSG_FOCUS, 0,0 );
             break;
         }
         case MSG_NEXT_WIN:
