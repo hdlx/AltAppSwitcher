@@ -74,10 +74,8 @@ static void SetupGUI(GUIData* gui, void* userData)
 
 static void ButtonMessage(UINT buttonID, GUIData* guiData, void* userData)
 {
-    switch (buttonID)
-    {
-    case APPLY_BUTTON_ID:
-    {
+    switch (buttonID) {
+    case APPLY_BUTTON_ID: {
         Config* cfg = (Config*)userData;
         ApplyBindings(guiData);
         WriteConfig(cfg);

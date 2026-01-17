@@ -18,10 +18,9 @@
 #include "Utils/Version.h"
 #include "Utils/Message.h"
 
-typedef struct DynMem
-{
-  char* Data;
-  size_t Size;
+typedef struct DynMem {
+    char* Data;
+    size_t Size;
 } DynMem;
 
 static size_t writeData(void* ptr, size_t size, size_t nmemb, void* userData)
@@ -31,8 +30,7 @@ static size_t writeData(void* ptr, size_t size, size_t nmemb, void* userData)
     void* old = mem->Data;
     mem->Data = realloc(old, mem->Size + nmemb);
     ASSERT(mem->Data)
-    if (!mem->Data)
-    {
+    if (!mem->Data) {
         free(old);
         return 0;
     }
@@ -47,17 +45,16 @@ static int GetLastAASVersion(BOOL preview, char* outVersion, char* assetURL)
     CURLcode res;
     curl_global_init(CURL_GLOBAL_ALL);
     curl = curl_easy_init();
-    if (!curl)
-    {
+    if (!curl) {
         curl_global_cleanup();
         return 0;
     }
 
     DynMem response = {};
     curl_easy_setopt(curl, CURLOPT_URL, "https://api.github.com/repos/hdlx/altappswitcher/releases");
-    struct curl_slist *list = NULL;
+    struct curl_slist* list = NULL;
     char userAgent[256] = {};
-    int a = sprintf_s(userAgent, sizeof(userAgent) / sizeof(userAgent[0]),  "User-Agent: AltAppSwitcher_v%i.%i", MAJOR, MINOR);
+    int a = sprintf_s(userAgent, sizeof(userAgent) / sizeof(userAgent[0]), "User-Agent: AltAppSwitcher_v%i.%i", MAJOR, MINOR);
     ASSERT(a > 0);
     list = curl_slist_append(list, userAgent);
     list = curl_slist_append(list, "Accept: application/vnd.github+json");
@@ -70,15 +67,14 @@ static int GetLastAASVersion(BOOL preview, char* outVersion, char* assetURL)
     res = curl_easy_perform(curl);
     ASSERT(res == CURLE_OK)
     {
-        void* old = response.Data; 
+        void* old = response.Data;
         response.Data = realloc(old, response.Size + 1);
-        if (!response.Data)
-        {
+        if (!response.Data) {
             free(old);
             ASSERT(true);
             return 0;
         }
-        response.Data[response.Size] = '\0';  
+        response.Data[response.Size] = '\0';
         response.Size += 1;
     }
     curl_slist_free_all(list);
@@ -89,8 +85,7 @@ static int GetLastAASVersion(BOOL preview, char* outVersion, char* assetURL)
     free(response.Data);
 
     const cJSON* release = NULL;
-    for (int i = 0; i < cJSON_GetArraySize(json); i++)
-    {
+    for (int i = 0; i < cJSON_GetArraySize(json); i++) {
         release = cJSON_GetArrayItem(json, i);
         const cJSON* preRelease = cJSON_GetObjectItem(release, "prerelease");
         if (preview == cJSON_IsTrue(preRelease))
@@ -99,29 +94,28 @@ static int GetLastAASVersion(BOOL preview, char* outVersion, char* assetURL)
 
     const cJSON* tagName = cJSON_GetObjectItem(release, "tag_name");
     const char* tag = cJSON_GetStringValue(tagName);
-    int major = 0; int minor = 0;
+    int major = 0;
+    int minor = 0;
     strcpy_s(outVersion, sizeof(char) * 64, tag);
     int x = sscanf_s(outVersion, "v%i.%i", &major, &minor);
     ASSERT(x > 0);
 
-    if (MAJOR >= major &&  MINOR >= minor)
-    {
+    if (MAJOR >= major && MINOR >= minor) {
         cJSON_Delete(json);
         return 1;
     }
 
     const char arch[] =
 #ifdef ARCH_x86_64
-       "x86_64";
+        "x86_64";
 #elif defined(ARCH_aarch64)
-       "aarch64";
+        "aarch64";
 #else
 #error
 #endif
 
     const cJSON* assets = cJSON_GetObjectItem(release, "assets");
-    for (int i = 0; i < cJSON_GetArraySize(assets); i++)
-    {
+    for (int i = 0; i < cJSON_GetArraySize(assets); i++) {
         const cJSON* asset = cJSON_GetArrayItem(assets, i);
         const cJSON* name = cJSON_GetObjectItem(asset, "name");
         const char* nameStr = cJSON_GetStringValue(name);
@@ -148,23 +142,22 @@ static void DownloadArchive(const char* dstFile, const char* url)
     CURLcode res;
     curl_global_init(CURL_GLOBAL_ALL);
     curl = curl_easy_init();
-    if (!curl)
-    {
+    if (!curl) {
         curl_global_cleanup();
         return;
     }
 
-    FILE* file = fopen(dstFile,"wb");
+    FILE* file = fopen(dstFile, "wb");
     ASSERT(file);
     if (!file)
         return;
     curl_easy_setopt(curl, CURLOPT_URL, url);
-    struct curl_slist *list = NULL;
+    struct curl_slist* list = NULL;
     char userAgent[256] = {};
     int a = sprintf_s(userAgent, sizeof(userAgent) / sizeof(userAgent[0]), "User-Agent: AltAppSwitcher_v%i.%i", MAJOR, MINOR);
     ASSERT(a > 0);
     list = curl_slist_append(list, userAgent);
-    //list = curl_slist_append(list, "Accept: application/vnd.github+json");
+    // list = curl_slist_append(list, "Accept: application/vnd.github+json");
     list = curl_slist_append(list, "Accept: application/octet-stream");
 
     curl_easy_setopt(curl, CURLOPT_HTTPHEADER, list);
@@ -189,13 +182,12 @@ static void Extract(const char* targetDir)
 {
     CloseAASBlocking();
     int err = 0;
-    struct zip* z = zip_open("./AltAppSwitcher.zip" , 0, &err);
+    struct zip* z = zip_open("./AltAppSwitcher.zip", 0, &err);
     ASSERT(z);
     if (!z)
         return;
     unsigned char buf[1024];
-    for (int i = 0; i < zip_get_num_entries(z, 0); i++)
-    {
+    for (int i = 0; i < zip_get_num_entries(z, 0); i++) {
         struct zip_stat zs = {};
         zip_stat_index(z, i, 0, &zs);
         // printf("Name: [%s], ", zs.name);
@@ -214,8 +206,7 @@ static void Extract(const char* targetDir)
         if (!dstFile)
             return;
         long long sum = 0;
-        while (sum != zs.size)
-        {
+        while (sum != zs.size) {
             long long len = zip_fread(zf, buf, sizeof(buf));
             unsigned long long a = fwrite(buf, sizeof(unsigned char), len, dstFile);
             ASSERT(a > 0);
@@ -236,26 +227,21 @@ static void Extract(const char* targetDir)
     MessageBox(0, "AltAppSwitcher successfully updated", "AltAppSwitcher", MB_OK | MB_SETFOREGROUND);
 }
 
-int main(int argc, char *argv[])
+int main(int argc, char* argv[])
 {
     BOOL extract = 0;
     BOOL preview = 0;
     char targetDir[256] = {};
-    for (int i = 0; i < argc; i++)
-    {
-        if (!strcmp(argv[i], "--target") && (i + 1) < argc)
-        {
+    for (int i = 0; i < argc; i++) {
+        if (!strcmp(argv[i], "--target") && (i + 1) < argc) {
             strcpy_s(targetDir, sizeof(targetDir), argv[i + 1]);
             i++;
             extract = 1;
-        }
-        else if (!strcmp(argv[i], "--preview"))
-        {
+        } else if (!strcmp(argv[i], "--preview")) {
             preview = 1;
         }
     }
-    if (extract)
-    {
+    if (extract) {
         Extract(targetDir);
         return 0;
     }
@@ -265,7 +251,7 @@ int main(int argc, char *argv[])
     GetLastAASVersion(preview, version, assetURL);
     if (assetURL[0] == '\0')
         return 0;
-    
+
     {
         char msg[256];
         int a = sprintf_s(
@@ -286,8 +272,7 @@ int main(int argc, char *argv[])
         StrBToF(tempDir);
         strcat_s(tempDir, sizeof(tempDir), "AASUpdater");
         DIR* dir = opendir(tempDir);
-        if (dir)
-        {
+        if (dir) {
             closedir(dir);
             DeleteTree(tempDir);
         }

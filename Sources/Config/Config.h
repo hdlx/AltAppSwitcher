@@ -2,8 +2,7 @@
 #include <windef.h>
 #include <stdbool.h>
 
-struct KeyConfig
-{
+struct KeyConfig {
     unsigned int AppHold;
     unsigned int AppSwitch;
     unsigned int WinHold;
@@ -12,46 +11,39 @@ struct KeyConfig
     unsigned int PrevApp;
 };
 
-typedef enum ThemeMode
-{
+typedef enum ThemeMode {
     ThemeModeAuto,
     ThemeModeLight,
     ThemeModeDark
 } ThemeMode;
 
-typedef enum DisplayName
-{
+typedef enum DisplayName {
     DisplayNameSel,
     DisplayNameAll,
     DisplayNameNone
 } DisplayName;
 
-typedef enum AppSwitcherMode
-{
+typedef enum AppSwitcherMode {
     AppSwitcherModeApp,
     AppSwitcherModeWindow,
 } AppSwitcherMode;
 
-typedef enum MultipleMonitorMode
-{
+typedef enum MultipleMonitorMode {
     MultipleMonitorModeMouse,
     MultipleMonitorModeMain,
 } MultipleMonitorMode;
 
-typedef enum AppFilterMode
-{
+typedef enum AppFilterMode {
     AppFilterModeAll,
     AppFilterModeMouseMonitor,
 } AppFilterMode;
 
-typedef enum DesktopFilter
-{
+typedef enum DesktopFilter {
     DesktopFilterCurrent,
     DesktopFilterAll,
 } DesktopFilter;
 
-typedef struct Config
-{
+typedef struct Config {
     struct KeyConfig Key;
     bool Mouse;
     bool CheckForUpdates;
@@ -66,8 +58,7 @@ typedef struct Config
     bool DebugDisableIconFocus;
 } Config;
 
-typedef struct EnumString
-{
+typedef struct EnumString {
     const char* Name;
     unsigned int Value;
 } EnumString;

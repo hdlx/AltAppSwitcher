@@ -7,7 +7,8 @@
 
 static int DeleteForFtw(const char* path, const struct stat* data, int type, struct FTW* ftw)
 {
-    (void)data; (void)ftw;
+    (void)data;
+    (void)ftw;
     if (type == FTW_DP)
         rmdir(path);
     else
@@ -17,8 +18,7 @@ static int DeleteForFtw(const char* path, const struct stat* data, int type, str
 
 void StrBToF(char* str)
 {
-    while (*str++ != '\0')
-    {
+    while (*str++ != '\0') {
         if (*str == '\\')
             *str = '/';
     }
@@ -26,8 +26,7 @@ void StrBToF(char* str)
 
 void WStrBToF(wchar_t* str)
 {
-    while (*str++ != L'\0')
-    {
+    while (*str++ != L'\0') {
         if (*str == L'\\')
             *str = L'/';
     }
@@ -35,8 +34,7 @@ void WStrBToF(wchar_t* str)
 
 void StrFToB(char* str)
 {
-    while (*str++ != '\0')
-    {
+    while (*str++ != '\0') {
         if (*str == '/')
             *str = '\\';
     }
@@ -64,16 +62,14 @@ static void CopyFile(const char* srcStr, const char* dstStr)
         return;
     FILE* src = fopen(srcStr, "rb");
     ASSERT(src);
-    if (!src)
-    {
+    if (!src) {
         int a = fclose(dst);
         ASSERT(a == 0);
         return;
     }
     unsigned char buf[1024] = {};
     int size = 1;
-    while (size)
-    {
+    while (size) {
         int a = fseek(src, 0, SEEK_CUR);
         ASSERT(a == 0);
         size = (int)fread(buf, sizeof(char), sizeof(buf), src);
@@ -93,15 +89,11 @@ void CopyDirContent(const char* srcDir, const char* dstDir)
     if (!dir)
         return;
     struct dirent* e = readdir(dir); // NOLINT
-    while (e != NULL)
-    {
+    while (e != NULL) {
         struct stat info;
         stat(e->d_name, &info);
-        if (info.st_mode & S_IFDIR)
-        {
-        }
-        else if (info.st_mode & S_IFREG)
-        {
+        if (info.st_mode & S_IFDIR) {
+        } else if (info.st_mode & S_IFREG) {
             char srcFile[256] = {};
             {
                 strcpy_s(srcFile, sizeof(srcFile), srcDir);

@@ -33,8 +33,7 @@ const EnumString themeES[4] = {
     { "end", 0xFFFFFFFF }
 };
 
-const EnumString appSwitcherModeES[3] =
-{
+const EnumString appSwitcherModeES[3] = {
     { "app", AppSwitcherModeApp },
     { "window", AppSwitcherModeWindow },
     { "end", 0xFFFFFFFF }
@@ -59,23 +58,20 @@ const EnumString appFilterModeES[3] = {
     { "end", 0xFFFFFFFF }
 };
 
-const EnumString desktopFilterES[3] =
-{
+const EnumString desktopFilterES[3] = {
     { "current", DesktopFilterCurrent },
     { "all", DesktopFilterAll },
     { "end", 0xFFFFFFFF }
 };
 
-typedef struct StrPair
-{
+typedef struct StrPair {
     char Key[64];
     char Value[64];
 } StrPair;
 
 static unsigned int Find(const StrPair* keyValues, const char* key)
 {
-    for (unsigned int i = 0; i < 32; i++)
-    {
+    for (unsigned int i = 0; i < 32; i++) {
         if (!strcmp(keyValues[i].Key, key))
             return i;
     }
@@ -85,17 +81,14 @@ static unsigned int Find(const StrPair* keyValues, const char* key)
 static bool TryGetBool(const StrPair* keyValues, const char* token, bool* boolToSet)
 {
     unsigned int entry = Find(keyValues, token);
-    if (entry == 0xFFFFFFFF)
-    {
+    if (entry == 0xFFFFFFFF) {
         return false;
     }
-    if (strstr(keyValues[entry].Value, "true") != NULL)
-    {
+    if (strstr(keyValues[entry].Value, "true") != NULL) {
         *boolToSet = true;
         return true;
     }
-    if (strstr(keyValues[entry].Value, "false") != NULL)
-    {
+    if (strstr(keyValues[entry].Value, "false") != NULL) {
         *boolToSet = false;
         return true;
     }
@@ -105,8 +98,7 @@ static bool TryGetBool(const StrPair* keyValues, const char* token, bool* boolTo
 static bool TryGetFloat(const StrPair* keyValues, const char* token, float* floatToSet)
 {
     unsigned int entry = Find(keyValues, token);
-    if (entry == 0xFFFFFFFF)
-    {
+    if (entry == 0xFFFFFFFF) {
         return false;
     }
     *floatToSet = strtof(keyValues[entry].Value, NULL);
@@ -117,14 +109,11 @@ static bool TryGetEnum(const StrPair* keyValues, const char* token,
     unsigned int* outValue, const EnumString* enumStrings)
 {
     unsigned int entry = Find(keyValues, token);
-    if (entry == 0xFFFFFFFF)
-    {
+    if (entry == 0xFFFFFFFF) {
         return false;
     }
-    for (unsigned int i = 0; enumStrings[i].Value != 0xFFFFFFFF; i++)
-    {
-        if (!strcmp(keyValues[entry].Value, enumStrings[i].Name))
-        {
+    for (unsigned int i = 0; enumStrings[i].Value != 0xFFFFFFFF; i++) {
+        if (!strcmp(keyValues[entry].Value, enumStrings[i].Name)) {
             *outValue = enumStrings[i].Value;
             return true;
         }
@@ -159,28 +148,26 @@ void LoadConfig(Config* config)
     DefaultConfig(config);
     char configFile[MAX_PATH] = {};
     ConfigPath(configFile);
-    FILE* file = fopen(configFile ,"rb");
-    if (file == NULL)
-    {
+    FILE* file = fopen(configFile, "rb");
+    if (file == NULL) {
         WriteConfig(config);
         return;
     }
 
-#define GET_ENUM(ENTRY, DST, ENUM_STRING)\
-TryGetEnum(keyValues, ENTRY, &(DST), ENUM_STRING)
+#define GET_ENUM(ENTRY, DST, ENUM_STRING) \
+    TryGetEnum(keyValues, ENTRY, &(DST), ENUM_STRING)
 
-#define GET_BOOL(ENTRY, DST)\
-TryGetBool(keyValues, ENTRY, &(DST))
+#define GET_BOOL(ENTRY, DST) \
+    TryGetBool(keyValues, ENTRY, &(DST))
 
-#define GET_FLOAT(ENTRY, DST)\
-TryGetFloat(keyValues, ENTRY, &(DST))
+#define GET_FLOAT(ENTRY, DST) \
+    TryGetFloat(keyValues, ENTRY, &(DST))
 
     static StrPair keyValues[32] = {};
 
     static char lineBuf[1024] = {};
     unsigned int i = 0;
-    while (fgets(lineBuf, 1024, file))
-    {
+    while (fgets(lineBuf, 1024, file)) {
         if (!strncmp(lineBuf, "//", 2))
             continue;
         const char* sep = strstr(lineBuf, ": ");
@@ -225,10 +212,8 @@ TryGetFloat(keyValues, ENTRY, &(DST))
 static void WriteEnum(FILE* file, const char* entry,
     unsigned int value, const EnumString* enumStrings)
 {
-    for (unsigned int i = 0; enumStrings[i].Value != 0xFFFFFFFF; i++)
-    {
-        if (enumStrings[i].Value == value)
-        {
+    for (unsigned int i = 0; enumStrings[i].Value != 0xFFFFFFFF; i++) {
+        if (enumStrings[i].Value == value) {
             size_t a = fprintf_s(file, "%s: %s\n", entry, enumStrings[i].Name);
             (void)a;
             return;
@@ -253,19 +238,19 @@ void WriteConfig(const Config* config)
 {
     char configFile[MAX_PATH] = {};
     ConfigPath(configFile);
-    FILE* file = fopen(configFile ,"w");
+    FILE* file = fopen(configFile, "w");
     ASSERT(file);
     if (!file)
         return;
 
-#define WRITE_ENUM(ENTRY, VALUE, ENUM_STRING)\
-WriteEnum(file, ENTRY, VALUE, ENUM_STRING)
+#define WRITE_ENUM(ENTRY, VALUE, ENUM_STRING) \
+    WriteEnum(file, ENTRY, VALUE, ENUM_STRING)
 
-#define WRITE_BOOL(ENTRY, VALUE)\
-WriteBool(file, ENTRY, VALUE)
+#define WRITE_BOOL(ENTRY, VALUE) \
+    WriteBool(file, ENTRY, VALUE)
 
-#define WRITE_FLOAT(ENTRY, VALUE)\
-WriteFloat(file, ENTRY, VALUE)
+#define WRITE_FLOAT(ENTRY, VALUE) \
+    WriteFloat(file, ENTRY, VALUE)
 
     WRITE_ENUM("app hold key", config->Key.AppHold, keyES);
     WRITE_ENUM("next app key", config->Key.AppSwitch, keyES);

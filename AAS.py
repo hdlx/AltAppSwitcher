@@ -69,7 +69,7 @@ def Format():
     for path, subdirs, files in os.walk("./Sources"):
         for name in files:
             if name.endswith(".c") or name.endswith(".h"):
-                os.system(f"clang-format.exe { path }/{ name }")
+                os.system(f"clang-format.exe { path }/{ name } -i")
 
 import sys
 if __name__ == "__main__": 

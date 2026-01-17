@@ -9,7 +9,7 @@
 #include "Utils/File.h"
 #include "Utils/Error.h"
 
-#define MIN(a,b) (((a)<(b))?(a):(b))
+#define MIN(a, b) (((a) < (b)) ? (a) : (b))
 
 static void GetErrStr(DWORD err, char* str, uint32_t strSize)
 {
@@ -24,13 +24,12 @@ static void GetErrStr(DWORD err, char* str, uint32_t strSize)
 
 void ASSError(const char* file, uint32_t line, const char* assertStr, bool crash)
 {
-     // Call GetLastError first, otherwise other winapi calls might overwrite last error.
+    // Call GetLastError first, otherwise other winapi calls might overwrite last error.
     DWORD err = GetLastError();
     SetLastError(0);
 
     char winMsg[512] = {};
-    if (err != 0)
-    {
+    if (err != 0) {
         GetErrStr(err, winMsg, 512);
     }
 
@@ -43,8 +42,7 @@ void ASSError(const char* file, uint32_t line, const char* assertStr, bool crash
 
     FILE* f = fopen(logFile, "ab");
     const char* type = crash ? "Assert" : "Verify";
-    if (f != NULL)
-    {
+    if (f != NULL) {
         int r = fprintf_s(f, "%s:\nFile: %s, line: %u:\n", timeStr, file, line);
         ASSERT(r > 0);
         r = fprintf_s(f, "%s: %s\n", type, assertStr);

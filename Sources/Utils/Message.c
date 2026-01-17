@@ -8,10 +8,8 @@ static void PostAASMsg(int msg)
     PROCESSENTRY32 procEntry = {};
     procEntry.dwSize = sizeof(procEntry);
     BOOL procRes = Process32First(procSnap, &procEntry);
-    while (procRes)
-    {
-        if (0 != strcmp(procEntry.szExeFile, "AltAppSwitcher.exe"))
-        {
+    while (procRes) {
+        if (0 != strcmp(procEntry.szExeFile, "AltAppSwitcher.exe")) {
             procRes = Process32Next(procSnap, &procEntry);
             continue;
         }
@@ -20,8 +18,7 @@ static void PostAASMsg(int msg)
             THREADENTRY32 threadEntry = {};
             threadEntry.dwSize = sizeof(threadEntry);
             BOOL threadRes = Thread32First(threadSnap, &threadEntry);
-            while (threadRes)
-            {
+            while (threadRes) {
                 if (procEntry.th32ProcessID == threadEntry.th32OwnerProcessID)
                     PostThreadMessage(threadEntry.th32ThreadID, msg, 0, 0);
                 threadRes = Thread32Next(threadSnap, &threadEntry);
@@ -49,10 +46,8 @@ int AASIsRunning()
     PROCESSENTRY32 procEntry = {};
     procEntry.dwSize = sizeof(procEntry);
     BOOL procRes = Process32First(procSnap, &procEntry);
-    while (procRes)
-    {
-        if (!strcmp(procEntry.szExeFile, "AltAppSwitcher.exe"))
-        {
+    while (procRes) {
+        if (!strcmp(procEntry.szExeFile, "AltAppSwitcher.exe")) {
             CloseHandle(procSnap);
             return 1;
         }
@@ -65,6 +60,5 @@ int AASIsRunning()
 void CloseAASBlocking()
 {
     PostAASMsg(MSG_CLOSE_AAS);
-    while (AASIsRunning())
-    {}
+    while (AASIsRunning()) { }
 }
