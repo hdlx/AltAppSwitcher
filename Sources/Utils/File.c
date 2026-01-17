@@ -1,3 +1,4 @@
+#include "Utils/Error.h"
 #include <dirent.h>
 #include <ftw.h>
 #include <stdio.h>
@@ -49,7 +50,7 @@ void DeleteTree(const char* dir)
 
 void ParentDir(const char* file, char* out)
 {
-    strcpy(out, file);
+    strcpy_s(out, MAX_PATH * sizeof(char), file);
     StrBToF(out);
     char* last = strrchr(out, '/');
     if (last)
@@ -59,11 +60,21 @@ void ParentDir(const char* file, char* out)
 static void CopyFile(const char* srcStr, const char* dstStr)
 {
     FILE* dst = fopen(dstStr, "wb");
+    ASSERT(dst);
+    if (!dst)
+        return;
     FILE* src = fopen(srcStr, "rb");
-    unsigned char buf[1024];
+    ASSERT(src);
+    if (!src)
+    {
+        fclose(dst);
+        return;
+    }
+    unsigned char buf[1024] = {};
     int size = 1;
     while (size)
     {
+        fseek(src, 0, SEEK_CUR);
         size = fread(buf, sizeof(char), sizeof(buf), src);
         fwrite(buf, sizeof(char), size, dst);
     }
@@ -74,6 +85,9 @@ static void CopyFile(const char* srcStr, const char* dstStr)
 void CopyDirContent(const char* srcDir, const char* dstDir)
 {
     DIR* dir = opendir(srcDir);
+    ASSERT(dir);
+    if (!dir)
+        return;
     struct dirent* e = readdir(dir);
     while (e != NULL)
     {
@@ -86,17 +100,17 @@ void CopyDirContent(const char* srcDir, const char* dstDir)
         {
             char srcFile[256] = {};
             {
-                strcpy(srcFile, srcDir);
+                strcpy_s(srcFile, sizeof(srcFile), srcDir);
                 StrBToF(srcFile);
-                strcat(srcFile, "/");
-                strcat(srcFile, e->d_name);
+                strcat_s(srcFile, sizeof(srcFile), "/");
+                strcat_s(srcFile, sizeof(srcFile), e->d_name);
             }
             char dstFile[256] = {};
             {
-                strcpy(dstFile, dstDir);
+                strcpy_s(dstFile, sizeof(dstFile), dstDir);
                 StrBToF(dstFile);
-                strcat(dstFile, "/");
-                strcat(dstFile, e->d_name);
+                strcat_s(dstFile, sizeof(dstFile), "/");
+                strcat_s(dstFile, sizeof(dstFile), e->d_name);
             }
             CopyFile(srcFile, dstFile);
         }
@@ -111,7 +125,7 @@ void ConfigPath(char* outPath)
     char currentExe[MAX_PATH] = {};
     GetModuleFileName(NULL, currentExe, MAX_PATH);
     ParentDir(currentExe, outPath);
-    strcat(outPath, "/AltAppSwitcherConfig.txt");
+    strcat_s(outPath, sizeof(char) * MAX_PATH, "/AltAppSwitcherConfig.txt");
 }
 
 void LogPath(char* outPath)
@@ -120,7 +134,7 @@ void LogPath(char* outPath)
     char currentExe[MAX_PATH] = {};
     GetModuleFileName(NULL, currentExe, MAX_PATH);
     ParentDir(currentExe, outPath);
-    strcat(outPath, "/AltAppSwitcherLog.txt");
+    strcat_s(outPath, sizeof(char) * MAX_PATH, "/AltAppSwitcherLog.txt");
 }
 
 void UpdaterPath(char* outPath)
@@ -129,5 +143,5 @@ void UpdaterPath(char* outPath)
     char currentExe[MAX_PATH] = {};
     GetModuleFileName(NULL, currentExe, MAX_PATH);
     ParentDir(currentExe, outPath);
-    strcat(outPath, "/Updater.exe");
+    strcat_s(outPath, sizeof(char) * MAX_PATH, "/Updater.exe");
 }

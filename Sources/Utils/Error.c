@@ -17,7 +17,7 @@ static void GetErrStr(DWORD err, char* str, uint32_t strSize)
     FormatMessage(FORMAT_MESSAGE_ALLOCATE_BUFFER | FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS,
         NULL, err, MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT), (LPSTR)&msg, 0, NULL);
     const uint32_t sizeToCopy = MIN(strlen(msg) + 1, strSize);
-    memcpy(str, msg, sizeof(char) * sizeToCopy);
+    memcpy_s(str, sizeof(char) * sizeToCopy, msg, sizeof(char) * sizeToCopy);
     str[strSize - 1] = '\0';
     LocalFree(msg);
 }
@@ -28,8 +28,7 @@ void ASSError(const char* file, uint32_t line, const char* assertStr, bool crash
     DWORD err = GetLastError();
     SetLastError(0);
 
-    static char winMsg[512];
-    memset(winMsg, '\0', sizeof(winMsg));
+    char winMsg[512] = {};
     if (err != 0)
     {
         GetErrStr(err, winMsg, 512);
@@ -46,9 +45,9 @@ void ASSError(const char* file, uint32_t line, const char* assertStr, bool crash
     const char* type = crash ? "Assert" : "Verify";
     if (f != NULL)
     {
-        fprintf(f, "%s:\nFile: %s, line: %u:\n", timeStr, file, line);
-        fprintf(f, "%s: %s\n", type, assertStr);
-        fprintf(f, "Last winapi error: %s\n\n", winMsg[0] == '\0' ? "None" : winMsg);
+        fprintf_s(f, "%s:\nFile: %s, line: %u:\n", timeStr, file, line);
+        fprintf_s(f, "%s: %s\n", type, assertStr);
+        fprintf_s(f, "Last winapi error: %s\n\n", winMsg[0] == '\0' ? "None" : winMsg);
         fclose(f);
 
         printf("%s: %s\n", type, assertStr);

@@ -133,8 +133,8 @@ HWND CreateText(const char* text, const char* tooltip, GUIData* guiData)
 void CreatePercentField(const char* tooltip, float* value, GUIData* guiData)
 {
     HINSTANCE inst = (HINSTANCE)GetWindowLongPtrA(guiData->_Parent, GWLP_HINSTANCE);
-    char sval[4] = "000";
-    sprintf(sval, "%03d", (int)(*value * 100));
+    char sval[] = "000";
+    sprintf_s(sval, sizeof(sval) / sizeof(sval[0]), "%03d", (int)(*value * 100));
     HWND field = CreateWindow(WC_EDIT, sval,
         WS_CHILD | WS_VISIBLE | ES_LEFT | ES_CENTER | ES_NUMBER | WS_BORDER,
         guiData->_Cell._X, guiData->_Cell._Y, guiData->_Cell._W, guiData->_Cell._H,
@@ -303,6 +303,9 @@ static LRESULT GUIWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 {
     static GUIData guiData = {};
     static UserData* userData = 0;
+    ASSERT(userData);
+    if (!userData)
+        return 0;
     switch (uMsg)
     {
     case WM_DESTROY:

@@ -27,10 +27,10 @@ INCLUDEDIR = $(ROOTDIR)/Sources
 
 # Common var
 CC = $(ARCH)-w64-mingw32-clang
-IDIRS = -I $(ROOTDIR)/SDK/Headers -I $(ROOTDIR)/Sources -I $(ROOTDIR)/SDK/Sources
+CFLAGS = -I $(ROOTDIR)/SDK/Headers -I $(ROOTDIR)/Sources -I $(ROOTDIR)/SDK/Sources
 LDIRS = -L $(LIBDIR) -L $(LIBDIR)/curl
-LFLAGS = -static -static-libgcc -Werror
-CFLAGS = -Wall -D ARCH_$(ARCH)=1 -target $(ARCH)-mingw64 -Werror
+LFLAGS = -static -static-libgcc -Werror -fsanitize=address,undefined
+CFLAGS += -Wall -D ARCH_$(ARCH)=1 -target $(ARCH)-w64-mingw32 -Werror -fsanitize=address,undefined -std=c11
 
 ifeq ($(CONF), Debug)
 CFLAGS += -g3
@@ -96,7 +96,8 @@ $(AASARCHIVE): $(ALLAAS)
 # Compile object targets:
 # see 4.12.1 Syntax of Static Pattern Rules
 $(ALLOBJECTS): $(OBJDIR)/%.o: $(ROOTDIR)/%.c $(ALLH)
-	$(CC) $(CFLAGS) $(IDIRS) -MJ $@.json -c $< -o $@
+	clang-tidy $< --warnings-as-errors=* -- $(CFLAGS)
+	$(CC) $(CFLAGS) -MJ $@.json -c $< -o $@
 
 # Build exe targets (link):
 $(AASBUILDDIR)/AltAppSwitcher.exe: $(AASOBJECTS) $(CONFIGOBJECTS) $(COMMONOBJECTS)

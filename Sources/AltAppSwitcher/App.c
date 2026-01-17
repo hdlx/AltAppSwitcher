@@ -37,8 +37,6 @@
 
 LRESULT CALLBACK MainWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam);
 
-#define MEM_INIT(ARG) memset(&ARG, 0,  sizeof(ARG))
-
 #define ASYNC_APPLY
 
 #define MAX_WIN_GROUPS 64u
@@ -430,13 +428,12 @@ static void FindActualPID(HWND hwnd, DWORD* PID)
 {
     static char className[512];
     GetClassName(hwnd, className, 512);
-    BOOL isUWP = false;
     {
         wchar_t UMI[512];
         GetWindowThreadProcessId(hwnd, PID);
         const HANDLE proc = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, FALSE, *PID);
         uint32_t size = 512;
-        isUWP = GetApplicationUserModelId(proc, &size, UMI) == ERROR_SUCCESS;
+        BOOL isUWP = GetApplicationUserModelId(proc, &size, UMI) == ERROR_SUCCESS;
         CloseHandle(proc);
         if (isUWP)
         {
@@ -446,34 +443,31 @@ static void FindActualPID(HWND hwnd, DWORD* PID)
 
     if (!strcmp("ApplicationFrameWindow", className))
     {
-        SFindUWPChildParams params;
-        GetWindowThreadProcessId(hwnd,  &(params.InHostPID));
-        params.OutUWPPID = 0;
-        EnumChildWindows(hwnd, FindUWPChild, (LPARAM)&params);
-        if (params.OutUWPPID != 0)
         {
-            *PID = params.OutUWPPID;
-            isUWP = true;
+            SFindUWPChildParams params;
+            GetWindowThreadProcessId(hwnd,  &(params.InHostPID));
+            params.OutUWPPID = 0;
+            EnumChildWindows(hwnd, FindUWPChild, (LPARAM)&params);
+            if (params.OutUWPPID != 0)
+            {
+                *PID = params.OutUWPPID;
+                return;
+            }
+        }
+        {
+            SFindPIDEnumFnParams params;
+            params.InHostWindow = hwnd;
+            params.OutPID = 0;
+
+            EnumWindows(FindPIDEnumFn, (LPARAM)&params);
+
+            *PID = params.OutPID;
             return;
         }
     }
 
-    if (!strcmp("ApplicationFrameWindow", className))
-    {
-        SFindPIDEnumFnParams params;
-        params.InHostWindow = hwnd;
-        params.OutPID = 0;
-
-        EnumWindows(FindPIDEnumFn, (LPARAM)&params);
-
-        *PID = params.OutPID;
-        isUWP = true;
-        return;
-    }
-
     {
         GetWindowThreadProcessId(hwnd, PID);
-        isUWP = false;
         return;
     }
 }
@@ -484,10 +478,14 @@ bool BelongsToCurrentDesktop(HWND window)
     CoInitialize(NULL);
     CoCreateInstance(&CLSID_VirtualDesktopManager, NULL, CLSCTX_ALL, &IID_IVirtualDesktopManager, (void**)&vdm);
 
-    WINBOOL isCurrent = true;
-    if (vdm)
-        IVirtualDesktopManager_IsWindowOnCurrentVirtualDesktop(vdm, window, &isCurrent);
+    if (!vdm)
+    {
+        CoUninitialize();
+        return true;
+    }
 
+    WINBOOL isCurrent = true;
+    IVirtualDesktopManager_IsWindowOnCurrentVirtualDesktop(vdm, window, &isCurrent);
     IVirtualDesktopManager_Release(vdm);
     CoUninitialize();
     return isCurrent;
@@ -879,7 +877,7 @@ static BOOL GetIconGroupName(HMODULE hModule, LPCSTR lpType, LPSTR lpName, LONG_
     }
     else
     {
-        strcpy(*(char**)lParam, lpName);
+        strcpy_s(*(char**)lParam, sizeof(char) * 256, lpName);
     }
     return false;
 }
@@ -1005,8 +1003,7 @@ static GpBitmap* GetIconFromExe(const char* exePath)
             BITMAP bitmapMask = {};
             GetObject(hbmMask, sizeof(bitmapMask), (LPVOID)&bitmapMask);
             unsigned int maskByteSize = bitmapMask.bmWidthBytes * bitmapMask.bmHeight;
-            static char maskData[256 * 256 * 1 / 8];
-            memset(maskData, 0, maskByteSize);
+            static char maskData[256 * 256 * 1 / 8] = {};
             GetBitmapBits(hbmMask, maskByteSize, maskData);
             for (int i = 0; i < iconSize * iconSize; i++)
             {
@@ -1118,7 +1115,7 @@ static BOOL FillWinGroups(HWND hwnd, LPARAM lParam)
             return true;
 
         group = &winAppGroupArr->_Data[winAppGroupArr->_Size++];
-        strcpy(group->_ModuleFileName, moduleFileName);
+        strcpy_s(group->_ModuleFileName, sizeof(group->_ModuleFileName), moduleFileName);
         group->_WinClass = winClass;
         ASSERT(group->_WindowCount == 0);
 
@@ -1183,14 +1180,12 @@ static BOOL FillWinGroups(HWND hwnd, LPARAM lParam)
             // Creates a gdi bitmap from the win base api bitmap
             GpBitmap* out;
             {
-                BITMAP bm;
-                MEM_INIT(bm);
+                BITMAP bm = {};
                 GetObject(hbm, sizeof(BITMAP), &bm);
                 const uint32_t iconSize = bm.bmWidth;
                 GdipCreateBitmapFromScan0(iconSize, iconSize, 4 * iconSize, PixelFormat32bppARGB, NULL, &out);
                 GpRect r = { 0, 0, iconSize, iconSize };
-                BitmapData dstData;
-                MEM_INIT(dstData);
+                BitmapData dstData = {};
                 GdipBitmapLockBits(out, &r, 0, PixelFormat32bppARGB, &dstData);
                 GetBitmapBits(hbm, sizeof(uint32_t) * iconSize * iconSize, dstData.Scan0);
                 GdipBitmapUnlockBits(out, &dstData);
@@ -1333,6 +1328,9 @@ static void ClearWinGroupArr(SWinGroupArr* winGroups);
 static void InitializeSwitchApp(SAppData* appData)
 {
     SWinGroupArr* pWinGroups = &(appData->_WinGroups);
+    ASSERT(pWinGroups);
+    if (!pWinGroups)
+        return;
     pWinGroups->_Size = 0;
     
     // Get mouse monitor once if filtering by monitor is enabled
@@ -1452,7 +1450,7 @@ static void ApplySwitchApp(const SWinGroup* winGroup, bool restoreMinimized)
     DWORD curThread = GetCurrentThreadId();
     DWORD fgWinThread = GetWindowThreadProcessId(fgWin, NULL);
     (void)curThread; (void)fgWinThread;
-    DWORD ret; (void)ret;
+    DWORD ret;
 
     int winCount = (int)winGroup->_WindowCount;
 
@@ -1479,19 +1477,18 @@ static void ApplySwitchApp(const SWinGroup* winGroup, bool restoreMinimized)
         DWORD targetWinThread = GetWindowThreadProcessId(win, NULL);
         (void)targetWinThread;
         ret = AttachThreadInput(targetWinThread, curThread, TRUE);
-        // ASSERT(ret != 0);
+        VERIFY(ret != 0);
 
         dwp = DeferWindowPos(dwp, win, prev, 0, 0, 0, 0, SWP_NOSIZE | SWP_NOMOVE);
-        // ASSERT(dwp != 0);
+        VERIFY(dwp != 0);
         prev = win;
     }
     ret = EndDeferWindowPos(dwp);
+    VERIFY(ret != 0);
 
 #if 1
     SetFocus(winGroup->_Windows[0]); 
 #endif
-
-    // ASSERT(ret != 0);
 
     for (int i = winCount - 1; i >= 0 ; i--)
     {
@@ -1501,7 +1498,7 @@ static void ApplySwitchApp(const SWinGroup* winGroup, bool restoreMinimized)
         DWORD targetWinThread = GetWindowThreadProcessId(win, NULL);
         (void)targetWinThread;
         ret = AttachThreadInput(targetWinThread, curThread, FALSE);
-        // ASSERT(ret != 0);
+        VERIFY(ret != 0);
     }
 }
 
@@ -1557,7 +1554,7 @@ static void ApplyWithTimeout(SAppData* appData, unsigned int msg)
     DWORD ret = 0; (void)ret;
 
     ret = SetForegroundWindow(appData->_WorkerWin);
-    // ASSERT(ret != 0);
+    VERIFY(ret != 0);
 
     SendNotifyMessage(appData->_WorkerWin, msg, 0, 0);
 
@@ -1775,6 +1772,9 @@ static void CloseButtonRect(float* outRect, const Metrics* m, uint32_t idx)
 
 static void Draw(SAppData* appData, HDC dc, RECT clientRect)
 {
+    ASSERT(appData);
+    if (!appData)
+        return;
     HWND hwnd = appData->_MainWin;
     SGraphicsResources* pGraphRes = &appData->_GraphicsResources;
 
@@ -1890,7 +1890,7 @@ static void Draw(SAppData* appData, HDC dc, RECT clientRect)
             r.Width = round(r.Width);
             r.Height = round(r.Height);
 
-            swprintf(str, 3, L"%i", winCount);
+            swprintf_s(str, 2, L"%i", winCount);
             // Invert text / bg brushes 
             DrawRoundedRect(pGraphics, NULL, pGraphRes->_pBrushText, &r, 5);
 
@@ -2006,6 +2006,10 @@ static void Draw(SAppData* appData, HDC dc, RECT clientRect)
 LRESULT CALLBACK WorkerWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 {
     static SAppData* appData = NULL;
+    ASSERT(appData);
+    if (!appData)
+        return 0;
+
     switch (uMsg)
     {
     case WM_CREATE:
@@ -2074,7 +2078,11 @@ static DWORD CloseThread(LPVOID data)
 LRESULT CALLBACK MainWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 {
     static SAppData* appData = NULL;
-    static HWND focusWindows[MAX_WIN_GROUPS];
+    static HWND focusWindows[MAX_WIN_GROUPS] = {};
+    ASSERT(appData);
+    if (!appData)
+        return 0;
+
     switch (uMsg)
     {
     case WM_MOUSEMOVE:
@@ -2217,8 +2225,7 @@ LRESULT CALLBACK MainWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lPar
     }
     case WM_PAINT:
     {
-        PAINTSTRUCT ps;
-        MEM_INIT(ps);
+        PAINTSTRUCT ps = {};
         if (BeginPaint(hwnd, &ps) == NULL)
         {
             ASSERT(false);
@@ -2295,8 +2302,7 @@ int StartAltAppSwitcher(HINSTANCE hInstance)
         ASSERT(!status);
     }
 
-    static SAppData _AppData;
-    MEM_INIT(_AppData);
+    static SAppData _AppData = {};
 
     {
         WNDCLASS wc = { };
@@ -2338,7 +2344,6 @@ int StartAltAppSwitcher(HINSTANCE hInstance)
         _AppData._MainWin = NULL;
         _AppData._Instance = hInstance;
         _AppData._WinGroups._Size = 0;
-        MEM_INIT(_AppData._WinGroups);
         // Hook needs globals
         _MainThread = GetCurrentThreadId();
         _KeyConfig = &_AppData._Config._Key;

@@ -29,7 +29,7 @@ static size_t writeData(void* ptr, size_t size, size_t nmemb, void* userData)
     (void)size;
     DynMem* mem = (DynMem*)userData;
     mem->_Data = realloc(mem->_Data, mem->_Size + nmemb);
-    memcpy(mem->_Data + mem->_Size, ptr, nmemb);
+    memcpy_s(mem->_Data + mem->_Size, nmemb, ptr, nmemb);
     mem->_Size += nmemb;
     return nmemb;
 }
@@ -50,7 +50,7 @@ static int GetLastAASVersion(BOOL preview, char* outVersion, char* assetURL)
     curl_easy_setopt(curl, CURLOPT_URL, "https://api.github.com/repos/hdlx/altappswitcher/releases");
     struct curl_slist *list = NULL;
     char userAgent[256] = {};
-    sprintf(userAgent,  "User-Agent: AltAppSwitcher_v%i.%i", MAJOR, MINOR);
+    sprintf_s(userAgent, sizeof(userAgent) / sizeof(userAgent[0]),  "User-Agent: AltAppSwitcher_v%i.%i", MAJOR, MINOR);
     list = curl_slist_append(list, userAgent);
     list = curl_slist_append(list, "Accept: application/vnd.github+json");
     curl_easy_setopt(curl, CURLOPT_HTTPHEADER, list);
@@ -85,8 +85,8 @@ static int GetLastAASVersion(BOOL preview, char* outVersion, char* assetURL)
     const cJSON* tagName = cJSON_GetObjectItem(release, "tag_name");
     const char* tag = cJSON_GetStringValue(tagName);
     int major = 0; int minor = 0;
-    strcpy(outVersion, tag);
-    sscanf(outVersion, "v%i.%i", &major, &minor);
+    strcpy_s(outVersion, sizeof(char) * 64, tag);
+    sscanf_s(outVersion, "v%i.%i", &major, &minor);
 
     if (MAJOR >= major &&  MINOR >= minor)
     {
@@ -111,7 +111,7 @@ static int GetLastAASVersion(BOOL preview, char* outVersion, char* assetURL)
         const char* nameStr = cJSON_GetStringValue(name);
         if (strstr(nameStr, arch) == NULL)
             continue;
-        strcpy(assetURL, cJSON_GetStringValue(cJSON_GetObjectItem(asset, "url")));
+        strcpy_s(assetURL, sizeof(char) * 512, cJSON_GetStringValue(cJSON_GetObjectItem(asset, "url")));
     }
     cJSON_Delete(json);
     return 1;
@@ -138,10 +138,13 @@ static void DownloadArchive(const char* dstFile, const char* url)
     }
 
     FILE* file = fopen(dstFile,"wb");
+    ASSERT(file);
+    if (!file)
+        return;
     curl_easy_setopt(curl, CURLOPT_URL, url);
     struct curl_slist *list = NULL;
     char userAgent[256] = {};
-    sprintf(userAgent,  "User-Agent: AltAppSwitcher_v%i.%i", MAJOR, MINOR);
+    sprintf_s(userAgent, sizeof(userAgent) / sizeof(userAgent[0]), "User-Agent: AltAppSwitcher_v%i.%i", MAJOR, MINOR);
     list = curl_slist_append(list, userAgent);
     //list = curl_slist_append(list, "Accept: application/vnd.github+json");
     list = curl_slist_append(list, "Accept: application/octet-stream");
@@ -168,6 +171,9 @@ static void Extract(const char* targetDir)
     CloseAASBlocking();
     int err = 0;
     struct zip* z = zip_open("./AltAppSwitcher.zip" , 0, &err);
+    ASSERT(z);
+    if (!z)
+        return;
     unsigned char buf[1024];
     for (int i = 0; i < zip_get_num_entries(z, 0); i++)
     {
@@ -177,16 +183,22 @@ static void Extract(const char* targetDir)
         if (!strcmp(zs.name, "AltAppSwitcherConfig.txt"))
             continue;
         struct zip_file* zf = zip_fopen_index(z, i, 0);
+        ASSERT(zf);
+        if (!zf)
+            return;
         char dstPath[256] = {};
-        strcpy(dstPath, targetDir);
-        strcat(dstPath, "/");
-        strcat(dstPath, zs.name);
+        strcpy_s(dstPath, sizeof(dstPath), targetDir);
+        strcat_s(dstPath, sizeof(dstPath), "/");
+        strcat_s(dstPath, sizeof(dstPath), zs.name);
         FILE* dstFile = fopen(dstPath, "wb");
+        ASSERT(dstFile);
+        if (!dstFile)
+            return;
         int sum = 0;
         while (sum != zs.size)
         {
             int len = zip_fread(zf, buf, sizeof(buf));
-            fwrite(buf, sizeof(unsigned char),len, dstFile);
+            fwrite(buf, sizeof(unsigned char), len, dstFile);
             sum += len;
         }
         fclose(dstFile);
@@ -194,8 +206,8 @@ static void Extract(const char* targetDir)
     }
     {
         char AASExe[256] = {};
-        strcat(AASExe, targetDir);
-        strcat(AASExe, "/AltAppSwitcher.exe");
+        strcat_s(AASExe, sizeof(AASExe), targetDir);
+        strcat_s(AASExe, sizeof(AASExe), "/AltAppSwitcher.exe");
         STARTUPINFO si = {};
         PROCESS_INFORMATION pi = {};
         CreateProcess(NULL, AASExe, 0, 0, 0, CREATE_NEW_PROCESS_GROUP, 0, targetDir, &si, &pi);
@@ -212,7 +224,7 @@ int main(int argc, char *argv[])
     {
         if (!strcmp(argv[i], "--target") && (i + 1) < argc)
         {
-            strcpy(targetDir, argv[i + 1]);
+            strcpy_s(targetDir, sizeof(targetDir), argv[i + 1]);
             i++;
             extract = 1;
         }
@@ -235,7 +247,9 @@ int main(int argc, char *argv[])
     
     {
         char msg[256];
-        sprintf(msg,
+        sprintf_s(
+            msg,
+            sizeof(msg) / sizeof(msg[0]),
             "A new version of AltAppSwitcher is available (%s).\nDo you want to update now?",
             version);
         DWORD res = MessageBox(0, msg, "AltAppSwitcher updater", MB_YESNO);
@@ -248,7 +262,7 @@ int main(int argc, char *argv[])
     {
         GetTempPath(sizeof(tempDir), tempDir);
         StrBToF(tempDir);
-        strcat(tempDir, "AASUpdater");
+        strcat_s(tempDir, sizeof(tempDir), "AASUpdater");
         DIR* dir = opendir(tempDir);
         if (dir)
         {
@@ -260,8 +274,8 @@ int main(int argc, char *argv[])
 
     char archivePath[256] = {};
     {
-        strcpy(archivePath, tempDir);
-        strcat(archivePath, "/AltAppSwitcher.zip");
+        strcpy_s(archivePath, sizeof(archivePath), tempDir);
+        strcat_s(archivePath, sizeof(archivePath), "/AltAppSwitcher.zip");
         DownloadArchive(archivePath, assetURL);
     }
 
@@ -273,15 +287,15 @@ int main(int argc, char *argv[])
         char currentDir[256] = {};
         ParentDir(currentExe, currentDir);
         CopyDirContent(currentDir, tempDir);
-        strcat(updaterPath, tempDir);
-        strcat(updaterPath, "/Updater.exe");
+        strcat_s(updaterPath, sizeof(updaterPath), tempDir);
+        strcat_s(updaterPath, sizeof(updaterPath), "/Updater.exe");
     }
 
     // Run copied updater
     char args[512] = {};
     char AASDir[256] = {};
     GetCurrentDirectory(256, AASDir);
-    sprintf(args, "--target \"%s\"", AASDir);
+    sprintf_s(args, sizeof(args) / sizeof(args[0]), "--target \"%s\"", AASDir);
     ShellExecute(NULL, "runas", updaterPath, args, tempDir, SW_SHOWNORMAL);
 
     return 0;

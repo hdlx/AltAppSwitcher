@@ -175,10 +175,9 @@ TryGetBool(keyValues, ENTRY, &DST)
 #define GET_FLOAT(ENTRY, DST)\
 TryGetFloat(keyValues, ENTRY, &DST)
 
-    static StrPair keyValues[32];
-    memset(keyValues, 0x0, sizeof(keyValues));
+    static StrPair keyValues[32] = {};
 
-    static char lineBuf[1024];
+    static char lineBuf[1024] = {};
     unsigned int i = 0;
     while (fgets(lineBuf, 1024, file))
     {
@@ -190,8 +189,8 @@ TryGetFloat(keyValues, ENTRY, &DST)
         const char* end = strstr(lineBuf, "\r\n");
         if (end == NULL)
             continue;
-        strncpy(keyValues[i].Key, lineBuf, sizeof(char) * (sep - lineBuf));
-        strncpy(keyValues[i].Value, sep + 2, sizeof(char) * (end - (sep + 2)));
+        strncpy_s(keyValues[i].Key, sizeof(keyValues[i].Key), lineBuf, sizeof(char) * (sep - lineBuf));
+        strncpy_s(keyValues[i].Value, sizeof(keyValues[i].Value), sep + 2, sizeof(char) * (end - (sep + 2)));
         i++;
     }
     fclose(file);
@@ -229,7 +228,7 @@ static void WriteEnum(FILE* file, const char* entry,
     {
         if (enumStrings[i].Value == value)
         {
-            fprintf(file, "%s: %s\n", entry, enumStrings[i].Name);
+            fprintf_s(file, "%s: %s\n", entry, enumStrings[i].Name);
             return;
         }
     }
@@ -238,12 +237,12 @@ static void WriteEnum(FILE* file, const char* entry,
 
 static void WriteBool(FILE* file, const char* entry, bool value)
 {
-    fprintf(file, "%s: %s\n", entry, value ? "true" : "false");
+    fprintf_s(file, "%s: %s\n", entry, value ? "true" : "false");
 }
 
 static void WriteFloat(FILE* file, const char* entry, float value)
 {
-    fprintf(file, "%s: %f\n", entry, value);
+    fprintf_s(file, "%s: %f\n", entry, value);
 }
 
 void WriteConfig(const Config* config)
@@ -251,6 +250,9 @@ void WriteConfig(const Config* config)
     char configFile[MAX_PATH] = {};
     ConfigPath(configFile);
     FILE* file = fopen(configFile ,"w");
+    ASSERT(file);
+    if (!file)
+        return;
 
 #define WRITE_ENUM(ENTRY, VALUE, ENUM_STRING)\
 WriteEnum(file, ENTRY, VALUE, ENUM_STRING)
