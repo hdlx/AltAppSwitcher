@@ -65,6 +65,12 @@ def MakeArchive(srcDir, dstZip):
     shutil.make_archive(tempDir, "zip", tempDir)
     shutil.rmtree(tempDir)
 
+def Format():
+    for path, subdirs, files in os.walk("./Sources"):
+        for name in files:
+            if name.endswith(".c") or name.endswith(".h"):
+                os.system(f"clang-format.exe { path }/{ name }")
+
 import sys
 if __name__ == "__main__": 
     args = sys.argv[1:]
@@ -79,4 +85,6 @@ if __name__ == "__main__":
         MakeCompileCommands(args[1], args[2:])
     elif fn == "MakeArchive":
         MakeArchive(args[1], args[2])
+    elif fn == "Format":
+        Format()
 

@@ -96,6 +96,7 @@ $(AASARCHIVE): $(ALLAAS)
 # Compile object targets:
 # see 4.12.1 Syntax of Static Pattern Rules
 $(ALLOBJECTS): $(OBJDIR)/%.o: $(ROOTDIR)/%.c $(ALLH)
+	clang-format $< --dry-run --Werror
 	clang-tidy $< --warnings-as-errors=* --allow-no-checks -- $(CFLAGS)
 	$(CC) $(CFLAGS) -MJ $@.json -c $< -o $@
 
