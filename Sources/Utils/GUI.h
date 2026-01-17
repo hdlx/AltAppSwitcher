@@ -3,10 +3,10 @@
 typedef struct EnumString EnumString;
 typedef struct GUIData GUIData;
 HWND CreateText(const char* text, const char* tooltip, GUIData* guiData);
-void CreatePercentField(const char* tooltip, float* value, GUIData* appData);
+void CreatePercentField(const char* tooltip, float* value, GUIData* guiData);
 void CreateComboBox(const char* tooltip, unsigned int* value, const EnumString* enumStrings, GUIData* guiData);
 HWND CreateButton(const char* text, HMENU ID, GUIData* guiData);
-void CreateBoolControl(const char* tooltip, bool* value, GUIData* appData);
+void CreateBoolControl(const char* tooltip, bool* value, GUIData* guiData);
 void GridLayout(int columns, GUIData* guiData);
 void ApplyBindings(const GUIData* guiData);
 void GUIWindow(void (*setupGUI)(GUIData*, void*),

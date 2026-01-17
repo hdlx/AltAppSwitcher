@@ -10,7 +10,7 @@ static void PostAASMsg(int msg)
     BOOL procRes = Process32First(procSnap, &procEntry);
     while (procRes)
     {
-        if (strcmp(procEntry.szExeFile, "AltAppSwitcher.exe"))
+        if (0 != strcmp(procEntry.szExeFile, "AltAppSwitcher.exe"))
         {
             procRes = Process32Next(procSnap, &procEntry);
             continue;
@@ -31,7 +31,6 @@ static void PostAASMsg(int msg)
         procRes = Process32Next(procSnap, &procEntry);
     }
     CloseHandle(procSnap);
-    return;
 }
 
 void RestartAAS()

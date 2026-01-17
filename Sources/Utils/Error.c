@@ -35,7 +35,7 @@ void ASSError(const char* file, uint32_t line, const char* assertStr, bool crash
     }
 
     time_t mytime = time(NULL);
-    char* timeStr = ctime(&mytime);
+    char* timeStr = ctime(&mytime); // NOLINT
     timeStr[strlen(timeStr) - 1] = '\0';
 
     char logFile[MAX_PATH] = {};
@@ -45,10 +45,14 @@ void ASSError(const char* file, uint32_t line, const char* assertStr, bool crash
     const char* type = crash ? "Assert" : "Verify";
     if (f != NULL)
     {
-        fprintf_s(f, "%s:\nFile: %s, line: %u:\n", timeStr, file, line);
-        fprintf_s(f, "%s: %s\n", type, assertStr);
-        fprintf_s(f, "Last winapi error: %s\n\n", winMsg[0] == '\0' ? "None" : winMsg);
-        fclose(f);
+        int r = fprintf_s(f, "%s:\nFile: %s, line: %u:\n", timeStr, file, line);
+        ASSERT(r > 0);
+        r = fprintf_s(f, "%s: %s\n", type, assertStr);
+        ASSERT(r > 0);
+        r = fprintf_s(f, "Last winapi error: %s\n\n", winMsg[0] == '\0' ? "None" : winMsg);
+        ASSERT(r > 0);
+        r = fclose(f);
+        ASSERT(r == 0);
 
         printf("%s: %s\n", type, assertStr);
         printf("Last winapi error: %s\n\n", winMsg[0] == '\0' ? "None" : winMsg);

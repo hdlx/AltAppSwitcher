@@ -2,15 +2,15 @@
 #include <windef.h>
 #include <stdbool.h>
 
-typedef struct KeyConfig
+struct KeyConfig
 {
-    unsigned int _AppHold;
-    unsigned int _AppSwitch;
-    unsigned int _WinHold;
-    unsigned int _WinSwitch;
-    unsigned int _Invert;
-    unsigned int _PrevApp;
-} KeyConfig;
+    unsigned int AppHold;
+    unsigned int AppSwitch;
+    unsigned int WinHold;
+    unsigned int WinSwitch;
+    unsigned int Invert;
+    unsigned int PrevApp;
+};
 
 typedef enum ThemeMode
 {
@@ -52,18 +52,18 @@ typedef enum DesktopFilter
 
 typedef struct Config
 {
-    KeyConfig _Key;
-    bool _Mouse;
-    bool _CheckForUpdates;
-    ThemeMode _ThemeMode;
-    DisplayName _DisplayName;
-    float _Scale;
-    AppSwitcherMode _AppSwitcherMode;
-    MultipleMonitorMode _MultipleMonitorMode;
-    AppFilterMode _AppFilterMode;
-    bool _RestoreMinimizedWindows;
-    DesktopFilter _DesktopFilter;
-    bool _DebugDisableIconFocus;
+    struct KeyConfig Key;
+    bool Mouse;
+    bool CheckForUpdates;
+    ThemeMode ThemeMode;
+    DisplayName DisplayName;
+    float Scale;
+    AppSwitcherMode AppSwitcherMode;
+    MultipleMonitorMode MultipleMonitorMode;
+    AppFilterMode AppFilterMode;
+    bool RestoreMinimizedWindows;
+    DesktopFilter DesktopFilter;
+    bool DebugDisableIconFocus;
 } Config;
 
 typedef struct EnumString

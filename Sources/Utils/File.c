@@ -2,7 +2,6 @@
 #include <dirent.h>
 #include <ftw.h>
 #include <stdio.h>
-#include <dirent.h>
 #include <minwindef.h>
 #include <libloaderapi.h>
 
@@ -45,7 +44,7 @@ void StrFToB(char* str)
 
 void DeleteTree(const char* dir)
 {
-    nftw(dir, DeleteForFtw, 0, FTW_DEPTH);
+    nftw(dir, DeleteForFtw, 0, FTW_DEPTH); // NOLINT
 }
 
 void ParentDir(const char* file, char* out)
@@ -67,19 +66,24 @@ static void CopyFile(const char* srcStr, const char* dstStr)
     ASSERT(src);
     if (!src)
     {
-        fclose(dst);
+        int a = fclose(dst);
+        ASSERT(a == 0);
         return;
     }
     unsigned char buf[1024] = {};
     int size = 1;
     while (size)
     {
-        fseek(src, 0, SEEK_CUR);
-        size = fread(buf, sizeof(char), sizeof(buf), src);
-        fwrite(buf, sizeof(char), size, dst);
+        int a = fseek(src, 0, SEEK_CUR);
+        ASSERT(a == 0);
+        size = (int)fread(buf, sizeof(char), sizeof(buf), src);
+        size_t b = (int)fwrite(buf, sizeof(char), size, dst);
+        ASSERT(b > 0);
     }
-    fclose(src);
-    fclose(dst);
+    int a = fclose(src);
+    ASSERT(a == 0);
+    a = fclose(dst);
+    ASSERT(a == 0);
 }
 
 void CopyDirContent(const char* srcDir, const char* dstDir)
@@ -88,7 +92,7 @@ void CopyDirContent(const char* srcDir, const char* dstDir)
     ASSERT(dir);
     if (!dir)
         return;
-    struct dirent* e = readdir(dir);
+    struct dirent* e = readdir(dir); // NOLINT
     while (e != NULL)
     {
         struct stat info;
@@ -114,7 +118,7 @@ void CopyDirContent(const char* srcDir, const char* dstDir)
             }
             CopyFile(srcFile, dstFile);
         }
-        e = readdir(dir);
+        e = readdir(dir); // NOLINT
     }
     closedir(dir);
 }

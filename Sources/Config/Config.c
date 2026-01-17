@@ -94,7 +94,7 @@ static bool TryGetBool(const StrPair* keyValues, const char* token, bool* boolTo
         *boolToSet = true;
         return true;
     }
-    else if (strstr(keyValues[entry].Value, "false") != NULL)
+    if (strstr(keyValues[entry].Value, "false") != NULL)
     {
         *boolToSet = false;
         return true;
@@ -135,23 +135,23 @@ static bool TryGetEnum(const StrPair* keyValues, const char* token,
 
 void DefaultConfig(Config* config)
 {
-    config->_Key._AppHold = VK_LMENU;
-    config->_Key._AppSwitch = VK_TAB;
-    config->_Key._WinHold = VK_LMENU;
-    config->_Key._WinSwitch = VK_OEM_3;
-    config->_Key._Invert = VK_LSHIFT;
-    config->_Key._PrevApp = VK_OEM_3;
-    config->_Mouse = true;
-    config->_CheckForUpdates = true;
-    config->_ThemeMode = ThemeModeAuto;
-    config->_AppSwitcherMode = AppSwitcherModeApp;
-    config->_Scale = 2.5;
-    config->_DisplayName = DisplayNameSel;
-    config->_MultipleMonitorMode = MultipleMonitorModeMouse;
-    config->_AppFilterMode = AppFilterModeAll;
-    config->_RestoreMinimizedWindows = true;
-    config->_DesktopFilter = DesktopFilterCurrent;
-    config->_DebugDisableIconFocus = false;
+    config->Key.AppHold = VK_LMENU;
+    config->Key.AppSwitch = VK_TAB;
+    config->Key.WinHold = VK_LMENU;
+    config->Key.WinSwitch = VK_OEM_3;
+    config->Key.Invert = VK_LSHIFT;
+    config->Key.PrevApp = VK_OEM_3;
+    config->Mouse = true;
+    config->CheckForUpdates = true;
+    config->ThemeMode = ThemeModeAuto;
+    config->AppSwitcherMode = AppSwitcherModeApp;
+    config->Scale = 2.5f;
+    config->DisplayName = DisplayNameSel;
+    config->MultipleMonitorMode = MultipleMonitorModeMouse;
+    config->AppFilterMode = AppFilterModeAll;
+    config->RestoreMinimizedWindows = true;
+    config->DesktopFilter = DesktopFilterCurrent;
+    config->DebugDisableIconFocus = false;
 }
 
 void LoadConfig(Config* config)
@@ -167,13 +167,13 @@ void LoadConfig(Config* config)
     }
 
 #define GET_ENUM(ENTRY, DST, ENUM_STRING)\
-TryGetEnum(keyValues, ENTRY, &DST, ENUM_STRING)
+TryGetEnum(keyValues, ENTRY, &(DST), ENUM_STRING)
 
 #define GET_BOOL(ENTRY, DST)\
-TryGetBool(keyValues, ENTRY, &DST)
+TryGetBool(keyValues, ENTRY, &(DST))
 
 #define GET_FLOAT(ENTRY, DST)\
-TryGetFloat(keyValues, ENTRY, &DST)
+TryGetFloat(keyValues, ENTRY, &(DST))
 
     static StrPair keyValues[32] = {};
 
@@ -193,28 +193,29 @@ TryGetFloat(keyValues, ENTRY, &DST)
         strncpy_s(keyValues[i].Value, sizeof(keyValues[i].Value), sep + 2, sizeof(char) * (end - (sep + 2)));
         i++;
     }
-    fclose(file);
+    int a = fclose(file);
+    ASSERT(a == 0);
 
-    GET_ENUM("app hold key", config->_Key._AppHold, keyES);
-    GET_ENUM("next app key", config->_Key._AppSwitch, keyES);
-    GET_ENUM("window hold key", config->_Key._WinHold, keyES);
-    GET_ENUM("next window key", config->_Key._WinSwitch, keyES);
-    GET_ENUM("invert order key", config->_Key._Invert, keyES);
-    GET_ENUM("previous app key", config->_Key._PrevApp, keyES);
+    GET_ENUM("app hold key", config->Key.AppHold, keyES);
+    GET_ENUM("next app key", config->Key.AppSwitch, keyES);
+    GET_ENUM("window hold key", config->Key.WinHold, keyES);
+    GET_ENUM("next window key", config->Key.WinSwitch, keyES);
+    GET_ENUM("invert order key", config->Key.Invert, keyES);
+    GET_ENUM("previous app key", config->Key.PrevApp, keyES);
 
-    GET_ENUM("theme", config->_ThemeMode, themeES);
-    GET_ENUM("app switcher mode", config->_AppSwitcherMode, appSwitcherModeES);
-    GET_ENUM("display name", config->_DisplayName, displayNameES);
-    GET_ENUM("multiple monitor mode", config->_MultipleMonitorMode, multipleMonitorModeES);
-    GET_ENUM("app filter mode", config->_AppFilterMode, appFilterModeES);
-    GET_ENUM("desktop filter", config->_DesktopFilter, desktopFilterES);
-    GET_BOOL("restore minimized windows", config->_RestoreMinimizedWindows);
-    GET_BOOL("debug disable icon focus", config->_DebugDisableIconFocus);
+    GET_ENUM("theme", config->ThemeMode, themeES);
+    GET_ENUM("app switcher mode", config->AppSwitcherMode, appSwitcherModeES);
+    GET_ENUM("display name", config->DisplayName, displayNameES);
+    GET_ENUM("multiple monitor mode", config->MultipleMonitorMode, multipleMonitorModeES);
+    GET_ENUM("app filter mode", config->AppFilterMode, appFilterModeES);
+    GET_ENUM("desktop filter", config->DesktopFilter, desktopFilterES);
+    GET_BOOL("restore minimized windows", config->RestoreMinimizedWindows);
+    GET_BOOL("debug disable icon focus", config->DebugDisableIconFocus);
 
-    GET_BOOL("allow mouse", config->_Mouse);
-    GET_BOOL("check for updates", config->_CheckForUpdates);
+    GET_BOOL("allow mouse", config->Mouse);
+    GET_BOOL("check for updates", config->CheckForUpdates);
 
-    GET_FLOAT("scale", config->_Scale);
+    GET_FLOAT("scale", config->Scale);
 
 #undef GET_ENUM
 #undef GET_BOOL
@@ -228,7 +229,8 @@ static void WriteEnum(FILE* file, const char* entry,
     {
         if (enumStrings[i].Value == value)
         {
-            fprintf_s(file, "%s: %s\n", entry, enumStrings[i].Name);
+            size_t a = fprintf_s(file, "%s: %s\n", entry, enumStrings[i].Name);
+            (void)a;
             return;
         }
     }
@@ -237,12 +239,14 @@ static void WriteEnum(FILE* file, const char* entry,
 
 static void WriteBool(FILE* file, const char* entry, bool value)
 {
-    fprintf_s(file, "%s: %s\n", entry, value ? "true" : "false");
+    size_t a = fprintf_s(file, "%s: %s\n", entry, value ? "true" : "false");
+    ASSERT(a > 0);
 }
 
 static void WriteFloat(FILE* file, const char* entry, float value)
 {
-    fprintf_s(file, "%s: %f\n", entry, value);
+    size_t a = fprintf_s(file, "%s: %f\n", entry, value);
+    ASSERT(a > 0);
 }
 
 void WriteConfig(const Config* config)
@@ -263,27 +267,29 @@ WriteBool(file, ENTRY, VALUE)
 #define WRITE_FLOAT(ENTRY, VALUE)\
 WriteFloat(file, ENTRY, VALUE)
 
-    WRITE_ENUM("app hold key", config->_Key._AppHold, keyES);
-    WRITE_ENUM("next app key", config->_Key._AppSwitch, keyES);
-    WRITE_ENUM("window hold key", config->_Key._WinHold, keyES);
-    WRITE_ENUM("next window key", config->_Key._WinSwitch, keyES);
-    WRITE_ENUM("invert order key", config->_Key._Invert, keyES);
-    WRITE_ENUM("previous app key", config->_Key._PrevApp, keyES);
-    WRITE_ENUM("theme", config->_ThemeMode, themeES);
-    WRITE_ENUM("app switcher mode", config->_AppSwitcherMode, appSwitcherModeES);
-    WRITE_ENUM("display name", config->_DisplayName, displayNameES);
-    WRITE_ENUM("multiple monitor mode", config->_MultipleMonitorMode, multipleMonitorModeES);
-    WRITE_ENUM("app filter mode", config->_AppFilterMode, appFilterModeES);
-    WRITE_ENUM("desktop filter", config->_DesktopFilter, desktopFilterES);
-    WRITE_BOOL("restore minimized windows", config->_RestoreMinimizedWindows);
-    WRITE_BOOL("debug disable icon focus", config->_DebugDisableIconFocus);
+    WRITE_ENUM("app hold key", config->Key.AppHold, keyES);
+    WRITE_ENUM("next app key", config->Key.AppSwitch, keyES);
+    WRITE_ENUM("window hold key", config->Key.WinHold, keyES);
+    WRITE_ENUM("next window key", config->Key.WinSwitch, keyES);
+    WRITE_ENUM("invert order key", config->Key.Invert, keyES);
+    WRITE_ENUM("previous app key", config->Key.PrevApp, keyES);
+    WRITE_ENUM("theme", config->ThemeMode, themeES);
+    WRITE_ENUM("app switcher mode", config->AppSwitcherMode, appSwitcherModeES);
+    WRITE_ENUM("display name", config->DisplayName, displayNameES);
+    WRITE_ENUM("multiple monitor mode", config->MultipleMonitorMode, multipleMonitorModeES);
+    WRITE_ENUM("app filter mode", config->AppFilterMode, appFilterModeES);
+    WRITE_ENUM("desktop filter", config->DesktopFilter, desktopFilterES);
+    WRITE_BOOL("restore minimized windows", config->RestoreMinimizedWindows);
+    WRITE_BOOL("debug disable icon focus", config->DebugDisableIconFocus);
 
-    WRITE_BOOL("allow mouse", config->_Mouse);
-    WRITE_BOOL("check for updates", config->_CheckForUpdates);
+    WRITE_BOOL("allow mouse", config->Mouse);
+    WRITE_BOOL("check for updates", config->CheckForUpdates);
 
-    WRITE_FLOAT("scale", config->_Scale);
+    WRITE_FLOAT("scale", config->Scale);
 
-    fclose(file);
+    const int r = fclose(file);
+    ASSERT(r == 0);
+
 #undef WRITE_ENUM
 #undef WRITE_BOOL
 #undef WRITE_FLOAT

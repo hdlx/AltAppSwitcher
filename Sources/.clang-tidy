@@ -1,0 +1,14 @@
+Checks: >
+    clang-analyzer-*,
+    bugprone-*,
+    cert-*,
+    concurrency-*,
+    portability-*,
+    readability-*,
+    -bugprone-easily-swappable-parameters,
+    -readability-identifier-length,
+    -readability-magic-numbers,
+    -readability-uppercase-literal-suffix,
+    -readability-braces-around-statements,
+    -readability-function-cognitive-complexity,
+    -cert-dcl16-c
