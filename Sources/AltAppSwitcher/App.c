@@ -1477,7 +1477,8 @@ static void ApplySwitchApp(const SWinGroup* winGroup, bool restoreMinimized)
         DWORD targetWinThread = GetWindowThreadProcessId(win, NULL);
         (void)targetWinThread;
         ret = AttachThreadInput(targetWinThread, curThread, TRUE);
-        VERIFY(ret != 0);
+        (void)ret;
+        // VERIFY(ret != 0);
 
         dwp = DeferWindowPos(dwp, win, prev, 0, 0, 0, 0, SWP_NOSIZE | SWP_NOMOVE);
         VERIFY(dwp != 0);
@@ -1498,7 +1499,7 @@ static void ApplySwitchApp(const SWinGroup* winGroup, bool restoreMinimized)
         DWORD targetWinThread = GetWindowThreadProcessId(win, NULL);
         (void)targetWinThread;
         ret = AttachThreadInput(targetWinThread, curThread, FALSE);
-        VERIFY(ret != 0);
+        (void)ret;
     }
 }
 
@@ -2006,10 +2007,6 @@ static void Draw(SAppData* appData, HDC dc, RECT clientRect)
 LRESULT CALLBACK WorkerWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 {
     static SAppData* appData = NULL;
-    ASSERT(appData);
-    if (!appData)
-        return 0;
-
     switch (uMsg)
     {
     case WM_CREATE:
@@ -2019,18 +2016,27 @@ LRESULT CALLBACK WorkerWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lP
     }
     case MSG_APPLY_APP:
     {
+        ASSERT(appData);
+        if (!appData)
+            return 0;
         ApplySwitchApp(&appData->_WinGroups._Data[appData->_Selection], appData->_Config._RestoreMinimizedWindows);
         PostQuitMessage(0);
         return 0;
     }
     case MSG_APPLY_WIN:
     {
+        ASSERT(appData);
+        if (!appData)
+            return 0;
         ApplySwitchWin(appData->_CurrentWinGroup._Windows[appData->_Selection], appData->_Config._RestoreMinimizedWindows);
         PostQuitMessage(0);
         return 0;
     }
     case MSG_APPLY_APP_MOUSE:
     {
+        ASSERT(appData);
+        if (!appData)
+            return 0;
         ApplySwitchApp(&appData->_WinGroups._Data[appData->_MouseSelection], appData->_Config._RestoreMinimizedWindows);
         PostQuitMessage(0);
         return 0;
@@ -2079,14 +2085,14 @@ LRESULT CALLBACK MainWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lPar
 {
     static SAppData* appData = NULL;
     static HWND focusWindows[MAX_WIN_GROUPS] = {};
-    ASSERT(appData);
-    if (!appData)
-        return 0;
 
     switch (uMsg)
     {
     case WM_MOUSEMOVE:
     {
+        ASSERT(appData);
+        if (!appData)
+            return 0;
         if (!appData->_Config._Mouse)
             return 0;
         const int iconContainerSize = (int)appData->_Metrics._Container;
@@ -2104,6 +2110,9 @@ LRESULT CALLBACK MainWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lPar
     case WM_CREATE:
     {
         appData = (SAppData*)((CREATESTRUCTA*)lParam)->lpCreateParams;
+        ASSERT(appData);
+        if (!appData)
+            return 0;
         {
             RECT clientRect;
             ASSERT(GetWindowRect(hwnd, &clientRect));
@@ -2141,6 +2150,9 @@ LRESULT CALLBACK MainWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lPar
     }
     case MSG_FOCUS:
     {
+        ASSERT(appData);
+        if (!appData)
+            return 0;
         // uia set focus here gives inconsistent app behavior IDK why.
         // UIASetFocus(focusWindows[appData->_Selection]);
         if (!appData->_Config._DebugDisableIconFocus)
@@ -2149,12 +2161,18 @@ LRESULT CALLBACK MainWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lPar
     }
     case MSG_REFRESH:
     {
+        ASSERT(appData);
+        if (!appData)
+            return 0;
         ClearWinGroupArr(&appData->_WinGroups);
         InitializeSwitchApp(appData);
         return 0;
     }
     case WM_LBUTTONUP:
     {
+        ASSERT(appData);
+        if (!appData)
+            return 0;
         if (!IsInside(GET_X_LPARAM(lParam), GET_Y_LPARAM(lParam), hwnd))
         {
             appData->_Mode = ModeNone;
@@ -2208,6 +2226,9 @@ LRESULT CALLBACK MainWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lPar
     }
     case WM_DESTROY:
     {
+        ASSERT(appData);
+        if (!appData)
+            return 0;
         // Free hooks
         // {
         //     for (uint32_t i = 0; i < g_CloseHookCount; i++)
@@ -2225,6 +2246,9 @@ LRESULT CALLBACK MainWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lPar
     }
     case WM_PAINT:
     {
+        ASSERT(appData);
+        if (!appData)
+            return 0;
         PAINTSTRUCT ps = {};
         if (BeginPaint(hwnd, &ps) == NULL)
         {
