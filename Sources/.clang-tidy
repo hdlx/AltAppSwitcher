@@ -1,4 +1,4 @@
-Checks: >
+Checks:
     clang-analyzer-*,
     bugprone-*,
     cert-*,
