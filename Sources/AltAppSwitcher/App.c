@@ -162,10 +162,6 @@ static DWORD MainThread;
 
 static void RestoreKey(WORD keyCode)
 {
-    // if (GetAsyncKeyState(VK_RCONTROL) & 0x8000)
-    // {
-    //     printf("WHY\n");
-    // }
     {
         INPUT input = {};
         input.type = INPUT_KEYBOARD;
@@ -1504,7 +1500,7 @@ static LRESULT KbProc(int nCode, WPARAM wParam, LPARAM lParam)
 {
     const KBDLLHOOKSTRUCT kbStrut = *(KBDLLHOOKSTRUCT*)lParam;
     if (kbStrut.flags & LLKHF_INJECTED)
-        CallNextHookEx(NULL, nCode, wParam, lParam);
+        return CallNextHookEx(NULL, nCode, wParam, lParam);
 
     const bool appHoldKey = kbStrut.vkCode == KeyConfig->AppHold;
     const bool nextAppKey = kbStrut.vkCode == KeyConfig->AppSwitch;
