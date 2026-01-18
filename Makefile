@@ -95,9 +95,13 @@ $(AASARCHIVE): $(ALLAAS)
 
 # Compile object targets:
 # see 4.12.1 Syntax of Static Pattern Rules
+clang_tidy_disable_if_dbg = 
+ifeq ($(CONF), Debug)
+clang_tidy_disable_if_dbg = --checks=-*
+endif
 $(ALLOBJECTS): $(OBJDIR)/%.o: $(ROOTDIR)/%.c $(ALLH)
 	clang-format $< --dry-run --Werror
-	clang-tidy $< --warnings-as-errors=* --allow-no-checks -- $(CFLAGS)
+	clang-tidy $< --warnings-as-errors=* --allow-no-checks $(clang_tidy_disable_if_dbg) -- $(CFLAGS)
 	$(CC) $(CFLAGS) -MJ $@.json -c $< -o $@
 
 # Build exe targets (link):
