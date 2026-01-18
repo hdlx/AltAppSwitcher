@@ -2018,7 +2018,8 @@ LRESULT CALLBACK MainWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lPar
         // UIASetFocus(focusWindows[appData->Selection]);
         if (!appData->Config.DebugDisableIconFocus)
             SetFocus(focusWindows[appData->Selection]);
-        return 0;
+        else
+            break;
     }
     case MSG_REFRESH: {
         ASSERT(appData);
