@@ -141,15 +141,10 @@ static const struct KeyConfig* KeyConfig;
 static DWORD MainThread;
 
 // Main thread
-#define MSG_INVERT_PUSH (WM_USER + 1)
-#define MSG_INVERT_REL (WM_USER + 2)
-#define MSG_NEXT_WIN (WM_USER + 3)
-#define MSG_NEXT_APP (WM_USER + 4)
-#define MSG_PREV_APP (WM_USER + 6)
-#define MSG_DEINIT (WM_USER + 7)
-#define MSG_CANCEL_APP (WM_USER + 9)
-#define MSG_RESTORE_KEY (WM_USER + 12)
-#define MSG_PREV_WIN (WM_USER + 13)
+#define MSG_INIT_APP (WM_USER + 1)
+#define MSG_INIT_WIN (WM_USER + 2)
+#define MSG_DEINIT (WM_USER + 3)
+#define MSG_RESTORE_KEY (WM_USER + 4)
 
 // Apply thread
 #define MSG_APPLY_APP (WM_USER + 1)
@@ -1500,7 +1495,7 @@ static void ApplySwitchWin(HWND win, bool restoreMinimized)
     UIASetFocus(win);
 }
 
-static LRESULT KbProc(int nCode, WPARAM wParam, LPARAM lParam)
+LRESULT oldKbProc(int nCode, WPARAM wParam, LPARAM lParam)
 {
     const KBDLLHOOKSTRUCT kbStrut = *(KBDLLHOOKSTRUCT*)lParam;
     if (kbStrut.flags & LLKHF_INJECTED)
@@ -1559,43 +1554,101 @@ static LRESULT KbProc(int nCode, WPARAM wParam, LPARAM lParam)
             bypassMsg = true;
         } else if (prevMode == ModeApp && cancel) {
             mode = ModeNone;
-            PostThreadMessage(MainThread, MSG_CANCEL_APP, 0, 0);
+            // PostThreadMessage(MainThread, MSG_CANCEL_APP, 0, 0);
             PostThreadMessage(MainThread, MSG_RESTORE_KEY, KeyConfig->AppHold, 0);
             bypassMsg = true;
         }
 
         if (nextApp && isAppHold) {
             mode = ModeApp;
-            PostThreadMessage(MainThread, MSG_NEXT_APP, 0, 0);
+            // PostThreadMessage(MainThread, MSG_NEXT_APP, 0, 0);
             bypassMsg = true;
         } else if (nextWin && isWinHold) {
             mode = ModeWin;
-            PostThreadMessage(MainThread, MSG_NEXT_WIN, 0, 0);
+            // PostThreadMessage(MainThread, MSG_NEXT_WIN, 0, 0);
             bypassMsg = true;
         } else if (invertPush) {
-            PostThreadMessage(MainThread, MSG_INVERT_PUSH, 0, 0);
+            // PostThreadMessage(MainThread, MSG_INVERT_PUSH, 0, 0);
         } else if (invertRelease) {
-            PostThreadMessage(MainThread, MSG_INVERT_REL, 0, 0);
+            // PostThreadMessage(MainThread, MSG_INVERT_REL, 0, 0);
         }
 
         if (prevApp && isAppHold) // Not *else* if because the key can be shared
         {
-            PostThreadMessage(MainThread, MSG_PREV_APP, 0, 0);
+            // PostThreadMessage(MainThread, MSG_PREV_APP, 0, 0);
             bypassMsg = true;
         }
 
         // Vim/Arrow key navigation (h/left/k/up = prev, l/right/j/down = next)
         if (vimNext && prevMode == ModeApp) {
-            PostThreadMessage(MainThread, MSG_NEXT_APP, 0, 0);
+            // PostThreadMessage(MainThread, MSG_NEXT_APP, 0, 0);
             bypassMsg = true;
         } else if (vimPrev && prevMode == ModeApp) {
-            PostThreadMessage(MainThread, MSG_PREV_APP, 0, 0);
+            // PostThreadMessage(MainThread, MSG_PREV_APP, 0, 0);
             bypassMsg = true;
         } else if (vimNext && prevMode == ModeWin) {
-            PostThreadMessage(MainThread, MSG_NEXT_WIN, 0, 0);
+            // PostThreadMessage(MainThread, MSG_NEXT_WIN, 0, 0);
             bypassMsg = true;
         } else if (vimPrev && prevMode == ModeWin) {
-            PostThreadMessage(MainThread, MSG_PREV_WIN, 0, 0);
+            // PostThreadMessage(MainThread, MSG_PREV_WIN, 0, 0);
+            bypassMsg = true;
+        }
+    }
+
+    if (bypassMsg)
+        return 1;
+
+    return CallNextHookEx(NULL, nCode, wParam, lParam);
+}
+
+static LRESULT KbProc(int nCode, WPARAM wParam, LPARAM lParam)
+{
+    const KBDLLHOOKSTRUCT kbStrut = *(KBDLLHOOKSTRUCT*)lParam;
+    if (kbStrut.flags & LLKHF_INJECTED)
+        return CallNextHookEx(NULL, nCode, wParam, lParam);
+
+    const bool appHoldKey = kbStrut.vkCode == KeyConfig->AppHold;
+    const bool nextAppKey = kbStrut.vkCode == KeyConfig->AppSwitch;
+    const bool prevAppKey = kbStrut.vkCode == KeyConfig->PrevApp;
+    const bool winHoldKey = kbStrut.vkCode == KeyConfig->WinHold;
+    const bool nextWinKey = kbStrut.vkCode == KeyConfig->WinSwitch;
+    const bool isWatchedKey = appHoldKey || nextAppKey || prevAppKey || winHoldKey || nextWinKey;
+    if (!isWatchedKey)
+        return CallNextHookEx(NULL, nCode, wParam, lParam);
+
+    static Mode mode = ModeNone;
+
+    const bool rel = kbStrut.flags & LLKHF_UP;
+
+    // Update target app state
+    bool bypassMsg = false;
+    const Mode prevMode = mode;
+    {
+        const bool winHoldRelease = winHoldKey && rel;
+        const bool appHoldRelease = appHoldKey && rel;
+        const bool nextApp = nextAppKey && !rel;
+        const bool nextWin = nextWinKey && !rel;
+        const bool isWinHold = GetAsyncKeyState((SHORT)KeyConfig->WinHold) & 0x8000;
+        const bool isAppHold = GetAsyncKeyState((SHORT)KeyConfig->AppHold) & 0x8000;
+
+        // Denit.
+        if ((prevMode == ModeApp && appHoldRelease)
+            || (prevMode == ModeWin && winHoldRelease)) {
+            mode = ModeNone;
+            PostThreadMessage(MainThread, MSG_DEINIT, 0, 0);
+            bypassMsg = true;
+        }
+
+        // Init
+        if (prevMode == ModeNone && isAppHold && nextApp) {
+            mode = ModeApp;
+            PostThreadMessage(MainThread, MSG_INIT_APP, 0, 0);
+            PostThreadMessage(MainThread, MSG_RESTORE_KEY, KeyConfig->AppHold, 0);
+            bypassMsg = true;
+        } else if (prevMode == ModeNone && isWinHold && nextWin) {
+            mode = ModeWin;
+            PostThreadMessage(MainThread, MSG_INIT_WIN, 0, 0);
+            PostThreadMessage(MainThread, MSG_RESTORE_KEY, KeyConfig->WinHold, 0);
             bypassMsg = true;
         }
     }
@@ -2027,7 +2080,8 @@ LRESULT CALLBACK MainWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lPar
                     hwnd, NULL, appData->Instance, appData);
             }
         }
-
+        InvalidateRect(hwnd, 0, FALSE);
+        UpdateWindow(hwnd);
         return 0;
     }
     case MSG_FOCUS: {
@@ -2309,51 +2363,22 @@ int StartAltAppSwitcher(HINSTANCE hInstance)
     bool closeAAS = false;
     while (GetMessage(&msg, NULL, 0, 0) > 0) {
         switch (msg.message) {
-        case MSG_NEXT_APP: {
+        case MSG_INIT_APP: {
             if (appData.Mode == ModeWin)
                 DeinitWin(&appData);
             if (appData.Mode == ModeNone)
                 InitializeSwitchApp(&appData);
-            appData.Selection += appData.Invert ? -1 : 1;
-            appData.Selection = Modulo(appData.Selection, (int)appData.WinGroups.Size);
-            InvalidateRect(appData.MainWin, 0, FALSE);
-            UpdateWindow(appData.MainWin);
+
             if (!appData.Config.DebugDisableIconFocus)
                 SendNotifyMessage(appData.MainWin, MSG_FOCUS, 0, 0);
             break;
         }
-        case MSG_PREV_APP: {
-            // Prev app does not have the ability to init the mode
-            if (appData.Mode != ModeApp)
-                break;
-            appData.Selection += appData.Invert ? 1 : -1;
-            appData.Selection = Modulo(appData.Selection, (int)appData.WinGroups.Size);
-            InvalidateRect(appData.MainWin, 0, FALSE);
-            UpdateWindow(appData.MainWin);
-            if (!appData.Config.DebugDisableIconFocus)
-                SendNotifyMessage(appData.MainWin, MSG_FOCUS, 0, 0);
-            break;
-        }
-        case MSG_NEXT_WIN: {
+        case MSG_INIT_WIN: {
             if (appData.Mode == ModeApp)
-                break;
+                DeinitApp(&appData);
             if (appData.Mode == ModeNone)
                 InitializeSwitchWin(&appData);
             appData.Selection += appData.Invert ? -1 : 1;
-            appData.Selection = Modulo(appData.Selection, (int)appData.CurrentWinGroup.WindowCount);
-#ifdef ASYNC_APPLY
-            ApplyWithTimeout(&appData, MSG_APPLY_WIN);
-#else
-            HWND win = appData.CurrentWinGroup.Windows[appData.Selection];
-            ApplySwitchWin(win, appData->Config.RestoreMinimizedWindows);
-#endif
-            break;
-        }
-        case MSG_PREV_WIN: {
-            // Prev win does not have the ability to init the mode
-            if (appData.Mode != ModeWin)
-                break;
-            appData.Selection += appData.Invert ? 1 : -1;
             appData.Selection = Modulo(appData.Selection, (int)appData.CurrentWinGroup.WindowCount);
 #ifdef ASYNC_APPLY
             ApplyWithTimeout(&appData, MSG_APPLY_WIN);
@@ -2370,26 +2395,12 @@ int StartAltAppSwitcher(HINSTANCE hInstance)
                 DeinitWin(&appData);
             break;
         }
-        case MSG_CANCEL_APP: {
-            appData.Mode = ModeNone;
-            DestroyWin(&appData.MainWin);
-            ClearWinGroupArr(&appData.WinGroups);
-            break;
-        }
         case MSG_RESTART_AAS: {
             restartAAS = true;
             break;
         }
         case MSG_CLOSE_AAS: {
             closeAAS = true;
-            break;
-        }
-        case MSG_INVERT_PUSH: {
-            appData.Invert = true;
-            break;
-        }
-        case MSG_INVERT_REL: {
-            appData.Invert = false;
             break;
         }
         case MSG_RESTORE_KEY: {
