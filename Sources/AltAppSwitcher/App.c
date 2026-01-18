@@ -1915,17 +1915,34 @@ LRESULT CALLBACK WorkerWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lP
     return DefWindowProc(hwnd, uMsg, wParam, lParam);
 }
 
-LRESULT FocusWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
+int ProcessKeys(SAppData* appData, UINT uMsg, WPARAM wParam)
 {
     switch (uMsg) {
-    case WM_DESTROY:
-    case WM_CREATE:
-    case WM_PAINT:
-    case WM_SIZE:
-    case WM_SETFOCUS:
+    case WM_SYSKEYUP:
+    case WM_KEYUP: {
+        printf("HERE\n");
+        return 0;
+    }
     default:
         break;
     }
+    return 1;
+}
+
+LRESULT FocusWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
+{
+    static SAppData* appData = NULL;
+
+    if (ProcessKeys(appData, uMsg, wParam) == 0)
+        return 0;
+
+    switch (uMsg) {
+    case WM_CREATE:
+        appData = (SAppData*)((CREATESTRUCTA*)lParam)->lpCreateParams;
+    default:
+        break;
+    }
+
     return DefWindowProc(hwnd, uMsg, wParam, lParam);
 }
 
@@ -1952,6 +1969,9 @@ LRESULT CALLBACK MainWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lPar
 {
     static SAppData* appData = NULL;
     static HWND focusWindows[MAX_WIN_GROUPS] = {};
+
+    if (ProcessKeys(appData, uMsg, wParam) == 0)
+        return 0;
 
     switch (uMsg) {
     case WM_MOUSEMOVE: {
@@ -2004,7 +2024,7 @@ LRESULT CALLBACK MainWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lPar
                 focusWindows[i] = CreateWindowEx(0, FOCUS_CLASS_NAME, NULL,
                     WS_CHILD /* | WS_VISIBLE */,
                     x, pad, iconContainerSize, iconContainerSize,
-                    hwnd, NULL, appData->Instance, NULL);
+                    hwnd, NULL, appData->Instance, appData);
             }
         }
 
@@ -2207,7 +2227,7 @@ int StartAltAppSwitcher(HINSTANCE hInstance)
 
     {
         WNDCLASS wc = {};
-        wc.lpfnWndProc = DefWindowProc;
+        wc.lpfnWndProc = FocusWindowProc;
         wc.hInstance = hInstance;
         wc.lpszClassName = FOCUS_CLASS_NAME;
         wc.cbWndExtra = 0;
