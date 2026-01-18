@@ -29,11 +29,12 @@ INCLUDEDIR = $(ROOTDIR)/Sources
 CC = $(ARCH)-w64-mingw32-clang
 CFLAGS = -I $(ROOTDIR)/SDK/Headers -I $(ROOTDIR)/Sources -I $(ROOTDIR)/SDK/Sources
 LDIRS = -L $(LIBDIR) -L $(LIBDIR)/curl
-LFLAGS = -static -static-libgcc -Werror -fsanitize=address,undefined
-CFLAGS += -Wall -D ARCH_$(ARCH)=1 -target $(ARCH)-w64-mingw32 -Werror -fsanitize=address,undefined -std=c11
+LFLAGS = -static -static-libgcc -Werror
+CFLAGS += -Wall -D ARCH_$(ARCH)=1 -target $(ARCH)-w64-mingw32 -Werror -std=c11
 
 ifeq ($(CONF), Debug)
-CFLAGS += -g3
+CFLAGS += -g3 -fsanitize=address,undefined
+LFLAGS += -fsanitize=address,undefined
 else
 CFLAGS += -O3
 LFLAGS += -mwindows
