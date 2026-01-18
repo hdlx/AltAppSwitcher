@@ -2016,10 +2016,11 @@ LRESULT CALLBACK MainWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lPar
             return 0;
         // uia set focus here gives inconsistent app behavior IDK why.
         // UIASetFocus(focusWindows[appData->Selection]);
-        if (!appData->Config.DebugDisableIconFocus)
+        if (!appData->Config.DebugDisableIconFocus) {
             SetFocus(focusWindows[appData->Selection]);
-        else
-            break;
+            return 0;
+        }
+        break;
     }
     case MSG_REFRESH: {
         ASSERT(appData);
