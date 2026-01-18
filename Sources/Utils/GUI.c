@@ -291,9 +291,6 @@ static LRESULT GUIWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 {
     static GUIData guiData = {};
     static UserData* userData = 0;
-    ASSERT(userData);
-    if (!userData)
-        return 0;
     switch (uMsg) {
     case WM_DESTROY: {
         free(userData);
@@ -310,6 +307,9 @@ static LRESULT GUIWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
         return 0;
     }
     case WM_COMMAND: {
+        ASSERT(userData);
+        if (!userData)
+            return 0;
         if (HIWORD(wParam) == BN_CLICKED) {
             userData->ButtonMessage(LOWORD(wParam), &guiData, userData->Data);
         }
