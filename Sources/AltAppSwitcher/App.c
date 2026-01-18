@@ -116,7 +116,6 @@ typedef struct SAppData {
     HWND MainWin;
     HINSTANCE Instance;
     Mode Mode;
-    bool Invert;
     int Selection;
     int MouseSelection;
     bool CloseHover;
@@ -1499,7 +1498,7 @@ LRESULT oldKbProc(int nCode, WPARAM wParam, LPARAM lParam)
 {
     const KBDLLHOOKSTRUCT kbStrut = *(KBDLLHOOKSTRUCT*)lParam;
     if (kbStrut.flags & LLKHF_INJECTED)
-        CallNextHookEx(NULL, nCode, wParam, lParam);
+        return CallNextHookEx(NULL, nCode, wParam, lParam);
 
     const bool appHoldKey = kbStrut.vkCode == KeyConfig->AppHold;
     const bool nextAppKey = kbStrut.vkCode == KeyConfig->AppSwitch;
@@ -1968,13 +1967,24 @@ LRESULT CALLBACK WorkerWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lP
     return DefWindowProc(hwnd, uMsg, wParam, lParam);
 }
 
+void NextApp(SAppData* appData)
+{
+    const bool invert = GetAsyncKeyState((SHORT)appData->Config.Key.Invert) & 0x8000;
+    appData->Selection += invert ? -1 : 1;
+    appData->Selection = Modulo(appData->Selection, (int)appData->WinGroups.Size);
+    InvalidateRect(appData->MainWin, 0, FALSE);
+    UpdateWindow(appData->MainWin);
+}
+
 int ProcessKeys(SAppData* appData, UINT uMsg, WPARAM wParam)
 {
     switch (uMsg) {
-    case WM_SYSKEYUP:
-    case WM_KEYUP: {
-        printf("HERE\n");
-        return 0;
+    case WM_SYSKEYDOWN:
+    case WM_KEYDOWN: {
+        if (wParam == appData->Config.Key.AppSwitch) {
+            NextApp(appData);
+            return 0;
+        }
     }
     default:
         break;
@@ -2080,8 +2090,7 @@ LRESULT CALLBACK MainWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lPar
                     hwnd, NULL, appData->Instance, appData);
             }
         }
-        InvalidateRect(hwnd, 0, FALSE);
-        UpdateWindow(hwnd);
+        NextApp(appData);
         return 0;
     }
     case MSG_FOCUS: {
@@ -2293,7 +2302,6 @@ int StartAltAppSwitcher(HINSTANCE hInstance)
     {
         appData.Mode = ModeNone;
         appData.Selection = 0;
-        appData.Invert = false;
         appData.MainWin = NULL;
         appData.Instance = hInstance;
         appData.WinGroups.Size = 0;
@@ -2378,7 +2386,7 @@ int StartAltAppSwitcher(HINSTANCE hInstance)
                 DeinitApp(&appData);
             if (appData.Mode == ModeNone)
                 InitializeSwitchWin(&appData);
-            appData.Selection += appData.Invert ? -1 : 1;
+            // appData.Selection += appData.Invert ? -1 : 1;
             appData.Selection = Modulo(appData.Selection, (int)appData.CurrentWinGroup.WindowCount);
 #ifdef ASYNC_APPLY
             ApplyWithTimeout(&appData, MSG_APPLY_WIN);
