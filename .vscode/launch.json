@@ -23,7 +23,7 @@
 		{
 			"type": "lldb",
 			"request": "launch",
-			"name": "Settings x86_64",
+			"name": "Settings x86_64 Debug",
 			"program": "${workspaceFolder}/Output/Debug_x86_64/AAS/Settings.exe",
 			"args": [],
 			"cwd": "${workspaceFolder}/Output/Debug_x86_64/AAS",
@@ -33,21 +33,11 @@
 		{
 			"type": "lldb",
 			"request": "launch",
-			"name": "Updater x86_64",
+			"name": "Updater x86_64 Debug",
 			"program": "${workspaceFolder}/Output/Debug_x86_64/AAS/Updater.exe",
 			"args": [],
 			"preLaunchTask": "Build x86_64 Debug",
 			"cwd": "${workspaceFolder}/Output/Debug_x86_64/AAS",
-			"console": "integratedTerminal"
-		},
-		{
-			"type": "lldb",
-			"request": "launch",
-			"name": "Installer x86_64",
-			"program": "${workspaceFolder}/Output/Debug_x86_64/Installer/Installer.exe",
-			"args": [],
-			"preLaunchTask": "Build x86_64 Debug",
-			"cwd": "${workspaceFolder}/Output/Debug_x86_64/Installer",
 			"console": "integratedTerminal"
 		}
 	]
