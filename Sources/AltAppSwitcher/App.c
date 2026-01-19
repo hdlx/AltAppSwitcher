@@ -161,10 +161,6 @@ static DWORD MainThread;
 
 static void RestoreKey(WORD keyCode)
 {
-    // if (GetAsyncKeyState(VK_RCONTROL) & 0x8000)
-    // {
-    //     printf("WHY\n");
-    // }
     {
         INPUT input = {};
         input.type = INPUT_KEYBOARD;
@@ -1354,7 +1350,7 @@ static void ApplySwitchApp(const SWinGroup* winGroup, bool restoreMinimized)
     ret = EndDeferWindowPos(dwp);
     VERIFY(ret != 0);
 
-#if false
+#if true
     SetFocus(winGroup->Windows[0]);
 #endif
 
