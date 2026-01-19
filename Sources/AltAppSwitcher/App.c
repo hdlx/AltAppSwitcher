@@ -1402,7 +1402,7 @@ static void ApplySwitchApp(const SWinGroup* winGroup, bool restoreMinimized)
     ret = EndDeferWindowPos(dwp);
     VERIFY(ret != 0);
 
-#if false
+#if true
     SetFocus(winGroup->Windows[0]);
 #endif
 
