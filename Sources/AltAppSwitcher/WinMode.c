@@ -386,8 +386,9 @@ static LRESULT WorkerWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lPar
         if (windowData->StaticData->Config->RestoreMinimizedWindows)
             RestoreWin(windowData->CurrentWinGroup.Windows[windowData->Selection]);
         printf("set wind pos with %i", windowData->Selection);
-        SetWindowPos(windowData->CurrentWinGroup.Windows[windowData->Selection], HWND_TOP, 0, 0, 0, 0, SWP_NOSIZE | SWP_NOMOVE | SWP_NOACTIVATE);
-        SetFocus(windowData->MainWin);
+        SetWindowPos(windowData->CurrentWinGroup.Windows[windowData->Selection], windowData->MainWin, 0, 0, 0, 0, SWP_NOSIZE | SWP_NOMOVE | SWP_NOACTIVATE);
+        SetForegroundWindow(windowData->CurrentWinGroup.Windows[windowData->Selection]);
+        SetForegroundWindow(windowData->MainWin);
         PostQuitMessage(0);
         return 0;
     }
@@ -446,8 +447,10 @@ static LRESULT MainWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
             windowData.Selection += invert ? -1 : 1;
             windowData.Selection = Modulo(windowData.Selection, (int)windowData.CurrentWinGroup.WindowCount);
             ApplyWithTimeout(&windowData, MSG_NEXT_WIN);
+            printf("set wind pos with %i\n", windowData.Selection);
             return 0;
         }
+        break;
     }
     case WM_CLOSE: {
         ApplyWithTimeout(&windowData, MSG_APPLY_WIN);
@@ -498,7 +501,7 @@ void WinModeDeinit()
 HWND WinModeCreateWindow()
 {
     HWND hwnd = CreateWindowEx(
-        WS_EX_TOPMOST, // Optional window styles (WS_EX_)
+        0, // Optional window styles (WS_EX_)
         MAIN_CLASS_NAME, // Window class
         "", // Window text
         WS_BORDER | WS_POPUP | WS_VISIBLE, // Window style
@@ -512,6 +515,7 @@ HWND WinModeCreateWindow()
         StaticData.Instance, // Instance handle
         &StaticData // Additional application data
     );
+    SetForegroundWindow(hwnd);
     SetFocus(hwnd);
     ASSERT(hwnd);
     return hwnd;
