@@ -138,8 +138,8 @@ typedef struct SFoundWin {
 #define MSG_APPLY_APP_MOUSE (WM_USER + 3)
 
 // Main window
-#define MSG_FOCUS (WM_USER + 1)
-#define MSG_REFRESH (WM_USER + 2)
+#define MSG_FOCUS (WM_USER + 4)
+#define MSG_REFRESH (WM_USER + 5)
 
 static void InitGraphicsResources(struct GraphicsResources* pRes, const Config* config)
 {
@@ -1107,7 +1107,6 @@ static void DestroyWin(HWND* win)
 }
 
 static void Draw(struct WindowData* windowData, HDC dc, RECT clientRect);
-static void UIASetFocus(HWND win);
 
 void DestroyAppModeWin(HWND window)
 {
@@ -1245,6 +1244,7 @@ static void RestoreWin(HWND win)
     }
 }
 
+/*
 static void UIASetFocus(HWND win)
 {
     CoInitializeEx(NULL, COINIT_APARTMENTTHREADED);
@@ -1262,6 +1262,7 @@ static void UIASetFocus(HWND win)
     IUIAutomation_Release(UIA);
     CoUninitialize();
 }
+*/
 
 typedef struct ApplySwitchAppData {
     HWND Data[64];
@@ -1398,13 +1399,6 @@ static void ApplyWithTimeout(struct WindowData* windowData, unsigned int msg)
     CloseHandle(ht);
 }
 #endif
-
-static void ApplySwitchWin(HWND win, bool restoreMinimized)
-{
-    if (restoreMinimized)
-        RestoreWin(win);
-    UIASetFocus(win);
-}
 
 static void DrawRoundedRect(GpGraphics* pGraphics, GpPen* pPen, GpBrush* pBrush, const RectF* re, float di)
 {
@@ -1697,14 +1691,6 @@ static LRESULT WorkerWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lPar
         PostQuitMessage(0);
         return 0;
     }
-    case MSG_APPLY_WIN: {
-        ASSERT(windowData);
-        if (!windowData)
-            return 0;
-        ApplySwitchWin(windowData->CurrentWinGroup.Windows[windowData->Selection], windowData->StaticData->Config->RestoreMinimizedWindows);
-        PostQuitMessage(0);
-        return 0;
-    }
     case MSG_APPLY_APP_MOUSE: {
         ASSERT(windowData);
         if (!windowData)
@@ -1788,9 +1774,6 @@ static void DeinitApp(struct WindowData* windowData)
 #else
     ApplySwitchApp(&appData->WinGroups.Data[appData->Selection]);
 #endif
-    windowData->Selection = 0;
-    DestroyWin(&windowData->MainWin);
-    ClearWinGroupArr(&windowData->WinGroups);
 }
 
 static LRESULT CALLBACK MainWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
@@ -1924,7 +1907,98 @@ static LRESULT CALLBACK MainWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPAR
     }
     case MSG_REFRESH: {
         ClearWinGroupArr(&windowData.WinGroups);
-        ASSERT(false); // To implem
+
+        // Factorize
+        {
+            SWinGroupArr* pWinGroups = &(windowData.WinGroups);
+            ASSERT(pWinGroups);
+            if (!pWinGroups)
+                return 0;
+            pWinGroups->Size = 0;
+            // Get mouse monitor once if filtering by monitor is enabled
+            if (windowData.StaticData->Config->AppFilterMode == AppFilterModeMouseMonitor) {
+                POINT mousePos;
+                if (GetCursorPos(&mousePos)) {
+                    windowData.MouseMonitor = MonitorFromPoint(mousePos, MONITOR_DEFAULTTONEAREST);
+                } else {
+                    // Fall back to primary monitor if GetCursorPos fails
+                    windowData.MouseMonitor = MonitorFromPoint((POINT) { 0, 0 }, MONITOR_DEFAULTTOPRIMARY);
+                }
+            } else {
+                windowData.MouseMonitor = NULL; // Explicitly set NULL when not filtering by monitor
+            }
+            EnumWindows(FillWinGroups, (LPARAM)&windowData);
+            windowData.Selection = 0;
+            windowData.MouseSelection = 0;
+
+            if (windowData.WinGroups.Size == 0)
+                return 0;
+
+            ComputeMetrics(windowData.WinGroups.Size,
+                windowData.StaticData->Config->Scale,
+                &windowData.Metrics,
+                windowData.StaticData->Config->MultipleMonitorMode == MultipleMonitorModeMouse);
+
+            // Needed for exact client area.
+            RECT r = {
+                (LONG)windowData.Metrics.WinPosX,
+                (LONG)windowData.Metrics.WinPosY,
+                (LONG)(windowData.Metrics.WinPosX + windowData.Metrics.WinX),
+                (LONG)(windowData.Metrics.WinPosY + windowData.Metrics.WinY)
+            };
+            AdjustWindowRect(&r, (DWORD)GetWindowLong(hwnd, GWL_STYLE), false);
+            SetWindowPos(hwnd, 0, r.left, r.top, r.right - r.left, r.bottom - r.top, 0);
+
+            // Rounded corners for Win 11
+            // Values are from cpp enums DWMWINDOWATTRIBUTE and DWM_WINDOW_CORNER_PREFERENCE
+            const uint32_t rounded = 2;
+            DwmSetWindowAttribute(hwnd, 33, &rounded, sizeof(rounded));
+            InvalidateRect(hwnd, NULL, FALSE);
+            UpdateWindow(hwnd);
+            const DWORD ret = SetForegroundWindow(hwnd);
+            (void)ret;
+            // ASSERT(ret != 0);
+            windowData.MainWin = hwnd;
+
+            {
+                RECT clientRect;
+                ASSERT(GetWindowRect(hwnd, &clientRect));
+
+                HDC winDC = GetDC(hwnd);
+                ASSERT(winDC);
+                windowData.DC = CreateCompatibleDC(winDC);
+                ASSERT(windowData.DC != NULL);
+                windowData.Bitmap = CreateCompatibleBitmap(
+                    winDC,
+                    clientRect.right - clientRect.left,
+                    clientRect.bottom - clientRect.top);
+                ASSERT(windowData.Bitmap != NULL);
+                ReleaseDC(hwnd, winDC);
+            }
+
+            SetLayeredWindowAttributes(hwnd, 0, 0, LWA_ALPHA);
+            ShowWindow(hwnd, SW_SHOW);
+            RECT clientRect = { 0, 0, (LONG)windowData.Metrics.WinX, (LONG)windowData.Metrics.WinY };
+            Draw(&windowData, GetDC(hwnd), clientRect);
+            SetLayeredWindowAttributes(hwnd, 0, 255, LWA_ALPHA);
+
+            SetCapture(hwnd);
+            // Otherwise cursor is busy on hover. I don't understand why.
+            SetCursor(LoadCursor(NULL, IDC_ARROW));
+
+            if (!windowData.StaticData->Config->DebugDisableIconFocus) {
+                for (int i = 0; i < windowData.WinGroups.Size; i++) {
+                    const int iconContainerSize = (int)windowData.Metrics.Container;
+                    const int pad = (int)windowData.Metrics.Pad;
+                    int x = pad + (i * iconContainerSize);
+                    focusWindows[i] = CreateWindowEx(0, FOCUS_CLASS_NAME, NULL,
+                        WS_CHILD /* | WS_VISIBLE */,
+                        x, pad, iconContainerSize, iconContainerSize,
+                        hwnd, NULL, windowData.StaticData->Instance, &windowData);
+                }
+            }
+        }
+
         return 0;
     }
     case WM_LBUTTONUP: {
@@ -1975,6 +2049,7 @@ static LRESULT CALLBACK MainWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPAR
     }
     case WM_CLOSE: {
         DeinitApp(&windowData);
+        DestroyWin(&hwnd);
         return 0;
     }
     case WM_DESTROY: {
@@ -1990,6 +2065,9 @@ static LRESULT CALLBACK MainWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPAR
         //     gCloseHookCount = 0;
         //     g_MainWinForCloseHook = 0;
         // }
+
+        windowData.Selection = 0;
+        ClearWinGroupArr(&windowData.WinGroups);
         DeleteDC(windowData.DC);
         DeleteObject(windowData.Bitmap);
         return 0;
