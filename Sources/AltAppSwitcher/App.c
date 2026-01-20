@@ -1,31 +1,18 @@
 #define COBJMACROS
 #include <string.h>
-#include <vsstyle.h>
 #include <wchar.h>
 #include <windef.h>
 #include <windows.h>
 #include <stdbool.h>
 #include <stdint.h>
 #include <psapi.h>
-#include <dwmapi.h>
 #include <winnt.h>
 #include <winscard.h>
 #include <processthreadsapi.h>
-#include <gdiplus.h>
 #include <appmodel.h>
-#include <shlwapi.h>
-#include <winreg.h>
-#include <windowsx.h>
 #include <unistd.h>
-// https://stackoverflow.com/questions/71437203/proper-way-of-activating-a-window-using-winapi
-#include <Initguid.h>
 #include <uiautomationclient.h>
-#include <gdiplus/gdiplusenums.h>
-#include <PropKey.h>
-#include <winuser.h>
 #include <time.h>
-#include <Shobjidl.h>
-#include "AppxPackaging.h"
 #undef COBJMACROS
 #include "Config/Config.h"
 #include "Utils/Error.h"
@@ -138,7 +125,6 @@ typedef struct SWinGroup {
     wchar_t Caption[MAX_PATH];
     HWND Windows[MAX_WIN_GROUPS];
     uint32_t WindowCount;
-    GpBitmap* IconBitmap;
 } SWinGroup;
 
 struct WindowData {

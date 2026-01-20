@@ -1,4 +1,3 @@
-#include <minwindef.h>
 #include <windef.h>
 struct Config;
 HWND AppModeCreateWindow();

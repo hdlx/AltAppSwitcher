@@ -1,6 +1,4 @@
-#include <minwindef.h>
 #define COBJMACROS
-#define NTDDI_VERSION NTDDI_WIN10
 #include "AppModeWindow.h"
 #include <stdio.h>
 #include <string.h>
@@ -20,7 +18,6 @@
 #include <windowsx.h>
 #include <unistd.h>
 // https://stackoverflow.com/questions/71437203/proper-way-of-activating-a-window-using-winapi
-#include <Initguid.h>
 #include <uiautomationclient.h>
 #include <gdiplus/gdiplusenums.h>
 #include <PropKey.h>
