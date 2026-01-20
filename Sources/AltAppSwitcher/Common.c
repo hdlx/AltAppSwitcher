@@ -1,6 +1,5 @@
 #include "Common.h"
 #define COBJMACROS
-#include "AppModeWindow.h"
 #include <string.h>
 #include <windows.h>
 #include <stdbool.h>
@@ -100,6 +99,13 @@ static bool IsWindowOnMonitor(HWND hwnd, HMONITOR targetMonitor)
 
     // Fallback to direct comparison for older Windows versions
     return windowMonitor == targetMonitor;
+}
+
+int Modulo(int a, int b)
+{
+    if (b == 0)
+        return 0;
+    return (a % b + b) % b;
 }
 
 bool IsEligibleWindow(HWND hwnd, const struct Config* cfg, HMONITOR mouseMonitor, bool ignoreMinimizedWindows)

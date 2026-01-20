@@ -1,5 +1,5 @@
 #define COBJMACROS
-#include "AppModeWindow.h"
+#include "AppMode.h"
 #include <stdio.h>
 #include <string.h>
 #include <wchar.h>
@@ -29,6 +29,8 @@
 #include "Utils/Error.h"
 #include "Utils/MessageDef.h"
 #include "Utils/File.h"
+#include "Messages.h"
+#include "Common.h"
 
 static LRESULT MainWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam);
 
@@ -132,15 +134,6 @@ typedef struct SFoundWin {
     uint32_t Size;
 } SFoundWin;
 
-// Apply thread
-#define MSG_APPLY_APP (WM_USER + 1)
-#define MSG_APPLY_WIN (WM_USER + 2)
-#define MSG_APPLY_APP_MOUSE (WM_USER + 3)
-
-// Main window
-#define MSG_FOCUS (WM_USER + 4)
-#define MSG_REFRESH (WM_USER + 5)
-
 static void InitGraphicsResources(struct GraphicsResources* pRes, const Config* config)
 {
     // Text
@@ -227,16 +220,6 @@ static void DeinitGraphicsResources(struct GraphicsResources* pRes)
     ASSERT(Ok == GdipDeleteStringFormat(pRes->pFormat));
 }
 
-static const char* WindowsClassNamesToSkip[] = {
-    "Shell_TrayWnd",
-    "DV2ControlHost",
-    "MsgrIMEWindowClass",
-    "SysShadow",
-    "Button",
-    "Windows.UI.Core.CoreWindow",
-    "Dwm"
-};
-
 static BOOL GetProcessFileName(DWORD PID, char* outFileName)
 {
     const HANDLE process = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, FALSE, PID);
@@ -259,13 +242,6 @@ typedef struct SFindPIDEnumFnParams {
     HWND InHostWindow;
     DWORD OutPID;
 } SFindPIDEnumFnParams;
-
-static int Modulo(int a, int b)
-{
-    if (b == 0)
-        return 0;
-    return (a % b + b) % b;
-}
 
 static BOOL FindPIDEnumFn(HWND hwnd, LPARAM lParam)
 {
@@ -364,134 +340,6 @@ static void FindActualPID(HWND hwnd, DWORD* PID)
         GetWindowThreadProcessId(hwnd, PID);
         return;
     }
-}
-
-static bool BelongsToCurrentDesktop(HWND window)
-{
-    IVirtualDesktopManager* vdm = NULL;
-    (void)vdm;
-    CoInitialize(NULL);
-    CoCreateInstance(&CLSID_VirtualDesktopManager, NULL, CLSCTX_ALL, &IID_IVirtualDesktopManager, (void**)&vdm);
-
-    if (!vdm) {
-        CoUninitialize();
-        return true;
-    }
-
-    WINBOOL isCurrent = true;
-    IVirtualDesktopManager_IsWindowOnCurrentVirtualDesktop(vdm, window, &isCurrent);
-    IVirtualDesktopManager_Release(vdm);
-    CoUninitialize();
-    return isCurrent;
-}
-
-static bool IsWindowOnMonitor(HWND hwnd, HMONITOR targetMonitor)
-{
-    RECT windowRect;
-
-    // For minimized windows, use the restored position instead of current position
-    if (IsIconic(hwnd)) {
-        WINDOWPLACEMENT wp;
-        wp.length = sizeof(WINDOWPLACEMENT);
-        if (GetWindowPlacement(hwnd, &wp)) {
-            windowRect = wp.rcNormalPosition;
-        } else {
-            // Fallback to GetWindowRect if GetWindowPlacement fails
-            if (!GetWindowRect(hwnd, &windowRect))
-                return false;
-        }
-    } else {
-        if (!GetWindowRect(hwnd, &windowRect))
-            return false;
-    }
-
-    // Use MonitorFromRect for more accurate monitor detection
-    // This considers the window's entire area, not just center point
-    HMONITOR windowMonitor = MonitorFromRect(&windowRect, MONITOR_DEFAULTTONEAREST);
-
-    // Use CompareObjectHandles if available (Windows 10+) for more robust comparison
-    // Fall back to direct comparison for older Windows versions
-    static HMODULE kernel32 = NULL;
-    static BOOL(WINAPI * pCompareObjectHandles)(HANDLE, HANDLE) = NULL;
-    static bool initialized = false;
-
-    if (!initialized) {
-        kernel32 = GetModuleHandleA("kernel32.dll");
-        if (kernel32) {
-            pCompareObjectHandles = (BOOL(WINAPI*)(HANDLE, HANDLE))
-                GetProcAddress(kernel32, "CompareObjectHandles");
-        }
-        initialized = true;
-    }
-
-    if (pCompareObjectHandles) {
-        return pCompareObjectHandles(windowMonitor, targetMonitor);
-    }
-
-    // Fallback to direct comparison for older Windows versions
-    return windowMonitor == targetMonitor;
-}
-
-static bool IsEligibleWindow(HWND hwnd, const struct WindowData* windowData, bool ignoreMinimizedWindows)
-{
-    if (hwnd == GetShellWindow()) // Desktop
-        return false;
-    WINDOWINFO wi = {};
-    wi.cbSize = sizeof(WINDOWINFO);
-    GetWindowInfo(hwnd, &wi);
-    if (!(wi.dwStyle & WS_VISIBLE))
-        return false;
-    // Chrome has sometime WS_EX_TOOLWINDOW while beeing an alttabable window
-    if ((wi.dwExStyle & WS_EX_TOOLWINDOW))
-        return false;
-    if ((wi.dwExStyle & WS_EX_TOPMOST) && !(wi.dwExStyle & WS_EX_APPWINDOW))
-        return false;
-
-    // Start at the root owner
-    const HWND owner = GetWindow(hwnd, GW_OWNER);
-    (void)owner;
-    // const HWND parent = GetAncestor(hwnd, GA_PARENT); (void)parent;
-    // const HWND dw = GetDesktopWindow(); (void)dw;
-    // Taskbar window if: owner is self or WS_EX_APPWINDOW is set
-    bool b = (wi.dwExStyle & WS_EX_APPWINDOW) != 0;
-    (void)(b);
-    bool isOwned = owner != hwnd && owner != NULL;
-    if ((isOwned) && !(wi.dwExStyle & WS_EX_APPWINDOW))
-        return false;
-
-    if (windowData->StaticData->Config->DesktopFilter == DesktopFilterCurrent && !BelongsToCurrentDesktop(hwnd))
-        return false;
-
-    if (!IsWindowVisible(hwnd))
-        return false;
-
-    static char buf[512];
-    GetClassName(hwnd, buf, 512);
-    for (uint32_t i = 0; i < sizeof(WindowsClassNamesToSkip) / sizeof(WindowsClassNamesToSkip[0]); i++) {
-        if (!strcmp(WindowsClassNamesToSkip[i], buf))
-            return false;
-    }
-    WINBOOL cloaked = false;
-    if (!strcmp(buf, "ApplicationFrameWindow"))
-        DwmGetWindowAttribute(hwnd, (DWORD)DWMWA_CLOAKED, (PVOID)&cloaked, (DWORD)sizeof(cloaked));
-    if (cloaked)
-        return false;
-
-    // Filter apps by monitor if enabled
-    if (windowData->StaticData->Config->AppFilterMode == AppFilterModeMouseMonitor) {
-        if (!IsWindowOnMonitor(hwnd, windowData->MouseMonitor))
-            return true;
-    }
-
-    if (ignoreMinimizedWindows) {
-        WINDOWPLACEMENT placement;
-        placement.length = sizeof(WINDOWPLACEMENT);
-        GetWindowPlacement(hwnd, &placement);
-        if (placement.showCmd == SW_SHOWMINIMIZED)
-            return false;
-    }
-
-    return true;
 }
 
 static void LoadIndirectString(const wchar_t* packagePath, const wchar_t* packageName, const wchar_t* resource, wchar_t* output)
@@ -912,7 +760,7 @@ static BOOL FillWinGroups(HWND hwnd, LPARAM lParam)
 {
     struct WindowData* windowData = (struct WindowData*)lParam;
 
-    if (!IsEligibleWindow(hwnd, windowData, false))
+    if (!IsEligibleWindow(hwnd, windowData->StaticData->Config, windowData->MouseMonitor, false))
         return true;
 
     DWORD PID = 0;
@@ -1108,18 +956,8 @@ static void DestroyWin(HWND* win)
 
 static void Draw(struct WindowData* windowData, HDC dc, RECT clientRect);
 
-void DestroyAppModeWin(HWND window)
-{
-    ASSERT(false);
-}
-
 static LRESULT WorkerWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam);
 static LRESULT FocusWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam);
-
-struct AppModeWindowCreateInfo {
-    struct Config* cfg;
-    HINSTANCE instance;
-};
 
 void AppModeInit(HINSTANCE instance, const struct Config* cfg)
 {
@@ -1151,7 +989,7 @@ void AppModeInit(HINSTANCE instance, const struct Config* cfg)
         wc.lpfnWndProc = MainWindowProc;
         wc.hInstance = instance;
         wc.lpszClassName = MAIN_CLASS_NAME;
-        wc.cbWndExtra = sizeof(struct AppModeWindowCreateInfo*);
+        wc.cbWndExtra = sizeof(void*);
         wc.style = CS_HREDRAW | CS_VREDRAW;
         wc.hbrBackground = GetSysColorBrush(COLOR_WINDOW);
         RegisterClass(&wc);

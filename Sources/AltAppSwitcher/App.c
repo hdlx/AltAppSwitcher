@@ -12,14 +12,15 @@
 #include <appmodel.h>
 #include <unistd.h>
 #include <uiautomationclient.h>
-#include <time.h>
 #undef COBJMACROS
 #include "Config/Config.h"
 #include "Utils/Error.h"
 #include "Utils/MessageDef.h"
 #include "Utils/File.h"
-#include "AppModeWindow.h"
+#include "AppMode.h"
+#include "WinMode.h"
 #include "Common.h"
+#include "Messages.h"
 
 #define ASYNC_APPLY
 
@@ -33,22 +34,12 @@ struct AppData {
     struct Config Config;
     bool Elevated;
     HINSTANCE Instance;
-    CRITICAL_SECTION WorkerCS;
     HWND app_mode_window;
     HWND win_mode_window;
 };
 
 static const struct KeyConfig* KeyConfig;
 static DWORD MainThread;
-
-// Main thread
-#define MSG_INIT_APP (WM_USER + 6)
-#define MSG_INIT_WIN (WM_USER + 7)
-#define MSG_DEINIT (WM_USER + 8)
-#define MSG_RESTORE_KEY (WM_USER + 9)
-
-// Apply thread
-#define MSG_APPLY_WIN (WM_USER + 10)
 
 static void RestoreKey(WORD keyCode)
 {
@@ -106,344 +97,6 @@ static void RestoreKey(WORD keyCode)
         const UINT uSent = SendInput(1, &input, sizeof(INPUT));
         ASSERT(uSent == 1);
     }
-}
-
-static const char WORKER_CLASS_NAME[] = "WindowModeWorker";
-
-#define MAX_WIN_GROUPS 64u
-
-typedef struct SWinGroup {
-    char ModuleFileName[MAX_PATH];
-    ATOM WinClass;
-    wchar_t AppName[MAX_PATH];
-    wchar_t Caption[MAX_PATH];
-    HWND Windows[MAX_WIN_GROUPS];
-    uint32_t WindowCount;
-} SWinGroup;
-
-struct WindowData {
-    HWND MainWin;
-    int Selection;
-    int MouseSelection;
-    bool CloseHover;
-    SWinGroup CurrentWinGroup;
-    HANDLE WorkerWin;
-    HMONITOR MouseMonitor;
-    Config* Config;
-    HINSTANCE Instance;
-    CRITICAL_SECTION WorkerCS;
-};
-
-static BOOL GetProcessFileName(DWORD PID, char* outFileName)
-{
-    const HANDLE process = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, FALSE, PID);
-    GetModuleFileNameEx(process, NULL, outFileName, 512);
-    CloseHandle(process);
-    return true;
-}
-
-static BOOL CALLBACK FindIMEWin(HWND hwnd, LPARAM lParam)
-{
-    static char className[512];
-    GetClassName(hwnd, className, 512);
-    if (strcmp("IME", className) != 0)
-        return TRUE;
-    (*(HWND*)lParam) = hwnd;
-    return TRUE;
-}
-
-typedef struct SFindPIDEnumFnParams {
-    HWND InHostWindow;
-    DWORD OutPID;
-} SFindPIDEnumFnParams;
-
-static BOOL FindPIDEnumFn(HWND hwnd, LPARAM lParam)
-{
-    SFindPIDEnumFnParams* pParams = (SFindPIDEnumFnParams*)lParam;
-    static char className[512];
-    GetClassName(hwnd, className, 512);
-    if (strcmp("Windows.UI.Core.CoreWindow", className) != 0)
-        return TRUE;
-
-    DWORD PID = 0;
-    DWORD TID = GetWindowThreadProcessId(hwnd, &PID);
-
-    wchar_t UMI[512];
-    BOOL isUWP = false;
-    {
-        const HANDLE proc = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, FALSE, PID);
-        uint32_t size = 512;
-        isUWP = GetApplicationUserModelId(proc, &size, UMI) == ERROR_SUCCESS;
-        CloseHandle(proc);
-    }
-    if (!isUWP)
-        return TRUE;
-
-    HWND IMEWin = NULL;
-    EnumThreadWindows(TID, FindIMEWin, (LPARAM)&IMEWin);
-    if (IMEWin == NULL)
-        return TRUE;
-
-    HWND ownerWin = GetWindow(IMEWin, GW_OWNER);
-
-    if (pParams->InHostWindow != ownerWin)
-        return TRUE;
-
-    pParams->OutPID = PID;
-
-    return TRUE;
-}
-
-typedef struct SFindUWPChildParams {
-    DWORD OutUWPPID;
-    DWORD InHostPID;
-} SFindUWPChildParams;
-
-static BOOL FindUWPChild(HWND hwnd, LPARAM lParam)
-{
-    SFindUWPChildParams* pParams = (SFindUWPChildParams*)lParam;
-    DWORD PID = 0;
-    GetWindowThreadProcessId(hwnd, &PID);
-    if (PID != pParams->InHostPID) {
-        pParams->OutUWPPID = PID;
-        return FALSE;
-    }
-    return TRUE;
-}
-
-static void FindActualPID(HWND hwnd, DWORD* PID)
-{
-    static char className[512];
-    GetClassName(hwnd, className, 512);
-    {
-        wchar_t UMI[512];
-        GetWindowThreadProcessId(hwnd, PID);
-        const HANDLE proc = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, FALSE, *PID);
-        uint32_t size = 512;
-        BOOL isUWP = GetApplicationUserModelId(proc, &size, UMI) == ERROR_SUCCESS;
-        CloseHandle(proc);
-        if (isUWP) {
-            return;
-        }
-    }
-
-    if (!strcmp("ApplicationFrameWindow", className)) {
-        {
-            SFindUWPChildParams params;
-            GetWindowThreadProcessId(hwnd, &(params.InHostPID));
-            params.OutUWPPID = 0;
-            EnumChildWindows(hwnd, FindUWPChild, (LPARAM)&params);
-            if (params.OutUWPPID != 0) {
-                *PID = params.OutUWPPID;
-                return;
-            }
-        }
-        {
-            SFindPIDEnumFnParams params;
-            params.InHostWindow = hwnd;
-            params.OutPID = 0;
-
-            EnumWindows(FindPIDEnumFn, (LPARAM)&params);
-
-            *PID = params.OutPID;
-            return;
-        }
-    }
-
-    {
-        GetWindowThreadProcessId(hwnd, PID);
-        return;
-    }
-}
-static BOOL IsRunWindow(HWND hwnd)
-{
-    {
-        WINDOWINFO wi = {};
-        wi.cbSize = sizeof(WINDOWINFO);
-        GetWindowInfo(hwnd, &wi);
-        if (wi.atomWindowType != 0x8002)
-            return false;
-    }
-
-    const HWND owner = GetAncestor(hwnd, GA_ROOTOWNER);
-    if (owner == NULL)
-        return false;
-
-    {
-        WINDOWINFO wi = {};
-        wi.cbSize = sizeof(WINDOWINFO);
-        GetWindowInfo(owner, &wi);
-        if (wi.atomWindowType != 0xC01A)
-            return false;
-    }
-
-    return true;
-}
-
-static BOOL FillCurrentWinGroup(HWND hwnd, LPARAM lParam)
-{
-    struct WindowData* windowData = (struct WindowData*)(lParam);
-    if (!IsEligibleWindow(hwnd, windowData->Config, windowData->MouseMonitor, !windowData->Config->RestoreMinimizedWindows))
-        return true;
-    DWORD PID = 0;
-    FindActualPID(hwnd, &PID);
-    SWinGroup* currentWinGroup = &windowData->CurrentWinGroup;
-    static char moduleFileName[512];
-    GetProcessFileName(PID, moduleFileName);
-    ATOM winClass = IsRunWindow(hwnd) ? 0x8002 : 0; // Run
-    if (0 != strcmp(moduleFileName, currentWinGroup->ModuleFileName) || currentWinGroup->WinClass != winClass)
-        return true;
-    currentWinGroup->Windows[currentWinGroup->WindowCount] = hwnd;
-    currentWinGroup->WindowCount++;
-    return true;
-}
-
-static void UIASetFocus(HWND win);
-
-static void DestroyWinModeWin(HWND window)
-{
-    ASSERT(false);
-}
-
-static void InitializeSwitchWin(struct WindowData* windowData)
-{
-    HWND win = GetForegroundWindow();
-    while (true) {
-        if (!win || IsEligibleWindow(win, windowData->Config, windowData->MouseMonitor, false))
-            break;
-        win = GetParent(win);
-    }
-    if (!win)
-        return;
-    DWORD PID;
-    FindActualPID(win, &PID);
-    SWinGroup* pWinGroup = &(windowData->CurrentWinGroup);
-    GetProcessFileName(PID, pWinGroup->ModuleFileName);
-    pWinGroup->WinClass = IsRunWindow(win) ? 0x8002 : 0; // Run
-    pWinGroup->WindowCount = 0;
-    if (windowData->Config->AppSwitcherMode == AppSwitcherModeApp)
-        EnumWindows(FillCurrentWinGroup, (LPARAM)windowData);
-    else {
-        pWinGroup->Windows[0] = win;
-        pWinGroup->WindowCount = 1;
-    }
-    windowData->Selection = 0;
-}
-
-static void RestoreWin(HWND win)
-{
-    if (!IsWindow(win))
-        return;
-    WINDOWPLACEMENT placement;
-    placement.length = sizeof(WINDOWPLACEMENT);
-    GetWindowPlacement(win, &placement);
-    if (placement.showCmd == SW_SHOWMINIMIZED) {
-        ShowWindowAsync(win, SW_RESTORE);
-        SetWindowPos(win, HWND_TOP, 0, 0, 0, 0, SWP_NOSIZE | SWP_NOMOVE | SWP_NOOWNERZORDER | SWP_NOZORDER | SWP_ASYNCWINDOWPOS); // Why this call?
-    }
-}
-
-static void UIASetFocus(HWND win)
-{
-    CoInitializeEx(NULL, COINIT_APARTMENTTHREADED);
-    IUIAutomation* UIA = NULL;
-    DWORD res = CoCreateInstance(&CLSID_CUIAutomation, NULL, CLSCTX_INPROC_SERVER, &IID_IUIAutomation, (void**)&UIA);
-    ASSERT(SUCCEEDED(res))
-
-    IUIAutomationElement* el = NULL;
-    res = IUIAutomation_ElementFromHandle(UIA, win, &el);
-    VERIFY(SUCCEEDED(res));
-    res = IUIAutomationElement_SetFocus(el);
-    VERIFY(SUCCEEDED(res));
-    IUIAutomationElement_Release(el);
-
-    IUIAutomation_Release(UIA);
-    CoUninitialize();
-}
-
-typedef struct ApplySwitchAppData {
-    HWND Data[64];
-    unsigned int Count;
-    DWORD _fgWinThread;
-} ApplySwitchAppData;
-
-#ifdef ASYNC_APPLY
-static DWORD WorkerThread(LPVOID data)
-{
-    struct WindowData* windowData = (struct WindowData*)data;
-
-    HANDLE window = CreateWindowEx(WS_EX_TOPMOST, WORKER_CLASS_NAME, NULL, WS_POPUP,
-        0, 0, 0, 0, HWND_MESSAGE, NULL, windowData->Instance, windowData);
-    (void)window;
-
-    EnterCriticalSection(&windowData->WorkerCS);
-    windowData->WorkerWin = window;
-    LeaveCriticalSection(&windowData->WorkerCS);
-    MSG msg = {};
-    while (GetMessage(&msg, NULL, 0, 0) > 0) {
-        TranslateMessage(&msg);
-        DispatchMessage(&msg);
-    }
-    EnterCriticalSection(&windowData->WorkerCS);
-    windowData->WorkerWin = NULL;
-    LeaveCriticalSection(&windowData->WorkerCS);
-    return 0;
-}
-
-void ApplyWithTimeout(struct WindowData* windowData, unsigned int msg)
-{
-    EnterCriticalSection(&windowData->WorkerCS);
-    windowData->WorkerWin = NULL;
-    LeaveCriticalSection(&windowData->WorkerCS);
-
-    DWORD tid;
-    HANDLE ht = CreateThread(NULL, 0, WorkerThread, (void*)windowData, 0, &tid);
-    ASSERT(ht != NULL);
-
-    while (true) {
-        if (TryEnterCriticalSection(&windowData->WorkerCS)) {
-            const bool initialized = windowData->WorkerWin != NULL;
-            LeaveCriticalSection(&windowData->WorkerCS);
-            if (initialized)
-                break;
-        }
-        usleep(100);
-    }
-
-    HWND fgWin = GetForegroundWindow();
-    DWORD fgWinThread = GetWindowThreadProcessId(fgWin, NULL);
-    (void)fgWinThread;
-    DWORD ret = 0;
-    (void)ret;
-
-    ret = SetForegroundWindow(windowData->WorkerWin);
-    VERIFY(ret != 0);
-
-    SendNotifyMessage(windowData->WorkerWin, msg, 0, 0);
-
-    time_t start = time(NULL);
-    while (true) {
-        if (TryEnterCriticalSection(&windowData->WorkerCS)) {
-            const bool done = windowData->WorkerWin == NULL;
-            LeaveCriticalSection(&windowData->WorkerCS);
-            if (done)
-                break;
-        }
-        time_t now = time(NULL);
-        const double dt = difftime(now, start);
-        if (dt > 1.0)
-            break;
-    }
-
-    CloseHandle(ht);
-}
-#endif
-
-static void ApplySwitchWin(HWND win, bool restoreMinimized)
-{
-    if (restoreMinimized)
-        RestoreWin(win);
-    UIASetFocus(win);
 }
 
 enum Mode {
@@ -604,7 +257,7 @@ static LRESULT KbProc(int nCode, WPARAM wParam, LPARAM lParam)
             bypassMsg = true;
         } else if (prevMode == ModeNone && isWinHold && nextWin) {
             mode = ModeWin;
-            // PostThreadMessage(MainThread, MSG_INIT_WIN, 0, 0);
+            PostThreadMessage(MainThread, MSG_INIT_WIN, 0, 0);
             PostThreadMessage(MainThread, MSG_RESTORE_KEY, KeyConfig->WinHold, 0);
             bypassMsg = true;
         }
@@ -615,35 +268,6 @@ static LRESULT KbProc(int nCode, WPARAM wParam, LPARAM lParam)
 
     return CallNextHookEx(NULL, nCode, wParam, lParam);
 }
-
-LRESULT CALLBACK WorkerWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
-{
-    static struct WindowData* windowData = NULL;
-    switch (uMsg) {
-    case WM_CREATE: {
-        windowData = (struct WindowData*)((CREATESTRUCTA*)lParam)->lpCreateParams;
-        return 0;
-    }
-    case MSG_APPLY_WIN: {
-        ASSERT(windowData);
-        if (!windowData)
-            return 0;
-        ApplySwitchWin(windowData->CurrentWinGroup.Windows[windowData->Selection], windowData->Config->RestoreMinimizedWindows);
-        PostQuitMessage(0);
-        return 0;
-    }
-    default: {
-        break;
-    }
-    }
-    return DefWindowProc(hwnd, uMsg, wParam, lParam);
-}
-
-typedef struct CloseThreadData {
-    HWND Win[MAX_WIN_GROUPS];
-    uint32_t Count;
-    HWND MainWin;
-} CloseThreadData;
 
 static DWORD KbHookCb(LPVOID param)
 {
@@ -715,18 +339,8 @@ int StartAltAppSwitcher(HINSTANCE instance)
         }
     }
 
-    {
-        WNDCLASS wc = {};
-        wc.lpfnWndProc = WorkerWindowProc;
-        wc.hInstance = instance;
-        wc.lpszClassName = WORKER_CLASS_NAME;
-        wc.cbWndExtra = sizeof(struct WindowData*);
-        wc.style = 0;
-        wc.hbrBackground = NULL;
-        RegisterClass(&wc);
-    }
-
     AppModeInit(instance, &appData.Config);
+    WinModeInit(instance, &appData.Config);
 
     HANDLE threadKbHook = CreateRemoteThread(GetCurrentProcess(), NULL, 0, KbHookCb, (void*)&appData, 0, NULL);
     (void)threadKbHook;
@@ -756,7 +370,7 @@ int StartAltAppSwitcher(HINSTANCE instance)
         switch (msg.message) {
         case MSG_INIT_APP: {
             if (IsWindow(appData.win_mode_window)) {
-                DestroyWinModeWin(appData.win_mode_window);
+                WinModeDestroyWindow(appData.win_mode_window);
                 appData.win_mode_window = NULL;
             }
             if (IsWindow(appData.app_mode_window)) {
@@ -767,27 +381,20 @@ int StartAltAppSwitcher(HINSTANCE instance)
             break;
         }
         case MSG_INIT_WIN: {
-            ASSERT(false);
-            InitializeSwitchWin(NULL);
-#if false
-            if (appData.Mode == ModeApp)
-                DeinitApp(&appData);
-            if (appData.Mode == ModeNone)
-                InitializeSwitchWin(NULL);
-            // appData.Selection += appData.Invert ? -1 : 1;
-            appData.Selection = Modulo(appData.Selection, (int)appData.CurrentWinGroup.WindowCount);
-#ifdef ASYNC_APPLY
-            ApplyWithTimeout(&appData, MSG_APPLY_WIN);
-#else
-            HWND win = appData.CurrentWinGroup.Windows[appData.Selection];
-            ApplySwitchWin(win, appData->Config.RestoreMinimizedWindows);
-#endif
-#endif
+            if (IsWindow(appData.win_mode_window)) {
+                WinModeDestroyWindow(appData.win_mode_window);
+                appData.win_mode_window = NULL;
+            }
+            if (IsWindow(appData.app_mode_window)) {
+                AppModeDestroyWindow(appData.app_mode_window);
+                appData.app_mode_window = NULL;
+            }
+            appData.win_mode_window = WinModeCreateWindow();
             break;
         }
         case MSG_DEINIT: {
             if (IsWindow(appData.win_mode_window)) {
-                DestroyWinModeWin(appData.win_mode_window);
+                WinModeDestroyWindow(appData.win_mode_window);
                 appData.win_mode_window = NULL;
             }
             if (IsWindow(appData.app_mode_window)) {
@@ -817,7 +424,8 @@ int StartAltAppSwitcher(HINSTANCE instance)
             break;
     }
 
-    UnregisterClass(WORKER_CLASS_NAME, instance);
+    AppModeDeinit();
+    WinModeDeinit();
 
     if (restartAAS) {
         STARTUPINFO si = {};
