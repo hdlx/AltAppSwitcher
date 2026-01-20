@@ -303,6 +303,9 @@ static DWORD WorkerThread(LPVOID data)
     EnterCriticalSection(&windowData->StaticData->WorkerCS);
     windowData->WorkerWin = NULL;
     LeaveCriticalSection(&windowData->StaticData->WorkerCS);
+    DestroyWindow(window);
+
+    SetFocus(windowData->MainWin);
     return 0;
 }
 
@@ -351,6 +354,13 @@ static void ApplyWithTimeout(struct WindowData* windowData, unsigned int msg)
             break;
     }
 
+    EnterCriticalSection(&windowData->StaticData->WorkerCS);
+    if (IsWindow(windowData->WorkerWin))
+        DestroyWindow(windowData->WorkerWin);
+    windowData->WorkerWin = NULL;
+    LeaveCriticalSection(&windowData->StaticData->WorkerCS);
+
+    TerminateThread(ht, 0);
     CloseHandle(ht);
 }
 #endif
