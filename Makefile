@@ -30,7 +30,7 @@ CC = $(ARCH)-w64-mingw32-clang
 CFLAGS = -I $(ROOTDIR)/SDK/Headers -I $(ROOTDIR)/Sources -I $(ROOTDIR)/SDK/Sources
 LDIRS = -L $(LIBDIR) -L $(LIBDIR)/curl
 LFLAGS = -static -static-libgcc -Werror
-CFLAGS += -Wall -D ARCH_$(ARCH)=1 -target $(ARCH)-w64-mingw32 -Werror -std=c11
+CFLAGS += -Wall -D ARCH_$(ARCH)=1 -D NTDDI_VERSION=NTDDI_WIN10 -target $(ARCH)-w64-mingw32 -Werror -std=c11
 
 ifeq ($(CONF), Debug)
 CFLAGS += -g3 -fsanitize=address,undefined
