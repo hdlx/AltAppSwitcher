@@ -52,7 +52,6 @@ struct WindowData {
     HANDLE WorkerWin;
     HMONITOR MouseMonitor;
     struct StaticData* StaticData;
-    DWORD MainTID;
 };
 
 static BOOL GetProcessFileName(DWORD PID, char* outFileName)
@@ -295,7 +294,6 @@ static void NextWin(void* windowDataVoidPtr)
     struct WindowData* windowData = windowDataVoidPtr;
     if (!windowData)
         return;
-    // AttachThreadInput(GetCurrentThreadId(), windowData->MainTID, TRUE);
     if (windowData->StaticData->Config->RestoreMinimizedWindows)
         RestoreWin(windowData->CurrentWinGroup.Windows[windowData->Selection]);
     printf("NextWin async\n");
@@ -311,7 +309,6 @@ static void ApplyWin(void* windowDataVoidPtr)
     struct WindowData* windowData = windowDataVoidPtr;
     if (!windowData)
         return;
-    // AttachThreadInput(GetCurrentThreadId(), windowData->MainTID, TRUE);
     UIASetFocus(windowData->CurrentWinGroup.Windows[windowData->Selection]);
     printf("Apply win done\n");
 }
@@ -322,21 +319,21 @@ static DWORD WorkerThread(LPVOID data)
 {
     struct WorkerArg* arg = (struct WorkerArg*)data;
     MSG msg = {};
-    PeekMessage(&msg, 0, MSG_NEXT_WIN, MSG_NEXT_WIN + 1, PM_NOREMOVE);
+    PeekMessage(&msg, 0, 0, 0, PM_NOREMOVE);
     SetEvent(arg->workerReady);
-    while (GetMessage(&msg, NULL, MSG_NEXT_WIN, MSG_NEXT_WIN + 1) > 0) {
+    while (GetMessage(&msg, NULL, 0, 0) > 0) {
         if (msg.message == MSG_NEXT_WIN) {
             arg->fn(arg->data);
             return 0;
         }
+        TranslateMessage(&msg);
+        DispatchMessage(&msg);
     }
     return 0;
 }
 // https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-postthreadmessagea
 static void ApplyWithTimeout(struct WindowData* windowData, void (*fn)(void*))
 {
-    windowData->MainTID = GetCurrentThreadId();
-
     struct WorkerArg wa = {
         .fn = fn,
         .data = windowData,
