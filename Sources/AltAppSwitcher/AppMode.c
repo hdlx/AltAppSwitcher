@@ -1409,8 +1409,9 @@ static void Draw(struct WindowData* windowData, HDC dc, RECT clientRect)
             r.Width = roundf(r.Width);
             r.Height = roundf(r.Height);
 
-            size_t o = swprintf_s(str, 2, L"%i", winCount);
-            (void)o;
+            int o = swprintf_s(str, sizeof(str) / sizeof(str[0]), L"%i", winCount);
+            ASSERT(o > 0);
+
             // Invert text / bg brushes
             DrawRoundedRect(pGraphics, NULL, pGraphRes->pBrushText, &r, 5);
 
