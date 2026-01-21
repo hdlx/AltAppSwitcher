@@ -1310,7 +1310,7 @@ static void Draw(struct WindowData* windowData, HDC dc, RECT clientRect)
             r.Width = roundf(r.Width);
             r.Height = roundf(r.Height);
 
-            int o = swprintf_s(str, sizeof(str) / sizeof(str[0]), L"%i", winCount);
+            const int o = swprintf_s(str, sizeof(str) / sizeof(str[0]), L"%i", winCount);
             ASSERT(o > 0);
 
             // Invert text / bg brushes
@@ -1438,7 +1438,6 @@ static void ApplyMouse(void* data)
 
 static void MoveSelection(struct WindowData* windowData, int x)
 {
-    printf("heeeere %i\n", x);
     windowData->Selection = Modulo(windowData->Selection + x, (int)windowData->WinGroups.Size);
     InvalidateRect(windowData->MainWin, 0, FALSE);
     UpdateWindow(windowData->MainWin);
@@ -1465,7 +1464,6 @@ static int ProcessKeys(struct WindowData* windowData, UINT uMsg, WPARAM wParam)
             || wParam == VK_UP) {
             x = -1;
         }
-        printf("x = %i\n", x);
         if (x != 0) {
             const bool invert = GetAsyncKeyState((SHORT)windowData->StaticData->Config->Key.Invert) & 0x8000;
             MoveSelection(windowData, invert ? -x : x);
