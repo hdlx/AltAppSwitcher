@@ -119,7 +119,6 @@ struct WindowData {
     int MouseSelection;
     bool CloseHover;
     SWinGroupArr WinGroups;
-    SWinGroup CurrentWinGroup;
     Metrics Metrics;
     HMONITOR MouseMonitor;
     HBITMAP Bitmap;
@@ -1440,7 +1439,12 @@ static void ApplyMouse(void* data)
 
 static void MoveSelection(struct WindowData* windowData, int x)
 {
+    ASSERT(windowData);
+    ASSERT(windowData->StaticData);
+    ASSERT(windowData->StaticData->Config);
     windowData->Selection = Modulo(windowData->Selection + x, (int)windowData->WinGroups.Size);
+    if (!windowData->StaticData->Config->DebugDisableIconFocus)
+        SetFocus(windowData->FocusWindows[windowData->Selection]);
     InvalidateRect(windowData->MainWin, 0, FALSE);
     UpdateWindow(windowData->MainWin);
 }
