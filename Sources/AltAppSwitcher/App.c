@@ -1,6 +1,5 @@
 #define COBJMACROS
 #include <string.h>
-#include <wchar.h>
 #include <windef.h>
 #include <windows.h>
 #include <stdbool.h>
@@ -339,6 +338,7 @@ int StartAltAppSwitcher(HINSTANCE instance)
         }
     }
 
+    CommonInit(instance);
     AppModeInit(instance, &appData.Config);
     WinModeInit(instance, &appData.Config);
 
@@ -424,6 +424,7 @@ int StartAltAppSwitcher(HINSTANCE instance)
             break;
     }
 
+    CommonDeinit(instance);
     AppModeDeinit();
     WinModeDeinit();
 

@@ -103,7 +103,6 @@ struct UWPIconMap {
 };
 
 struct StaticData {
-    CRITICAL_SECTION WorkerCS;
     struct GraphicsResources GraphicsResources;
     struct UWPIconMap UWPIconMap;
     bool Elevated;
@@ -122,7 +121,6 @@ struct WindowData {
     SWinGroupArr WinGroups;
     SWinGroup CurrentWinGroup;
     Metrics Metrics;
-    HANDLE WorkerWin;
     HMONITOR MouseMonitor;
     HBITMAP Bitmap;
     HDC DC;
@@ -945,7 +943,6 @@ static void ComputeMetrics(uint32_t iconCount, float scale, Metrics* metrics, bo
 }
 
 static const char MAIN_CLASS_NAME[] = "AltAppSwitcher";
-static const char WORKER_CLASS_NAME[] = "AASWorker";
 static const char FOCUS_CLASS_NAME[] = "AASFocus";
 
 static void DestroyWin(HWND* win)
@@ -956,7 +953,6 @@ static void DestroyWin(HWND* win)
 
 static void Draw(struct WindowData* windowData, HDC dc, RECT clientRect);
 
-static LRESULT WorkerWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam);
 static LRESULT FocusWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam);
 
 void AppModeInit(HINSTANCE instance, const struct Config* cfg)
@@ -997,17 +993,6 @@ void AppModeInit(HINSTANCE instance, const struct Config* cfg)
 
     {
         WNDCLASS wc = {};
-        wc.lpfnWndProc = WorkerWindowProc;
-        wc.hInstance = instance;
-        wc.lpszClassName = WORKER_CLASS_NAME;
-        wc.cbWndExtra = sizeof(struct WindowData*);
-        wc.style = 0;
-        wc.hbrBackground = NULL;
-        RegisterClass(&wc);
-    }
-
-    {
-        WNDCLASS wc = {};
         wc.lpfnWndProc = FocusWindowProc;
         wc.hInstance = instance;
         wc.lpszClassName = FOCUS_CLASS_NAME;
@@ -1016,8 +1001,6 @@ void AppModeInit(HINSTANCE instance, const struct Config* cfg)
         wc.hbrBackground = GetSysColorBrush(COLOR_HIGHLIGHT);
         RegisterClass(&wc);
     }
-
-    InitializeCriticalSection(&StaticData.WorkerCS);
 }
 
 void AppModeDeinit()
@@ -1025,7 +1008,6 @@ void AppModeDeinit()
     DeinitGraphicsResources(&StaticData.GraphicsResources);
     GdiplusShutdown(StaticData.GdiplusToken);
     UnregisterClass(MAIN_CLASS_NAME, StaticData.Instance);
-    UnregisterClass(WORKER_CLASS_NAME, StaticData.Instance);
     UnregisterClass(FOCUS_CLASS_NAME, StaticData.Instance);
 }
 
@@ -1165,87 +1147,6 @@ static void ApplySwitchApp(const SWinGroup* winGroup, bool restoreMinimized)
         (void)ret;
     }
 }
-
-#ifdef ASYNC_APPLY
-static DWORD WorkerThread(LPVOID data)
-{
-    struct WindowData* windowData = (struct WindowData*)data;
-
-    HANDLE window = CreateWindowEx(WS_EX_TOPMOST, WORKER_CLASS_NAME, NULL, WS_POPUP,
-        0, 0, 0, 0, HWND_MESSAGE, NULL, windowData->StaticData->Instance, windowData);
-    (void)window;
-
-    EnterCriticalSection(&windowData->StaticData->WorkerCS);
-    windowData->WorkerWin = window;
-    LeaveCriticalSection(&windowData->StaticData->WorkerCS);
-    MSG msg = {};
-    while (GetMessage(&msg, NULL, 0, 0) > 0) {
-        TranslateMessage(&msg);
-        DispatchMessage(&msg);
-    }
-    EnterCriticalSection(&windowData->StaticData->WorkerCS);
-    DestroyWindow(windowData->WorkerWin);
-    windowData->WorkerWin = NULL;
-    LeaveCriticalSection(&windowData->StaticData->WorkerCS);
-
-    return 0;
-}
-
-static void ApplyWithTimeout(struct WindowData* windowData, unsigned int msg)
-{
-    EnterCriticalSection(&windowData->StaticData->WorkerCS);
-    windowData->WorkerWin = NULL;
-    LeaveCriticalSection(&windowData->StaticData->WorkerCS);
-
-    DWORD tid;
-    HANDLE ht = CreateThread(NULL, 0, WorkerThread, (void*)windowData, 0, &tid);
-    ASSERT(ht != NULL);
-
-    while (true) {
-        if (TryEnterCriticalSection(&windowData->StaticData->WorkerCS)) {
-            const bool initialized = windowData->WorkerWin != NULL;
-            LeaveCriticalSection(&windowData->StaticData->WorkerCS);
-            if (initialized)
-                break;
-        }
-        usleep(100);
-    }
-
-    HWND fgWin = GetForegroundWindow();
-    DWORD fgWinThread = GetWindowThreadProcessId(fgWin, NULL);
-    (void)fgWinThread;
-    DWORD ret = 0;
-    (void)ret;
-
-    ret = SetForegroundWindow(windowData->WorkerWin);
-    VERIFY(ret != 0);
-
-    SendNotifyMessage(windowData->WorkerWin, msg, 0, 0);
-
-    time_t start = time(NULL);
-    while (true) {
-        if (TryEnterCriticalSection(&windowData->StaticData->WorkerCS)) {
-            const bool done = windowData->WorkerWin == NULL;
-            LeaveCriticalSection(&windowData->StaticData->WorkerCS);
-            if (done)
-                break;
-        }
-        time_t now = time(NULL);
-        const double dt = difftime(now, start);
-        if (dt > 1.0)
-            break;
-    }
-
-    EnterCriticalSection(&windowData->StaticData->WorkerCS);
-    if (IsWindow(windowData->WorkerWin))
-        DestroyWindow(windowData->WorkerWin);
-    windowData->WorkerWin = NULL;
-    LeaveCriticalSection(&windowData->StaticData->WorkerCS);
-
-    TerminateThread(ht, 0);
-    CloseHandle(ht);
-}
-#endif
 
 static void DrawRoundedRect(GpGraphics* pGraphics, GpPen* pPen, GpBrush* pBrush, const RectF* re, float di)
 {
@@ -1523,42 +1424,22 @@ static void Draw(struct WindowData* windowData, HDC dc, RECT clientRect)
     GdipDeleteGraphics(pGraphics);
 }
 
-static LRESULT WorkerWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
+static void Apply(void* data)
 {
-    static struct WindowData* windowData = NULL;
-    switch (uMsg) {
-    case WM_CREATE: {
-        windowData = (struct WindowData*)((CREATESTRUCTA*)lParam)->lpCreateParams;
-        return 0;
-    }
-    case MSG_APPLY_APP: {
-        ASSERT(windowData);
-        if (!windowData)
-            return 0;
-        ApplySwitchApp(&windowData->WinGroups.Data[windowData->Selection], windowData->StaticData->Config->RestoreMinimizedWindows);
-        PostQuitMessage(0);
-        return 0;
-    }
-    case MSG_APPLY_APP_MOUSE: {
-        ASSERT(windowData);
-        if (!windowData)
-            return 0;
-        ApplySwitchApp(&windowData->WinGroups.Data[windowData->MouseSelection], windowData->StaticData->Config->RestoreMinimizedWindows);
-        PostQuitMessage(0);
-        return 0;
-    }
-    default: {
-        break;
-    }
-    }
-    return DefWindowProc(hwnd, uMsg, wParam, lParam);
+    struct WindowData* wd = (struct WindowData*)data;
+    ApplySwitchApp(&wd->WinGroups.Data[wd->Selection], wd->StaticData->Config->RestoreMinimizedWindows);
 }
 
-static void NextApp(struct WindowData* windowData)
+static void ApplyMouse(void* data)
 {
-    const bool invert = GetAsyncKeyState((SHORT)windowData->StaticData->Config->Key.Invert) & 0x8000;
-    windowData->Selection += invert ? -1 : 1;
-    windowData->Selection = Modulo(windowData->Selection, (int)windowData->WinGroups.Size);
+    struct WindowData* wd = (struct WindowData*)data;
+    ApplySwitchApp(&wd->WinGroups.Data[wd->MouseSelection], wd->StaticData->Config->RestoreMinimizedWindows);
+}
+
+static void MoveSelection(struct WindowData* windowData, int x)
+{
+    printf("heeeere %i\n", x);
+    windowData->Selection = Modulo(windowData->Selection + x, (int)windowData->WinGroups.Size);
     InvalidateRect(windowData->MainWin, 0, FALSE);
     UpdateWindow(windowData->MainWin);
 }
@@ -1568,8 +1449,26 @@ static int ProcessKeys(struct WindowData* windowData, UINT uMsg, WPARAM wParam)
     switch (uMsg) {
     case WM_SYSKEYDOWN:
     case WM_KEYDOWN: {
-        if (wParam == windowData->StaticData->Config->Key.AppSwitch) {
-            NextApp(windowData);
+        int x = 0;
+        if (
+            wParam == windowData->StaticData->Config->Key.AppSwitch
+            || wParam == 'L'
+            || wParam == 'J'
+            || wParam == VK_RIGHT
+            || wParam == VK_DOWN) {
+            x = 1;
+        } else if (
+            wParam == windowData->StaticData->Config->Key.AppSwitch
+            || wParam == 'H'
+            || wParam == 'K'
+            || wParam == VK_LEFT
+            || wParam == VK_UP) {
+            x = -1;
+        }
+        printf("x = %i\n", x);
+        if (x != 0) {
+            const bool invert = GetAsyncKeyState((SHORT)windowData->StaticData->Config->Key.Invert) & 0x8000;
+            MoveSelection(windowData, invert ? -x : x);
             return 0;
         }
     }
@@ -1618,7 +1517,7 @@ static DWORD CloseThread(LPVOID data)
 static void DeinitApp(struct WindowData* windowData)
 {
 #ifdef ASYNC_APPLY
-    ApplyWithTimeout(windowData, MSG_APPLY_APP);
+    ApplyWithTimeout(Apply, windowData, windowData->StaticData->Instance);
 #else
     ApplySwitchApp(&appData->WinGroups.Data[appData->Selection]);
 #endif
@@ -1741,7 +1640,8 @@ static LRESULT CALLBACK MainWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPAR
                     hwnd, NULL, windowData.StaticData->Instance, &windowData);
             }
         }
-        NextApp(&windowData);
+        const bool invert = GetAsyncKeyState((SHORT)windowData.StaticData->Config->Key.Invert) & 0x8000;
+        MoveSelection(&windowData, invert ? -1 : 1);
         return 0;
     }
     case MSG_FOCUS: {
@@ -1884,7 +1784,7 @@ static LRESULT CALLBACK MainWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPAR
             return 0;
         }
 #ifdef ASYNC_APPLY
-        ApplyWithTimeout(&windowData, MSG_APPLY_APP_MOUSE);
+        ApplyWithTimeout(ApplyMouse, &windowData, windowData.StaticData->Instance);
 #else
         ApplySwitchApp(&appData->WinGroups.Data[appData->MouseSelection]);
 #endif

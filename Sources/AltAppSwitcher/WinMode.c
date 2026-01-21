@@ -13,7 +13,6 @@
 #include <appmodel.h>
 #include <unistd.h>
 #include <uiautomationclient.h>
-#include <time.h>
 #include <stdio.h>
 #undef COBJMACROS
 #include "Config/Config.h"
@@ -25,7 +24,6 @@
 
 #define ASYNC_APPLY
 
-static const char WORKER_CLASS_NAME[] = "WindowModeWorker";
 static const char MAIN_CLASS_NAME[] = "WindowModeMain";
 
 #define MAX_WIN_GROUPS 64u
@@ -38,7 +36,6 @@ typedef struct SWinGroup {
 } SWinGroup;
 
 struct StaticData {
-    CRITICAL_SECTION WorkerCS;
     const struct Config* Config;
     HMODULE Instance;
 };
@@ -218,8 +215,6 @@ static BOOL FillCurrentWinGroup(HWND hwnd, LPARAM lParam)
     return true;
 }
 
-static void UIASetFocus(HWND win);
-
 static void InitializeSwitchWin(struct WindowData* windowData)
 {
     HWND win = GetForegroundWindow();
@@ -258,7 +253,7 @@ static void RestoreWin(HWND win)
         SetWindowPos(win, HWND_TOP, 0, 0, 0, 0, SWP_NOSIZE | SWP_NOMOVE | SWP_NOOWNERZORDER | SWP_NOZORDER | SWP_ASYNCWINDOWPOS | SWP_NOACTIVATE); // Why this call?
     }
 }
-
+/*
 static void UIASetFocus(HWND win)
 {
     CoInitializeEx(NULL, COINIT_APARTMENTTHREADED);
@@ -276,18 +271,13 @@ static void UIASetFocus(HWND win)
     IUIAutomation_Release(UIA);
     CoUninitialize();
 }
+*/
 
 typedef struct ApplySwitchAppData {
     HWND Data[64];
     unsigned int Count;
     DWORD _fgWinThread;
 } ApplySwitchAppData;
-
-struct WorkerArg {
-    void (*fn)(void*);
-    void* data;
-    HANDLE workerReady;
-};
 
 static void NextWin(void* windowDataVoidPtr)
 {
@@ -296,12 +286,10 @@ static void NextWin(void* windowDataVoidPtr)
         return;
     if (windowData->StaticData->Config->RestoreMinimizedWindows)
         RestoreWin(windowData->CurrentWinGroup.Windows[windowData->Selection]);
-    printf("NextWin async\n");
     SetWindowPos(windowData->CurrentWinGroup.Windows[windowData->Selection], windowData->MainWin, 0, 0, 0, 0, SWP_NOSIZE | SWP_NOMOVE | SWP_NOACTIVATE);
     WINBOOL r = SetForegroundWindow(windowData->CurrentWinGroup.Windows[windowData->Selection]);
     ASSERT(r != 0);
     SetForegroundWindow(windowData->MainWin);
-    printf("NextWin done\n");
 }
 
 static void ApplyWin(void* windowDataVoidPtr)
@@ -309,45 +297,12 @@ static void ApplyWin(void* windowDataVoidPtr)
     struct WindowData* windowData = windowDataVoidPtr;
     if (!windowData)
         return;
-    UIASetFocus(windowData->CurrentWinGroup.Windows[windowData->Selection]);
-    printf("Apply win done\n");
+    // UIASetFocus(windowData->CurrentWinGroup.Windows[windowData->Selection]);
+    SetForegroundWindow(windowData->MainWin);
 }
 #define ASYNC
 
 #ifdef ASYNC
-static DWORD WorkerThread(LPVOID data)
-{
-    struct WorkerArg* arg = (struct WorkerArg*)data;
-    MSG msg = {};
-    PeekMessage(&msg, 0, 0, 0, PM_NOREMOVE);
-    SetEvent(arg->workerReady);
-    while (GetMessage(&msg, NULL, 0, 0) > 0) {
-        if (msg.message == MSG_NEXT_WIN) {
-            arg->fn(arg->data);
-            return 0;
-        }
-        TranslateMessage(&msg);
-        DispatchMessage(&msg);
-    }
-    return 0;
-}
-// https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-postthreadmessagea
-static void ApplyWithTimeout(struct WindowData* windowData, void (*fn)(void*))
-{
-    struct WorkerArg wa = {
-        .fn = fn,
-        .data = windowData,
-        .workerReady = CreateEvent(NULL, TRUE, FALSE, "workerReady")
-    };
-    DWORD tid;
-    HANDLE ht = CreateThread(NULL, 0, WorkerThread, (void*)&wa, 0, &tid);
-    WaitForSingleObject(wa.workerReady, INFINITE);
-    PostThreadMessage(tid, MSG_NEXT_WIN, 0, 0);
-    if (WaitForSingleObject(ht, 2000000) != WAIT_OBJECT_0)
-        TerminateThread(ht, 0);
-    CloseHandle(ht);
-    CloseHandle(wa.workerReady);
-}
 
 #endif
 
@@ -383,7 +338,7 @@ static LRESULT MainWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
         SetFocus(hwnd);
         SetForegroundWindow(hwnd);
 #ifdef ASYNC
-        ApplyWithTimeout(&windowData, NextWin);
+        ApplyWithTimeout(NextWin, &windowData, StaticData.Instance);
 #else
         NextWin(&windowData);
 #endif
@@ -391,12 +346,28 @@ static LRESULT MainWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
     }
     case WM_SYSKEYDOWN:
     case WM_KEYDOWN: {
-        if (wParam == windowData.StaticData->Config->Key.WinSwitch) {
+        int x = 0;
+        if (
+            wParam == windowData.StaticData->Config->Key.WinSwitch
+            || wParam == 'L'
+            || wParam == 'J'
+            || wParam == VK_RIGHT
+            || wParam == VK_DOWN) {
+            x = 1;
+        } else if (
+            wParam == windowData.StaticData->Config->Key.WinSwitch
+            || wParam == 'H'
+            || wParam == 'K'
+            || wParam == VK_LEFT
+            || wParam == VK_UP) {
+            x = -1;
+        }
+        if (x != 0) {
             const bool invert = GetAsyncKeyState((SHORT)windowData.StaticData->Config->Key.Invert) & 0x8000;
-            windowData.Selection += invert ? -1 : 1;
+            windowData.Selection += invert ? -x : x;
             windowData.Selection = Modulo(windowData.Selection, (int)windowData.CurrentWinGroup.WindowCount);
 #ifdef ASYNC
-            ApplyWithTimeout(&windowData, NextWin);
+            ApplyWithTimeout(NextWin, &windowData, StaticData.Instance);
 #else
             NextWin(&windowData);
 #endif
@@ -407,7 +378,7 @@ static LRESULT MainWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
     }
     case WM_CLOSE: {
 #ifdef ASYNC
-        ApplyWithTimeout(&windowData, ApplyWin);
+        ApplyWithTimeout(ApplyWin, &windowData, StaticData.Instance);
 #else
         ApplyWin(&windowData);
 #endif
@@ -424,7 +395,6 @@ void WinModeInit(HINSTANCE instance, const struct Config* cfg)
 {
     StaticData.Instance = instance;
     StaticData.Config = cfg;
-    InitializeCriticalSection(&StaticData.WorkerCS);
 
     {
         WNDCLASS wc = {};
@@ -441,7 +411,6 @@ void WinModeInit(HINSTANCE instance, const struct Config* cfg)
 void WinModeDeinit()
 {
     UnregisterClass(MAIN_CLASS_NAME, StaticData.Instance);
-    UnregisterClass(WORKER_CLASS_NAME, StaticData.Instance);
 }
 
 HWND WinModeCreateWindow()

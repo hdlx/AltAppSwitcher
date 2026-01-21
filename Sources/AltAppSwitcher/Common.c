@@ -24,6 +24,8 @@
 #include "AppxPackaging.h"
 #undef COBJMACROS
 #include "Config/Config.h"
+#include "Utils/Error.h"
+#include "Messages.h"
 
 static const char* WindowsClassNamesToSkip[] = {
     "Shell_TrayWnd",
@@ -168,4 +170,91 @@ bool IsEligibleWindow(HWND hwnd, const struct Config* cfg, HMONITOR mouseMonitor
     }
 
     return true;
+}
+
+struct WorkerArg {
+    void (*fn)(void*);
+    void* data;
+    HANDLE workerReady;
+    HINSTANCE instance;
+    HWND workerWin;
+};
+
+static LRESULT WorkerWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
+{
+    static struct WorkerArg* wa = NULL;
+    switch (uMsg) {
+    case WM_CREATE: {
+        wa = (struct WorkerArg*)((CREATESTRUCTA*)lParam)->lpCreateParams;
+        return 0;
+    }
+    case WM_CLOSE: {
+        wa->fn(wa->data);
+        DestroyWindow(hwnd);
+        return 0;
+    }
+    case WM_DESTROY: {
+        PostQuitMessage(0);
+        return 0;
+    }
+    default: {
+        break;
+    }
+    }
+    return DefWindowProc(hwnd, uMsg, wParam, lParam);
+}
+
+static char WorkerClassName[] = "AASWorkerX";
+
+void CommonInit(HINSTANCE instance)
+{
+    WNDCLASS wc = {};
+    wc.lpfnWndProc = WorkerWindowProc;
+    wc.hInstance = instance;
+    wc.lpszClassName = WorkerClassName;
+    wc.cbWndExtra = sizeof(struct WindowData*);
+    wc.style = 0;
+    wc.hbrBackground = NULL;
+    ASSERT(RegisterClass(&wc));
+}
+
+void CommonDeinit(HINSTANCE instance)
+{
+    UnregisterClass(WorkerClassName, instance);
+}
+
+static DWORD WorkerThread(LPVOID data)
+{
+    struct WorkerArg* arg = (struct WorkerArg*)data;
+    // PeekMessage(&msg, 0, 0, 0, PM_NOREMOVE);
+    arg->workerWin = CreateWindowEx(WS_EX_TOPMOST, WorkerClassName, NULL, WS_POPUP,
+        0, 0, 0, 0, HWND_MESSAGE, NULL, arg->instance, arg);
+    SetEvent(arg->workerReady);
+
+    MSG msg = {};
+    while (GetMessage(&msg, arg->workerWin, 0, 0) > 0) {
+        TranslateMessage(&msg);
+        DispatchMessage(&msg);
+    }
+    return 0;
+}
+
+// https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-postthreadmessagea
+void ApplyWithTimeout(void (*fn)(void*), void* data, HINSTANCE instance)
+{
+    struct WorkerArg wa = {
+        .fn = fn,
+        .data = data,
+        .workerReady = CreateEvent(NULL, TRUE, FALSE, "workerReady"),
+        .instance = instance
+    };
+    DWORD tid;
+    HANDLE ht = CreateThread(NULL, 0, WorkerThread, (void*)&wa, 0, &tid);
+    WaitForSingleObject(wa.workerReady, INFINITE);
+    SetForegroundWindow(wa.workerWin);
+    PostMessage(wa.workerWin, WM_CLOSE, 0, 0);
+    if (WaitForSingleObject(ht, 500) != WAIT_OBJECT_0)
+        TerminateThread(ht, 0);
+    CloseHandle(ht);
+    CloseHandle(wa.workerReady);
 }
