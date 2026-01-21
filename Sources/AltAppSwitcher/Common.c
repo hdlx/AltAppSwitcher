@@ -189,6 +189,8 @@ static LRESULT WorkerWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lPar
         return 0;
     }
     case WM_CLOSE: {
+        ASSERT(wa);
+        ASSERT(wa->fn);
         wa->fn(wa->data);
         DestroyWindow(hwnd);
         return 0;

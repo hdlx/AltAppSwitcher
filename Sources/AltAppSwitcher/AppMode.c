@@ -1448,6 +1448,9 @@ static int ProcessKeys(struct WindowData* windowData, UINT uMsg, WPARAM wParam)
     switch (uMsg) {
     case WM_SYSKEYDOWN:
     case WM_KEYDOWN: {
+        ASSERT(windowData)
+        ASSERT(windowData->StaticData)
+        ASSERT(windowData->StaticData->Config)
         int x = 0;
         if (
             wParam == windowData->StaticData->Config->Key.AppSwitch
@@ -1515,6 +1518,9 @@ static DWORD CloseThread(LPVOID data)
 static void DeinitApp(struct WindowData* windowData)
 {
 #ifdef ASYNC_APPLY
+    ASSERT(windowData->StaticData->Instance);
+    if (!windowData->StaticData->Instance)
+        return;
     ApplyWithTimeout(Apply, windowData, windowData->StaticData->Instance);
 #else
     ApplySwitchApp(&appData->WinGroups.Data[appData->Selection]);

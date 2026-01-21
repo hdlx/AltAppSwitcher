@@ -346,6 +346,8 @@ static LRESULT MainWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
     }
     case WM_SYSKEYDOWN:
     case WM_KEYDOWN: {
+        ASSERT(windowData.StaticData);
+        ASSERT(windowData.StaticData->Config);
         int x = 0;
         if (
             wParam == windowData.StaticData->Config->Key.WinSwitch
@@ -371,7 +373,6 @@ static LRESULT MainWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 #else
             NextWin(&windowData);
 #endif
-            printf("set wind pos with %i\n", windowData.Selection);
             return 0;
         }
         break;
@@ -415,6 +416,7 @@ void WinModeDeinit()
 
 HWND WinModeCreateWindow()
 {
+    /*
     HWND hwnd = CreateWindowEx(
         0, // Optional window styles (WS_EX_)
         MAIN_CLASS_NAME, // Window class
@@ -430,6 +432,11 @@ HWND WinModeCreateWindow()
         StaticData.Instance, // Instance handle
         &StaticData // Additional application data
     );
+    */
+
+    HWND hwnd = CreateWindowEx(WS_EX_TOPMOST, MAIN_CLASS_NAME, NULL, WS_POPUP,
+        0, 0, 0, 0, HWND_MESSAGE, NULL, StaticData.Instance, &StaticData);
+
     SetForegroundWindow(hwnd);
     SetFocus(hwnd);
     ASSERT(hwnd);
