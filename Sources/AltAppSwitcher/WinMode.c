@@ -52,6 +52,7 @@ struct WindowData {
     HANDLE WorkerWin;
     HMONITOR MouseMonitor;
     struct StaticData* StaticData;
+    DWORD MainTID;
 };
 
 static BOOL GetProcessFileName(DWORD PID, char* outFileName)
@@ -283,129 +284,75 @@ typedef struct ApplySwitchAppData {
     DWORD _fgWinThread;
 } ApplySwitchAppData;
 
-#ifdef ASYNC_APPLY
-static DWORD WorkerThread(LPVOID data)
-{
-    struct WindowData* windowData = (struct WindowData*)data;
-
-    HANDLE window = CreateWindowEx(WS_EX_TOPMOST, WORKER_CLASS_NAME, NULL, WS_POPUP,
-        0, 0, 0, 0, HWND_MESSAGE, NULL, windowData->StaticData->Instance, windowData);
-    (void)window;
-
-    EnterCriticalSection(&windowData->StaticData->WorkerCS);
-    windowData->WorkerWin = window;
-    LeaveCriticalSection(&windowData->StaticData->WorkerCS);
-    MSG msg = {};
-    while (GetMessage(&msg, NULL, 0, 0) > 0) {
-        TranslateMessage(&msg);
-        DispatchMessage(&msg);
-    }
-    EnterCriticalSection(&windowData->StaticData->WorkerCS);
-    windowData->WorkerWin = NULL;
-    LeaveCriticalSection(&windowData->StaticData->WorkerCS);
-    DestroyWindow(window);
-
-    SetFocus(windowData->MainWin);
-    return 0;
-}
-
-static void ApplyWithTimeout(struct WindowData* windowData, unsigned int msg)
-{
-    EnterCriticalSection(&windowData->StaticData->WorkerCS);
-    windowData->WorkerWin = NULL;
-    LeaveCriticalSection(&windowData->StaticData->WorkerCS);
-
-    DWORD tid;
-    HANDLE ht = CreateThread(NULL, 0, WorkerThread, (void*)windowData, 0, &tid);
-    ASSERT(ht != NULL);
-
-    while (true) {
-        if (TryEnterCriticalSection(&windowData->StaticData->WorkerCS)) {
-            const bool initialized = windowData->WorkerWin != NULL;
-            LeaveCriticalSection(&windowData->StaticData->WorkerCS);
-            if (initialized)
-                break;
-        }
-        usleep(100);
-    }
-
-    HWND fgWin = GetForegroundWindow();
-    DWORD fgWinThread = GetWindowThreadProcessId(fgWin, NULL);
-    (void)fgWinThread;
-    DWORD ret = 0;
-    (void)ret;
-
-    ret = SetForegroundWindow(windowData->WorkerWin);
-    VERIFY(ret != 0);
-
-    SendNotifyMessage(windowData->WorkerWin, msg, 0, 0);
-
-    time_t start = time(NULL);
-    while (true) {
-        if (TryEnterCriticalSection(&windowData->StaticData->WorkerCS)) {
-            const bool done = windowData->WorkerWin == NULL;
-            LeaveCriticalSection(&windowData->StaticData->WorkerCS);
-            if (done)
-                break;
-        }
-        time_t now = time(NULL);
-        const double dt = difftime(now, start);
-        if (dt > 1.0)
-            break;
-    }
-
-    EnterCriticalSection(&windowData->StaticData->WorkerCS);
-    if (IsWindow(windowData->WorkerWin))
-        DestroyWindow(windowData->WorkerWin);
-    windowData->WorkerWin = NULL;
-    LeaveCriticalSection(&windowData->StaticData->WorkerCS);
-
-    TerminateThread(ht, 0);
-    CloseHandle(ht);
-}
-#endif
-
-enum Mode {
-    ModeNone,
-    ModeApp,
-    ModeWin
+struct WorkerArg {
+    void (*fn)(void*);
+    void* data;
+    HANDLE workerReady;
 };
 
-static LRESULT WorkerWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
+static void NextWin(void* windowDataVoidPtr)
 {
-    static struct WindowData* windowData = NULL;
-    switch (uMsg) {
-    case WM_CREATE: {
-        windowData = (struct WindowData*)((CREATESTRUCTA*)lParam)->lpCreateParams;
-        return 0;
-    }
-    case MSG_NEXT_WIN: {
-        ASSERT(windowData);
-        if (!windowData)
-            return 0;
-        if (windowData->StaticData->Config->RestoreMinimizedWindows)
-            RestoreWin(windowData->CurrentWinGroup.Windows[windowData->Selection]);
-        printf("set wind pos with %i", windowData->Selection);
-        SetWindowPos(windowData->CurrentWinGroup.Windows[windowData->Selection], windowData->MainWin, 0, 0, 0, 0, SWP_NOSIZE | SWP_NOMOVE | SWP_NOACTIVATE);
-        SetForegroundWindow(windowData->CurrentWinGroup.Windows[windowData->Selection]);
-        SetForegroundWindow(windowData->MainWin);
-        PostQuitMessage(0);
-        return 0;
-    }
-    case MSG_APPLY_WIN: {
-        ASSERT(windowData);
-        if (!windowData)
-            return 0;
-        UIASetFocus(windowData->CurrentWinGroup.Windows[windowData->Selection]);
-        PostQuitMessage(0);
-        return 0;
-    }
-    default: {
-        break;
-    }
-    }
-    return DefWindowProc(hwnd, uMsg, wParam, lParam);
+    struct WindowData* windowData = windowDataVoidPtr;
+    if (!windowData)
+        return;
+    // AttachThreadInput(GetCurrentThreadId(), windowData->MainTID, TRUE);
+    if (windowData->StaticData->Config->RestoreMinimizedWindows)
+        RestoreWin(windowData->CurrentWinGroup.Windows[windowData->Selection]);
+    printf("NextWin async\n");
+    SetWindowPos(windowData->CurrentWinGroup.Windows[windowData->Selection], windowData->MainWin, 0, 0, 0, 0, SWP_NOSIZE | SWP_NOMOVE | SWP_NOACTIVATE);
+    WINBOOL r = SetForegroundWindow(windowData->CurrentWinGroup.Windows[windowData->Selection]);
+    ASSERT(r != 0);
+    SetForegroundWindow(windowData->MainWin);
+    printf("NextWin done\n");
 }
+
+static void ApplyWin(void* windowDataVoidPtr)
+{
+    struct WindowData* windowData = windowDataVoidPtr;
+    if (!windowData)
+        return;
+    // AttachThreadInput(GetCurrentThreadId(), windowData->MainTID, TRUE);
+    UIASetFocus(windowData->CurrentWinGroup.Windows[windowData->Selection]);
+    printf("Apply win done\n");
+}
+#define ASYNC
+
+#ifdef ASYNC
+static DWORD WorkerThread(LPVOID data)
+{
+    struct WorkerArg* arg = (struct WorkerArg*)data;
+    MSG msg = {};
+    PeekMessage(&msg, 0, MSG_NEXT_WIN, MSG_NEXT_WIN + 1, PM_NOREMOVE);
+    SetEvent(arg->workerReady);
+    while (GetMessage(&msg, NULL, MSG_NEXT_WIN, MSG_NEXT_WIN + 1) > 0) {
+        if (msg.message == MSG_NEXT_WIN) {
+            arg->fn(arg->data);
+            return 0;
+        }
+    }
+    return 0;
+}
+// https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-postthreadmessagea
+static void ApplyWithTimeout(struct WindowData* windowData, void (*fn)(void*))
+{
+    windowData->MainTID = GetCurrentThreadId();
+
+    struct WorkerArg wa = {
+        .fn = fn,
+        .data = windowData,
+        .workerReady = CreateEvent(NULL, TRUE, FALSE, "workerReady")
+    };
+    DWORD tid;
+    HANDLE ht = CreateThread(NULL, 0, WorkerThread, (void*)&wa, 0, &tid);
+    WaitForSingleObject(wa.workerReady, INFINITE);
+    PostThreadMessage(tid, MSG_NEXT_WIN, 0, 0);
+    if (WaitForSingleObject(ht, 2000000) != WAIT_OBJECT_0)
+        TerminateThread(ht, 0);
+    CloseHandle(ht);
+    CloseHandle(wa.workerReady);
+}
+
+#endif
 
 #if false
 static BOOL GetFirstWindow(HWND win, LPARAM lParam)
@@ -436,8 +383,13 @@ static LRESULT MainWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
         const bool invert = GetAsyncKeyState((SHORT)windowData.StaticData->Config->Key.Invert) & 0x8000;
         windowData.Selection += invert ? -1 : 1;
         windowData.Selection = Modulo(windowData.Selection, (int)windowData.CurrentWinGroup.WindowCount);
-        ApplyWithTimeout(&windowData, MSG_NEXT_WIN);
         SetFocus(hwnd);
+        SetForegroundWindow(hwnd);
+#ifdef ASYNC
+        ApplyWithTimeout(&windowData, NextWin);
+#else
+        NextWin(&windowData);
+#endif
         return 0;
     }
     case WM_SYSKEYDOWN:
@@ -446,14 +398,22 @@ static LRESULT MainWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
             const bool invert = GetAsyncKeyState((SHORT)windowData.StaticData->Config->Key.Invert) & 0x8000;
             windowData.Selection += invert ? -1 : 1;
             windowData.Selection = Modulo(windowData.Selection, (int)windowData.CurrentWinGroup.WindowCount);
-            ApplyWithTimeout(&windowData, MSG_NEXT_WIN);
+#ifdef ASYNC
+            ApplyWithTimeout(&windowData, NextWin);
+#else
+            NextWin(&windowData);
+#endif
             printf("set wind pos with %i\n", windowData.Selection);
             return 0;
         }
         break;
     }
     case WM_CLOSE: {
-        ApplyWithTimeout(&windowData, MSG_APPLY_WIN);
+#ifdef ASYNC
+        ApplyWithTimeout(&windowData, ApplyWin);
+#else
+        ApplyWin(&windowData);
+#endif
         DestroyWindow(hwnd);
         return 0;
     }
@@ -477,17 +437,6 @@ void WinModeInit(HINSTANCE instance, const struct Config* cfg)
         wc.cbWndExtra = sizeof(void*);
         wc.style = CS_HREDRAW | CS_VREDRAW;
         wc.hbrBackground = GetSysColorBrush(COLOR_WINDOW);
-        RegisterClass(&wc);
-    }
-
-    {
-        WNDCLASS wc = {};
-        wc.lpfnWndProc = WorkerWindowProc;
-        wc.hInstance = instance;
-        wc.lpszClassName = WORKER_CLASS_NAME;
-        wc.cbWndExtra = sizeof(struct WindowData*);
-        wc.style = 0;
-        wc.hbrBackground = NULL;
         RegisterClass(&wc);
     }
 }
