@@ -125,6 +125,8 @@ struct WindowData {
     HBITMAP Bitmap;
     HDC DC;
     struct StaticData* StaticData;
+    HWND FocusWindows[MAX_WIN_GROUPS];
+    unsigned int FocusWindowCount;
 };
 
 typedef struct SFoundWin {
@@ -996,7 +998,7 @@ void AppModeInit(HINSTANCE instance, const struct Config* cfg)
         wc.lpfnWndProc = FocusWindowProc;
         wc.hInstance = instance;
         wc.lpszClassName = FOCUS_CLASS_NAME;
-        wc.cbWndExtra = 0;
+        wc.cbWndExtra = sizeof(void*);
         wc.style = CS_HREDRAW | CS_VREDRAW;
         wc.hbrBackground = GetSysColorBrush(COLOR_HIGHLIGHT);
         RegisterClass(&wc);
@@ -1460,7 +1462,7 @@ static int ProcessKeys(struct WindowData* windowData, UINT uMsg, WPARAM wParam)
             || wParam == VK_DOWN) {
             x = 1;
         } else if (
-            wParam == windowData->StaticData->Config->Key.AppSwitch
+            wParam == windowData->StaticData->Config->Key.PrevApp
             || wParam == 'H'
             || wParam == 'K'
             || wParam == VK_LEFT
@@ -1518,6 +1520,8 @@ static DWORD CloseThread(LPVOID data)
 static void DeinitApp(struct WindowData* windowData)
 {
 #ifdef ASYNC_APPLY
+    ASSERT(windowData);
+    ASSERT(windowData->StaticData);
     ASSERT(windowData->StaticData->Instance);
     if (!windowData->StaticData->Instance)
         return;
@@ -1527,16 +1531,129 @@ static void DeinitApp(struct WindowData* windowData)
 #endif
 }
 
+static void Init(struct WindowData* windowData)
+{
+    ASSERT(windowData->StaticData);
+    ASSERT(windowData->StaticData->Config);
+    // Save persistant data and kill child window if any.
+    struct StaticData* sd = windowData->StaticData;
+    HWND w = windowData->MainWin;
+    for (int i = 0; i < windowData->FocusWindowCount; i++) {
+        if (!IsRunWindow(windowData->FocusWindows[i]))
+            continue;
+        DestroyWindow(windowData->FocusWindows[i]);
+    }
+
+    if (windowData->DC)
+        DeleteDC(windowData->DC);
+    if (windowData->Bitmap)
+        DeleteObject(windowData->Bitmap);
+
+    // Clear
+    *windowData = (struct WindowData) {};
+
+    windowData->StaticData = sd;
+    windowData->MainWin = w;
+    SWinGroupArr* pWinGroups = &(windowData->WinGroups);
+    ASSERT(pWinGroups);
+    pWinGroups->Size = 0;
+    // Get mouse monitor once if filtering by monitor is enabled
+    if (windowData->StaticData->Config->AppFilterMode == AppFilterModeMouseMonitor) {
+        POINT mousePos;
+        if (GetCursorPos(&mousePos)) {
+            windowData->MouseMonitor = MonitorFromPoint(mousePos, MONITOR_DEFAULTTONEAREST);
+        } else {
+            // Fall back to primary monitor if GetCursorPos fails
+            windowData->MouseMonitor = MonitorFromPoint((POINT) { 0, 0 }, MONITOR_DEFAULTTOPRIMARY);
+        }
+    } else {
+        windowData->MouseMonitor = NULL; // Explicitly set NULL when not filtering by monitor
+    }
+    EnumWindows(FillWinGroups, (LPARAM)windowData);
+
+    const bool invert = GetAsyncKeyState((SHORT)windowData->StaticData->Config->Key.Invert) & 0x8000;
+    windowData->Selection = Modulo(windowData->Selection + (invert ? -1 : 1), (int)windowData->WinGroups.Size);
+    windowData->MouseSelection = 0;
+
+    if (windowData->WinGroups.Size == 0)
+        return;
+
+    ComputeMetrics(windowData->WinGroups.Size,
+        windowData->StaticData->Config->Scale,
+        &windowData->Metrics,
+        windowData->StaticData->Config->MultipleMonitorMode == MultipleMonitorModeMouse);
+
+    // Needed for exact client area.
+    RECT r = {
+        (LONG)windowData->Metrics.WinPosX,
+        (LONG)windowData->Metrics.WinPosY,
+        (LONG)(windowData->Metrics.WinPosX + windowData->Metrics.WinX),
+        (LONG)(windowData->Metrics.WinPosY + windowData->Metrics.WinY)
+    };
+    AdjustWindowRect(&r, (DWORD)GetWindowLong(windowData->MainWin, GWL_STYLE), false);
+    SetWindowPos(windowData->MainWin, 0, r.left, r.top, r.right - r.left, r.bottom - r.top, 0);
+
+    // Rounded corners for Win 11
+    // Values are from cpp enums DWMWINDOWATTRIBUTE and DWM_WINDOW_CORNER_PREFERENCE
+    const uint32_t rounded = 2;
+    DwmSetWindowAttribute(windowData->MainWin, 33, &rounded, sizeof(rounded));
+
+    {
+        RECT clientRect;
+        ASSERT(GetWindowRect(windowData->MainWin, &clientRect));
+
+        HDC winDC = GetDC(windowData->MainWin);
+        ASSERT(winDC);
+        windowData->DC = CreateCompatibleDC(winDC);
+        ASSERT(windowData->DC != NULL);
+        windowData->Bitmap = CreateCompatibleBitmap(
+            winDC,
+            clientRect.right - clientRect.left,
+            clientRect.bottom - clientRect.top);
+        ASSERT(windowData->Bitmap != NULL);
+        ReleaseDC(windowData->MainWin, winDC);
+    }
+
+    InvalidateRect(windowData->MainWin, NULL, FALSE);
+    UpdateWindow(windowData->MainWin);
+    const DWORD ret = SetForegroundWindow(windowData->MainWin);
+    (void)ret;
+
+    SetLayeredWindowAttributes(windowData->MainWin, 0, 0, LWA_ALPHA);
+    ShowWindow(windowData->MainWin, SW_SHOW);
+    RECT clientRect = { 0, 0, (LONG)windowData->Metrics.WinX, (LONG)windowData->Metrics.WinY };
+    Draw(windowData, GetDC(windowData->MainWin), clientRect);
+    SetLayeredWindowAttributes(windowData->MainWin, 0, 255, LWA_ALPHA);
+
+    SetCapture(windowData->MainWin);
+    // Otherwise cursor is busy on hover. I don't understand why.
+    SetCursor(LoadCursor(NULL, IDC_ARROW));
+
+    if (!windowData->StaticData->Config->DebugDisableIconFocus) {
+        for (int i = 0; i < windowData->WinGroups.Size; i++) {
+            const int iconContainerSize = (int)windowData->Metrics.Container;
+            const int pad = (int)windowData->Metrics.Pad;
+            int x = pad + (i * iconContainerSize);
+            windowData->FocusWindows[i] = CreateWindowEx(0, FOCUS_CLASS_NAME, NULL,
+                WS_CHILD /* | WS_VISIBLE */,
+                x, pad, iconContainerSize, iconContainerSize,
+                windowData->MainWin, NULL, windowData->StaticData->Instance, windowData);
+            windowData->FocusWindowCount++;
+        }
+    }
+}
+
 static LRESULT CALLBACK MainWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 {
     static struct WindowData windowData = {};
-    static HWND focusWindows[MAX_WIN_GROUPS] = {};
 
     if (ProcessKeys(&windowData, uMsg, wParam) == 0)
         return 0;
 
     switch (uMsg) {
     case WM_MOUSEMOVE: {
+        ASSERT(windowData.StaticData);
+        ASSERT(windowData.StaticData->Config);
         if (!windowData.StaticData->Config->Mouse)
             return 0;
         const int iconContainerSize = (int)windowData.Metrics.Container;
@@ -1554,206 +1671,29 @@ static LRESULT CALLBACK MainWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPAR
     case WM_CREATE: {
         windowData = (struct WindowData) {};
         windowData.StaticData = (struct StaticData*)((CREATESTRUCTA*)lParam)->lpCreateParams;
-        SWinGroupArr* pWinGroups = &(windowData.WinGroups);
-        ASSERT(pWinGroups);
-        if (!pWinGroups)
-            return 0;
-        pWinGroups->Size = 0;
-        // Get mouse monitor once if filtering by monitor is enabled
-        if (windowData.StaticData->Config->AppFilterMode == AppFilterModeMouseMonitor) {
-            POINT mousePos;
-            if (GetCursorPos(&mousePos)) {
-                windowData.MouseMonitor = MonitorFromPoint(mousePos, MONITOR_DEFAULTTONEAREST);
-            } else {
-                // Fall back to primary monitor if GetCursorPos fails
-                windowData.MouseMonitor = MonitorFromPoint((POINT) { 0, 0 }, MONITOR_DEFAULTTOPRIMARY);
-            }
-        } else {
-            windowData.MouseMonitor = NULL; // Explicitly set NULL when not filtering by monitor
-        }
-        EnumWindows(FillWinGroups, (LPARAM)&windowData);
-        windowData.Selection = 0;
-        windowData.MouseSelection = 0;
-
-        if (windowData.MainWin)
-            DestroyWin(&windowData.MainWin);
-
-        if (windowData.WinGroups.Size == 0)
-            return 0;
-
-        ComputeMetrics(windowData.WinGroups.Size,
-            windowData.StaticData->Config->Scale,
-            &windowData.Metrics,
-            windowData.StaticData->Config->MultipleMonitorMode == MultipleMonitorModeMouse);
-
-        // Needed for exact client area.
-        RECT r = {
-            (LONG)windowData.Metrics.WinPosX,
-            (LONG)windowData.Metrics.WinPosY,
-            (LONG)(windowData.Metrics.WinPosX + windowData.Metrics.WinX),
-            (LONG)(windowData.Metrics.WinPosY + windowData.Metrics.WinY)
-        };
-        AdjustWindowRect(&r, (DWORD)GetWindowLong(hwnd, GWL_STYLE), false);
-        SetWindowPos(hwnd, 0, r.left, r.top, r.right - r.left, r.bottom - r.top, 0);
-
-        // Rounded corners for Win 11
-        // Values are from cpp enums DWMWINDOWATTRIBUTE and DWM_WINDOW_CORNER_PREFERENCE
-        const uint32_t rounded = 2;
-        DwmSetWindowAttribute(hwnd, 33, &rounded, sizeof(rounded));
-        InvalidateRect(hwnd, NULL, FALSE);
-        UpdateWindow(hwnd);
-        const DWORD ret = SetForegroundWindow(hwnd);
-        (void)ret;
-        // ASSERT(ret != 0);
         windowData.MainWin = hwnd;
-
-        {
-            RECT clientRect;
-            ASSERT(GetWindowRect(hwnd, &clientRect));
-
-            HDC winDC = GetDC(hwnd);
-            ASSERT(winDC);
-            windowData.DC = CreateCompatibleDC(winDC);
-            ASSERT(windowData.DC != NULL);
-            windowData.Bitmap = CreateCompatibleBitmap(
-                winDC,
-                clientRect.right - clientRect.left,
-                clientRect.bottom - clientRect.top);
-            ASSERT(windowData.Bitmap != NULL);
-            ReleaseDC(hwnd, winDC);
-        }
-
-        SetLayeredWindowAttributes(hwnd, 0, 0, LWA_ALPHA);
-        ShowWindow(hwnd, SW_SHOW);
-        RECT clientRect = { 0, 0, (LONG)windowData.Metrics.WinX, (LONG)windowData.Metrics.WinY };
-        Draw(&windowData, GetDC(hwnd), clientRect);
-        SetLayeredWindowAttributes(hwnd, 0, 255, LWA_ALPHA);
-
-        SetCapture(hwnd);
-        // Otherwise cursor is busy on hover. I don't understand why.
-        SetCursor(LoadCursor(NULL, IDC_ARROW));
-
-        if (!windowData.StaticData->Config->DebugDisableIconFocus) {
-            for (int i = 0; i < windowData.WinGroups.Size; i++) {
-                const int iconContainerSize = (int)windowData.Metrics.Container;
-                const int pad = (int)windowData.Metrics.Pad;
-                int x = pad + (i * iconContainerSize);
-                focusWindows[i] = CreateWindowEx(0, FOCUS_CLASS_NAME, NULL,
-                    WS_CHILD /* | WS_VISIBLE */,
-                    x, pad, iconContainerSize, iconContainerSize,
-                    hwnd, NULL, windowData.StaticData->Instance, &windowData);
-            }
-        }
-        const bool invert = GetAsyncKeyState((SHORT)windowData.StaticData->Config->Key.Invert) & 0x8000;
-        MoveSelection(&windowData, invert ? -1 : 1);
+        Init(&windowData);
         return 0;
     }
     case MSG_FOCUS: {
         // uia set focus here gives inconsistent app behavior IDK why.
         // UIASetFocus(focusWindows[appData->Selection]);
+        ASSERT(windowData.StaticData);
+        ASSERT(windowData.StaticData->Config);
         if (!windowData.StaticData->Config->DebugDisableIconFocus) {
-            SetFocus(focusWindows[windowData.Selection]);
+            SetFocus(windowData.FocusWindows[windowData.Selection]);
             return 0;
         }
         break;
     }
     case MSG_REFRESH: {
         ClearWinGroupArr(&windowData.WinGroups);
-
-        // Factorize
-        {
-            SWinGroupArr* pWinGroups = &(windowData.WinGroups);
-            ASSERT(pWinGroups);
-            if (!pWinGroups)
-                return 0;
-            pWinGroups->Size = 0;
-            // Get mouse monitor once if filtering by monitor is enabled
-            if (windowData.StaticData->Config->AppFilterMode == AppFilterModeMouseMonitor) {
-                POINT mousePos;
-                if (GetCursorPos(&mousePos)) {
-                    windowData.MouseMonitor = MonitorFromPoint(mousePos, MONITOR_DEFAULTTONEAREST);
-                } else {
-                    // Fall back to primary monitor if GetCursorPos fails
-                    windowData.MouseMonitor = MonitorFromPoint((POINT) { 0, 0 }, MONITOR_DEFAULTTOPRIMARY);
-                }
-            } else {
-                windowData.MouseMonitor = NULL; // Explicitly set NULL when not filtering by monitor
-            }
-            EnumWindows(FillWinGroups, (LPARAM)&windowData);
-            windowData.Selection = 0;
-            windowData.MouseSelection = 0;
-
-            if (windowData.WinGroups.Size == 0)
-                return 0;
-
-            ComputeMetrics(windowData.WinGroups.Size,
-                windowData.StaticData->Config->Scale,
-                &windowData.Metrics,
-                windowData.StaticData->Config->MultipleMonitorMode == MultipleMonitorModeMouse);
-
-            // Needed for exact client area.
-            RECT r = {
-                (LONG)windowData.Metrics.WinPosX,
-                (LONG)windowData.Metrics.WinPosY,
-                (LONG)(windowData.Metrics.WinPosX + windowData.Metrics.WinX),
-                (LONG)(windowData.Metrics.WinPosY + windowData.Metrics.WinY)
-            };
-            AdjustWindowRect(&r, (DWORD)GetWindowLong(hwnd, GWL_STYLE), false);
-            SetWindowPos(hwnd, 0, r.left, r.top, r.right - r.left, r.bottom - r.top, 0);
-
-            // Rounded corners for Win 11
-            // Values are from cpp enums DWMWINDOWATTRIBUTE and DWM_WINDOW_CORNER_PREFERENCE
-            const uint32_t rounded = 2;
-            DwmSetWindowAttribute(hwnd, 33, &rounded, sizeof(rounded));
-            InvalidateRect(hwnd, NULL, FALSE);
-            UpdateWindow(hwnd);
-            const DWORD ret = SetForegroundWindow(hwnd);
-            (void)ret;
-            // ASSERT(ret != 0);
-            windowData.MainWin = hwnd;
-
-            {
-                RECT clientRect;
-                ASSERT(GetWindowRect(hwnd, &clientRect));
-
-                HDC winDC = GetDC(hwnd);
-                ASSERT(winDC);
-                windowData.DC = CreateCompatibleDC(winDC);
-                ASSERT(windowData.DC != NULL);
-                windowData.Bitmap = CreateCompatibleBitmap(
-                    winDC,
-                    clientRect.right - clientRect.left,
-                    clientRect.bottom - clientRect.top);
-                ASSERT(windowData.Bitmap != NULL);
-                ReleaseDC(hwnd, winDC);
-            }
-
-            SetLayeredWindowAttributes(hwnd, 0, 0, LWA_ALPHA);
-            ShowWindow(hwnd, SW_SHOW);
-            RECT clientRect = { 0, 0, (LONG)windowData.Metrics.WinX, (LONG)windowData.Metrics.WinY };
-            Draw(&windowData, GetDC(hwnd), clientRect);
-            SetLayeredWindowAttributes(hwnd, 0, 255, LWA_ALPHA);
-
-            SetCapture(hwnd);
-            // Otherwise cursor is busy on hover. I don't understand why.
-            SetCursor(LoadCursor(NULL, IDC_ARROW));
-
-            if (!windowData.StaticData->Config->DebugDisableIconFocus) {
-                for (int i = 0; i < windowData.WinGroups.Size; i++) {
-                    const int iconContainerSize = (int)windowData.Metrics.Container;
-                    const int pad = (int)windowData.Metrics.Pad;
-                    int x = pad + (i * iconContainerSize);
-                    focusWindows[i] = CreateWindowEx(0, FOCUS_CLASS_NAME, NULL,
-                        WS_CHILD /* | WS_VISIBLE */,
-                        x, pad, iconContainerSize, iconContainerSize,
-                        hwnd, NULL, windowData.StaticData->Instance, &windowData);
-                }
-            }
-        }
-
+        Init(&windowData);
         return 0;
     }
     case WM_LBUTTONUP: {
+        ASSERT(windowData.StaticData);
+        ASSERT(windowData.StaticData->Config);
         if (!IsInside(GET_X_LPARAM(lParam), GET_Y_LPARAM(lParam), hwnd)) {
             DestroyWin(&windowData.MainWin);
             ClearWinGroupArr(&windowData.WinGroups);

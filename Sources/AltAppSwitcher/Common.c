@@ -206,7 +206,7 @@ static LRESULT WorkerWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lPar
     return DefWindowProc(hwnd, uMsg, wParam, lParam);
 }
 
-static char WorkerClassName[] = "AASWorkerX";
+static char WorkerClassName[] = "AASWorker";
 
 void CommonInit(HINSTANCE instance)
 {
@@ -214,7 +214,7 @@ void CommonInit(HINSTANCE instance)
     wc.lpfnWndProc = WorkerWindowProc;
     wc.hInstance = instance;
     wc.lpszClassName = WorkerClassName;
-    wc.cbWndExtra = sizeof(struct WindowData*);
+    wc.cbWndExtra = sizeof(void*);
     wc.style = 0;
     wc.hbrBackground = NULL;
     ASSERT(RegisterClass(&wc));
