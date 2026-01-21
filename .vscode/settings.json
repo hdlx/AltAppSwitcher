@@ -1,0 +1,7 @@
+{
+    "clangd.arguments": [
+        "--header-insertion=never",
+        "--function-arg-placeholders=0"
+    ],
+    "clangd.enableCodeCompletion": true,
+}
