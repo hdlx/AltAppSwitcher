@@ -5,4 +5,4 @@ bool IsEligibleWindow(HWND hwnd, const struct Config* cfg, HMONITOR mouseMonitor
 int Modulo(int a, int b);
 void CommonInit(HINSTANCE instance);
 void CommonDeinit(HINSTANCE instance);
-void ApplyWithTimeout(void (*fn)(void*), void* data, HINSTANCE instance);
+void ApplyWithTimeout(void (*fn)(void*), void* data, HINSTANCE instance, HWND parentWin);

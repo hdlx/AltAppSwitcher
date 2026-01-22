@@ -1525,7 +1525,7 @@ static void DeinitApp(struct WindowData* windowData)
     ASSERT(windowData->StaticData->Instance);
     if (!windowData->StaticData->Instance)
         return;
-    ApplyWithTimeout(Apply, windowData, windowData->StaticData->Instance);
+    ApplyWithTimeout(Apply, windowData, windowData->StaticData->Instance, windowData->MainWin);
 #else
     ApplySwitchApp(&appData->WinGroups.Data[appData->Selection]);
 #endif
@@ -1728,7 +1728,7 @@ static LRESULT CALLBACK MainWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPAR
             return 0;
         }
 #ifdef ASYNC_APPLY
-        ApplyWithTimeout(ApplyMouse, &windowData, windowData.StaticData->Instance);
+        ApplyWithTimeout(ApplyMouse, &windowData, windowData.StaticData->Instance, hwnd);
 #else
         ApplySwitchApp(&appData->WinGroups.Data[appData->MouseSelection]);
 #endif

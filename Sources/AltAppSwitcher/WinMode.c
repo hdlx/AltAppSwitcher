@@ -286,13 +286,15 @@ static void NextWin(void* windowDataVoidPtr)
     if (windowData->StaticData->Config->RestoreMinimizedWindows)
         RestoreWin(windowData->CurrentWinGroup.Windows[windowData->Selection]);
     // SetWindowPos(windowData->CurrentWinGroup.Windows[windowData->Selection], HWND_TOPMOST, 0, 0, 0, 0, SWP_NOACTIVATE | SWP_NOREPOSITION | SWP_NOSIZE | SWP_NOMOVE);
-    // SetWindowPos(windowData->CurrentWinGroup.Windows[windowData->Selection], HWND_TOP, 0, 0, 0, 0, SWP_NOACTIVATE | SWP_NOREPOSITION | SWP_NOSIZE | SWP_NOMOVE);
+    SetWindowPos(windowData->CurrentWinGroup.Windows[windowData->Selection], HWND_TOP, 0, 0, 0, 0, SWP_NOACTIVATE | SWP_NOSIZE | SWP_NOMOVE);
     // WINBOOL r = SetForegroundWindow(windowData->CurrentWinGroup.Windows[windowData->Selection]);
-    UIASetFocus(windowData->CurrentWinGroup.Windows[windowData->Selection]);
+    SetForegroundWindow(windowData->CurrentWinGroup.Windows[windowData->Selection]);
+    SetForegroundWindow(windowData->MainWin);
+    // UIASetFocus(windowData->CurrentWinGroup.Windows[windowData->Selection]);
     // SetFocus(windowData->CurrentWinGroup.Windows[windowData->Selection]);
     // ASSERT(r != 0);
     // SetFocus(windowData->CurrentWinGroup.Windows[windowData->Selection]);
-    SetForegroundWindow(windowData->MainWin);
+    // UIASetFocus(windowData->MainWin);
 
     // UIASetFocus()
 }
@@ -344,7 +346,7 @@ static LRESULT MainWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
         SetFocus(hwnd);
         SetForegroundWindow(hwnd);
 #ifdef ASYNC
-        ApplyWithTimeout(NextWin, &windowData, StaticData.Instance);
+        ApplyWithTimeout(NextWin, &windowData, StaticData.Instance, hwnd);
 #else
         NextWin(&windowData);
 #endif
@@ -375,7 +377,7 @@ static LRESULT MainWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
             windowData.Selection += invert ? -x : x;
             windowData.Selection = Modulo(windowData.Selection, (int)windowData.CurrentWinGroup.WindowCount);
 #ifdef ASYNC
-            ApplyWithTimeout(NextWin, &windowData, StaticData.Instance);
+            ApplyWithTimeout(NextWin, &windowData, StaticData.Instance, hwnd);
 #else
             NextWin(&windowData);
 #endif
@@ -385,7 +387,7 @@ static LRESULT MainWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
     }
     case WM_CLOSE: {
 #ifdef ASYNC
-        ApplyWithTimeout(ApplyWin, &windowData, StaticData.Instance);
+        ApplyWithTimeout(ApplyWin, &windowData, StaticData.Instance, hwnd);
 #else
         ApplyWin(&windowData);
 #endif

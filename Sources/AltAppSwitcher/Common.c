@@ -178,6 +178,7 @@ struct WorkerArg {
     HANDLE workerReady;
     HINSTANCE instance;
     HWND workerWin;
+    HWND parentWin;
 };
 
 static LRESULT WorkerWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
@@ -230,7 +231,7 @@ static DWORD WorkerThread(LPVOID data)
     struct WorkerArg* arg = (struct WorkerArg*)data;
     // PeekMessage(&msg, 0, 0, 0, PM_NOREMOVE);
     arg->workerWin = CreateWindowEx(WS_EX_TOPMOST, WorkerClassName, NULL, WS_POPUP,
-        0, 0, 0, 0, HWND_MESSAGE, NULL, arg->instance, arg);
+        0, 0, 0, 0, arg->parentWin, NULL, arg->instance, arg);
     SetEvent(arg->workerReady);
 
     MSG msg = {};
@@ -242,13 +243,14 @@ static DWORD WorkerThread(LPVOID data)
 }
 
 // https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-postthreadmessagea
-void ApplyWithTimeout(void (*fn)(void*), void* data, HINSTANCE instance)
+void ApplyWithTimeout(void (*fn)(void*), void* data, HINSTANCE instance, HWND parentWin)
 {
     struct WorkerArg wa = {
         .fn = fn,
         .data = data,
         .workerReady = CreateEvent(NULL, TRUE, FALSE, "workerReady"),
-        .instance = instance
+        .instance = instance,
+        .parentWin = parentWin
     };
     DWORD tid;
     HANDLE ht = CreateThread(NULL, 0, WorkerThread, (void*)&wa, 0, &tid);
