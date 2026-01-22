@@ -254,6 +254,7 @@ void ApplyWithTimeout(void (*fn)(void*), void* data, HINSTANCE instance)
     HANDLE ht = CreateThread(NULL, 0, WorkerThread, (void*)&wa, 0, &tid);
     WaitForSingleObject(wa.workerReady, INFINITE);
     SetForegroundWindow(wa.workerWin);
+    SetFocus(wa.workerWin);
     PostMessage(wa.workerWin, WM_CLOSE, 0, 0);
     if (WaitForSingleObject(ht, 500) != WAIT_OBJECT_0)
         TerminateThread(ht, 0);

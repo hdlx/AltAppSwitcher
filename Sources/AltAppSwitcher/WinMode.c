@@ -253,8 +253,8 @@ static void RestoreWin(HWND win)
         SetWindowPos(win, HWND_TOP, 0, 0, 0, 0, SWP_NOSIZE | SWP_NOMOVE | SWP_NOOWNERZORDER | SWP_NOZORDER | SWP_ASYNCWINDOWPOS | SWP_NOACTIVATE); // Why this call?
     }
 }
-/*
-static void UIASetFocus(HWND win)
+
+void UIASetFocus(HWND win)
 {
     CoInitializeEx(NULL, COINIT_APARTMENTTHREADED);
     IUIAutomation* UIA = NULL;
@@ -271,7 +271,6 @@ static void UIASetFocus(HWND win)
     IUIAutomation_Release(UIA);
     CoUninitialize();
 }
-*/
 
 typedef struct ApplySwitchAppData {
     HWND Data[64];
@@ -286,10 +285,16 @@ static void NextWin(void* windowDataVoidPtr)
         return;
     if (windowData->StaticData->Config->RestoreMinimizedWindows)
         RestoreWin(windowData->CurrentWinGroup.Windows[windowData->Selection]);
-    SetWindowPos(windowData->CurrentWinGroup.Windows[windowData->Selection], windowData->MainWin, 0, 0, 0, 0, SWP_NOSIZE | SWP_NOMOVE | SWP_NOACTIVATE);
-    WINBOOL r = SetForegroundWindow(windowData->CurrentWinGroup.Windows[windowData->Selection]);
-    ASSERT(r != 0);
+    // SetWindowPos(windowData->CurrentWinGroup.Windows[windowData->Selection], HWND_TOPMOST, 0, 0, 0, 0, SWP_NOACTIVATE | SWP_NOREPOSITION | SWP_NOSIZE | SWP_NOMOVE);
+    // SetWindowPos(windowData->CurrentWinGroup.Windows[windowData->Selection], HWND_TOP, 0, 0, 0, 0, SWP_NOACTIVATE | SWP_NOREPOSITION | SWP_NOSIZE | SWP_NOMOVE);
+    // WINBOOL r = SetForegroundWindow(windowData->CurrentWinGroup.Windows[windowData->Selection]);
+    UIASetFocus(windowData->CurrentWinGroup.Windows[windowData->Selection]);
+    // SetFocus(windowData->CurrentWinGroup.Windows[windowData->Selection]);
+    // ASSERT(r != 0);
+    // SetFocus(windowData->CurrentWinGroup.Windows[windowData->Selection]);
     SetForegroundWindow(windowData->MainWin);
+
+    // UIASetFocus()
 }
 
 static void ApplyWin(void* windowDataVoidPtr)
@@ -298,7 +303,8 @@ static void ApplyWin(void* windowDataVoidPtr)
     if (!windowData)
         return;
     // UIASetFocus(windowData->CurrentWinGroup.Windows[windowData->Selection]);
-    SetForegroundWindow(windowData->MainWin);
+    SetFocus(windowData->CurrentWinGroup.Windows[windowData->Selection]);
+    // SetForegroundWindow(windowData->CurrentWinGroup.Windows[windowData->Selection]);
 }
 #define ASYNC
 
