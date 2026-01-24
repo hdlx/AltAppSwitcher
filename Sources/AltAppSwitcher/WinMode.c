@@ -13,6 +13,7 @@
 #include <appmodel.h>
 #include <unistd.h>
 #include <uiautomationclient.h>
+#include <stdio.h>
 #undef COBJMACROS
 #include "Config/Config.h"
 #include "Utils/Error.h"
@@ -284,11 +285,16 @@ static void NextWin(void* windowDataVoidPtr)
     ASSERT(windowData);
     if (windowData->Selection >= windowData->CurrentWinGroup.WindowCount)
         return;
+    HWND win = windowData->CurrentWinGroup.Windows[windowData->Selection];
+    DWORD targetWinThread = GetWindowThreadProcessId(win, NULL);
+    AttachThreadInput(targetWinThread, GetCurrentThreadId(), TRUE);
+
     if (windowData->StaticData->Config->RestoreMinimizedWindows)
         RestoreWin(windowData->CurrentWinGroup.Windows[windowData->Selection]);
-    SetWindowPos(windowData->CurrentWinGroup.Windows[windowData->Selection], windowData->MainWin, 0, 0, 0, 0, SWP_NOSIZE | SWP_NOMOVE | SWP_NOACTIVATE);
-    WINBOOL r = SetForegroundWindow(windowData->CurrentWinGroup.Windows[windowData->Selection]);
+    WINBOOL r = SetWindowPos(windowData->CurrentWinGroup.Windows[windowData->Selection], HWND_TOP, 0, 0, 0, 0, SWP_NOSIZE | SWP_NOMOVE | SWP_NOACTIVATE);
     ASSERT(r != 0);
+    AttachThreadInput(targetWinThread, GetCurrentThreadId(), FALSE);
+    printf("Selection is %i", windowData->Selection);
     SetForegroundWindow(windowData->MainWin);
 }
 
@@ -351,6 +357,7 @@ static LRESULT MainWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
     }
     case WM_SYSKEYDOWN:
     case WM_KEYDOWN: {
+        printf("\nkey msg\n");
         ASSERT(windowData.StaticData);
         ASSERT(windowData.StaticData->Config);
         int x = 0;
