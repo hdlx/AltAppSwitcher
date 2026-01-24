@@ -13,7 +13,6 @@
 #include <appmodel.h>
 #include <unistd.h>
 #include <uiautomationclient.h>
-#include <stdio.h>
 #undef COBJMACROS
 #include "Config/Config.h"
 #include "Utils/Error.h"
@@ -215,9 +214,9 @@ static BOOL FillCurrentWinGroup(HWND hwnd, LPARAM lParam)
     return true;
 }
 
-static void InitializeSwitchWin(struct WindowData* windowData)
+static void InitializeSwitchWin(HWND foregroundWindow, struct WindowData* windowData)
 {
-    HWND win = GetForegroundWindow();
+    HWND win = foregroundWindow;
     ASSERT(win);
     while (true) {
         if (!win || IsEligibleWindow(win, windowData->StaticData->Config, windowData->MouseMonitor, false))
@@ -282,7 +281,8 @@ typedef struct ApplySwitchAppData {
 static void NextWin(void* windowDataVoidPtr)
 {
     struct WindowData* windowData = windowDataVoidPtr;
-    if (!windowData)
+    ASSERT(windowData);
+    if (windowData->Selection >= windowData->CurrentWinGroup.WindowCount)
         return;
     if (windowData->StaticData->Config->RestoreMinimizedWindows)
         RestoreWin(windowData->CurrentWinGroup.Windows[windowData->Selection]);
@@ -321,16 +321,21 @@ static HWND GetFirstChild(HWND win)
 }
 #endif
 
+struct MainWindowArg {
+    HWND ForegroundWindow;
+    struct StaticData* StaticData;
+};
 static LRESULT MainWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 {
     static struct WindowData windowData = {};
 
     switch (uMsg) {
     case WM_CREATE: {
+        struct MainWindowArg* arg = (struct MainWindowArg*)((CREATESTRUCTA*)lParam)->lpCreateParams;
         windowData = (struct WindowData) {};
         windowData.MainWin = hwnd;
-        windowData.StaticData = (struct StaticData*)((CREATESTRUCTA*)lParam)->lpCreateParams;
-        InitializeSwitchWin(&windowData);
+        windowData.StaticData = arg->StaticData;
+        InitializeSwitchWin(arg->ForegroundWindow, &windowData);
         windowData.Selection = 0;
         const bool invert = GetAsyncKeyState((SHORT)windowData.StaticData->Config->Key.Invert) & 0x8000;
         windowData.Selection += invert ? -1 : 1;
@@ -434,8 +439,17 @@ HWND WinModeCreateWindow()
     );
     */
 
+    HWND fgwin = GetForegroundWindow();
+    if (!fgwin)
+        return NULL;
+
+    struct MainWindowArg arg = {
+        .StaticData = &StaticData,
+        .ForegroundWindow = fgwin
+    };
+
     HWND hwnd = CreateWindowEx(WS_EX_TOPMOST, MAIN_CLASS_NAME, NULL, WS_POPUP,
-        0, 0, 0, 0, HWND_MESSAGE, NULL, StaticData.Instance, &StaticData);
+        0, 0, 0, 0, HWND_MESSAGE, NULL, StaticData.Instance, &arg);
 
     SetForegroundWindow(hwnd);
     SetFocus(hwnd);
