@@ -1457,6 +1457,11 @@ static int ProcessKeys(struct WindowData* windowData, UINT uMsg, WPARAM wParam)
         ASSERT(windowData)
         ASSERT(windowData->StaticData)
         ASSERT(windowData->StaticData->Config)
+        if (wParam == VK_ESCAPE) {
+            DestroyWin(&windowData->MainWin);
+            ClearWinGroupArr(&windowData->WinGroups);
+            return 0;
+        }
         int x = 0;
         if (
             wParam == windowData->StaticData->Config->Key.AppSwitch
