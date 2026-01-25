@@ -68,12 +68,13 @@ static void CopyFile(const char* srcStr, const char* dstStr)
         return;
     }
     unsigned char buf[1024] = {};
-    int size = 1;
-    while (size) {
+    while (true) {
         int a = fseek(src, 0, SEEK_CUR);
         ASSERT(a == 0);
-        size = (int)fread(buf, sizeof(char), sizeof(buf), src);
-        size_t b = (int)fwrite(buf, sizeof(char), size, dst);
+        size_t size = fread(buf, sizeof(char), sizeof(buf), src);
+        if (size == 0)
+            break;
+        size_t b = fwrite(buf, sizeof(char), size, dst);
         ASSERT(b > 0);
     }
     int a = fclose(src);
