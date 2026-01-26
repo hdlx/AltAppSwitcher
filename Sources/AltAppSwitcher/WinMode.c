@@ -294,17 +294,19 @@ static void NextWin(void* windowDataVoidPtr)
     WINBOOL r = SetWindowPos(windowData->CurrentWinGroup.Windows[windowData->Selection], HWND_TOP, 0, 0, 0, 0, SWP_NOSIZE | SWP_NOMOVE | SWP_NOACTIVATE);
     ASSERT(r != 0);
     AttachThreadInput(targetWinThread, GetCurrentThreadId(), FALSE);
-    printf("Selection is %i", windowData->Selection);
     SetForegroundWindow(windowData->MainWin);
 }
 
 static void ApplyWin(void* windowDataVoidPtr)
 {
     struct WindowData* windowData = windowDataVoidPtr;
-    if (!windowData)
-        return;
+    ASSERT(windowData);
+    HWND win = windowData->CurrentWinGroup.Windows[windowData->Selection];
+    // DWORD targetWinThread = GetWindowThreadProcessId(win, NULL);
+    // AttachThreadInput(targetWinThread, GetCurrentThreadId(), TRUE);
     // UIASetFocus(windowData->CurrentWinGroup.Windows[windowData->Selection]);
-    SetForegroundWindow(windowData->MainWin);
+    SetForegroundWindow(win);
+    // AttachThreadInput(targetWinThread, GetCurrentThreadId(), FALSE);
 }
 #define ASYNC
 
