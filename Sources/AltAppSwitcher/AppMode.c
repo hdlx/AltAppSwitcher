@@ -1014,6 +1014,8 @@ void AppModeDeinit()
 
 HWND AppModeCreateWindow()
 {
+    DWORD fgwinthread = GetWindowThreadProcessId(GetForegroundWindow(), NULL);
+    AttachThreadInput(GetCurrentThreadId(), fgwinthread, TRUE);
     HWND hwnd = CreateWindowEx(
         WS_EX_TOPMOST | WS_EX_TOOLWINDOW | WS_EX_LAYERED, // Optional window styles (WS_EX_)
         MAIN_CLASS_NAME, // Window class
@@ -1030,6 +1032,8 @@ HWND AppModeCreateWindow()
         &StaticData // Additional application data
     );
     ASSERT(hwnd);
+    SetForegroundWindow(hwnd);
+    AttachThreadInput(GetCurrentThreadId(), fgwinthread, FALSE);
     return hwnd;
 }
 
