@@ -1639,8 +1639,6 @@ static void Init(struct WindowData* windowData)
     SetLayeredWindowAttributes(windowData->MainWin, 0, 255, LWA_ALPHA);
 
     SetCapture(windowData->MainWin);
-    // Otherwise cursor is busy on hover. I don't understand why.
-    SetCursor(LoadCursor(NULL, IDC_ARROW));
 
     if (!windowData->StaticData->Config->DebugDisableIconFocus) {
         for (int i = 0; i < windowData->WinGroups.Size; i++) {
@@ -1667,6 +1665,8 @@ static LRESULT CALLBACK MainWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPAR
     case WM_MOUSEMOVE: {
         ASSERT(windowData.StaticData);
         ASSERT(windowData.StaticData->Config);
+        // Otherwise cursor is busy on hover. I don't understand why.
+        SetCursor(LoadCursor(NULL, IDC_ARROW));
         if (!windowData.StaticData->Config->Mouse)
             return 0;
         const int iconContainerSize = (int)windowData.Metrics.Container;
