@@ -359,7 +359,6 @@ static LRESULT MainWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
     }
     case WM_SYSKEYDOWN:
     case WM_KEYDOWN: {
-        printf("\nkey msg\n");
         ASSERT(windowData.StaticData);
         ASSERT(windowData.StaticData->Config);
         int x = 0;
@@ -447,22 +446,21 @@ HWND WinModeCreateWindow()
         &StaticData // Additional application data
     );
     */
-
     HWND fgwin = GetForegroundWindow();
     if (!fgwin)
         return NULL;
-
+    DWORD fgwinthread = GetWindowThreadProcessId(fgwin, NULL);
+    AttachThreadInput(GetCurrentThreadId(), fgwinthread, TRUE);
     struct MainWindowArg arg = {
         .StaticData = &StaticData,
         .ForegroundWindow = fgwin
     };
-
     HWND hwnd = CreateWindowEx(WS_EX_TOPMOST, MAIN_CLASS_NAME, NULL, WS_POPUP,
         0, 0, 0, 0, HWND_MESSAGE, NULL, StaticData.Instance, &arg);
-
-    SetForegroundWindow(hwnd);
-    SetFocus(hwnd);
     ASSERT(hwnd);
+    SetForegroundWindow(hwnd);
+    AttachThreadInput(GetCurrentThreadId(), fgwinthread, FALSE);
+
     return hwnd;
 }
 
