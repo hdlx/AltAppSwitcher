@@ -1138,7 +1138,11 @@ static void ApplySwitchApp(const SWinGroup* winGroup, bool restoreMinimized)
     ret = EndDeferWindowPos(dwp);
     VERIFY(ret != 0);
 
-#if true
+#if false
+    // Setting focus forces focus to parent window, which is not desirable.
+    // I.e., it overrides child window focus, like notepad++ text area.
+    // Instead we should activate (or set foreground?).
+    // Set window pos should already activate.
     SetFocus(winGroup->Windows[0]);
 #endif
 
