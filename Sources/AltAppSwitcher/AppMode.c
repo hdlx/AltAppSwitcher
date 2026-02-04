@@ -39,7 +39,7 @@ static LRESULT MainWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 #define MAX_WIN_GROUPS 64u
 
 typedef struct SWinGroup {
-    char ModuleFileName[MAX_PATH];
+    char AUMI[MAX_PATH];
     ATOM WinClass;
     wchar_t AppName[MAX_PATH];
     wchar_t Caption[MAX_PATH];
@@ -219,10 +219,66 @@ static void DeinitGraphicsResources(struct GraphicsResources* pRes)
     ASSERT(Ok == GdipDeleteStringFormat(pRes->pFormat));
 }
 
-static BOOL GetProcessFileName(DWORD PID, char* outFileName)
+static void wcharToChar(char* dst, const wchar_t* src)
+{
+    while (*src != L'\0') {
+        *dst = (char)*src;
+        dst++;
+        src++;
+    }
+    *dst = '\0';
+}
+
+static BOOL GetWindowAUMI(HWND window, char* outUMI)
+{
+    PCWSTR aumid = (PCWSTR)GetPropW(window, L"AppUserModelID");
+    (void)aumid;
+    IPropertyStore* propertyStore;
+    HRESULT res = SHGetPropertyStoreForWindow(window, &IID_IPropertyStore, (void**)&propertyStore);
+    if (res != S_OK)
+        return false;
+    PROPVARIANT pv = {};
+    PropVariantInit(&pv);
+    res = IPropertyStore_GetValue(propertyStore, &PKEY_AppUserModel_ID, &pv);
+    if (res != S_OK)
+        return false;
+    if (pv.vt != VT_LPWSTR && pv.vt != VT_LPSTR)
+        return false;
+    strcpy_s(outUMI, 512 * sizeof(char), pv.pcVal);
+    return true;
+}
+
+static BOOL GetProcessAUMI_dbg(DWORD PID, char* outFileName)
+{
+    static HRESULT (*GetProcessExplicitAppUserModelID)(HANDLE, PWSTR*) = NULL;
+    if (!GetProcessExplicitAppUserModelID) {
+        HMODULE shell32 = LoadLibraryW(L"shell32.dll");
+        if (!shell32)
+            return false;
+        GetProcessExplicitAppUserModelID = (HRESULT (*)(HANDLE, PWSTR*))GetProcAddress(shell32, "GetProcessExplicitAppUserModelID");
+    }
+    if (!GetProcessExplicitAppUserModelID)
+        return false;
+    const HANDLE process = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, FALSE, PID);
+    static wchar_t AUMI[512];
+    HRESULT res = GetProcessExplicitAppUserModelID(process, (PWSTR*)&AUMI);
+    CloseHandle(process);
+    if (SUCCEEDED(res))
+        return false;
+    wcharToChar(outFileName, AUMI);
+    return true;
+}
+
+static BOOL GetProcessAUMI(DWORD PID, char* outFileName)
 {
     const HANDLE process = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, FALSE, PID);
-    GetModuleFileNameEx(process, NULL, outFileName, 512);
+    wchar_t UMI[512];
+    uint32_t size = 512;
+    LONG res = GetApplicationUserModelId(process, &size, UMI);
+    if (res == ERROR_SUCCESS)
+        wcharToChar(outFileName, UMI);
+    else
+        GetModuleFileNameEx(process, NULL, outFileName, 512);
     CloseHandle(process);
     return true;
 }
@@ -301,13 +357,13 @@ static void FindActualPID(HWND hwnd, DWORD* PID)
     static char className[512];
     GetClassName(hwnd, className, 512);
     {
-        wchar_t UMI[512];
         GetWindowThreadProcessId(hwnd, PID);
         const HANDLE proc = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, FALSE, *PID);
         uint32_t size = 512;
-        BOOL isUWP = GetApplicationUserModelId(proc, &size, UMI) == ERROR_SUCCESS;
+        wchar_t UMI[512];
+        HRESULT res = GetApplicationUserModelId(proc, &size, UMI);
         CloseHandle(proc);
-        if (isUWP) {
+        if (SUCCEEDED(res)) {
             return;
         }
     }
@@ -765,8 +821,10 @@ static BOOL FillWinGroups(HWND hwnd, LPARAM lParam)
     DWORD PID = 0;
 
     FindActualPID(hwnd, &PID);
-    static char moduleFileName[512];
-    GetProcessFileName(PID, moduleFileName);
+    static char AUMI[512];
+    BOOL found = GetWindowAUMI(hwnd, AUMI);
+    if (!found)
+        GetProcessAUMI_dbg(PID, AUMI);
 
     ATOM winClass = IsRunWindow(hwnd) ? 0x8002 : 0; // Run
 
@@ -784,7 +842,7 @@ static BOOL FillWinGroups(HWND hwnd, LPARAM lParam)
     if (windowData->StaticData->Config->AppSwitcherMode == AppSwitcherModeApp) {
         for (uint32_t i = 0; i < winAppGroupArr->Size; i++) {
             SWinGroup* const group = &(winAppGroupArr->Data[i]);
-            if (group->WinClass == winClass && !strcmp(group->ModuleFileName, moduleFileName)) {
+            if (group->WinClass == winClass && !strcmp(group->AUMI, AUMI)) {
                 // Group found
                 static wchar_t caption[MAX_PATH];
                 caption[0] = L'\0';
@@ -819,7 +877,7 @@ static BOOL FillWinGroups(HWND hwnd, LPARAM lParam)
             return true;
 
         group = &winAppGroupArr->Data[winAppGroupArr->Size++];
-        strcpy_s(group->ModuleFileName, sizeof(group->ModuleFileName), moduleFileName);
+        strcpy_s(group->AUMI, sizeof(group->AUMI), AUMI);
         group->WinClass = winClass;
         ASSERT(group->WindowCount == 0);
 
@@ -846,10 +904,12 @@ static BOOL FillWinGroups(HWND hwnd, LPARAM lParam)
         }
 
         if (!isUWP) {
-            group->IconBitmap = GetIconFromExe(group->ModuleFileName);
+            static char moduleFileName[512] = {};
+            GetProcessAUMI(PID, moduleFileName);
+            group->IconBitmap = GetIconFromExe(moduleFileName);
             group->AppName[0] = L'\0';
             static wchar_t exePath[MAX_PATH];
-            size_t s = mbstowcs(exePath, group->ModuleFileName, MAX_PATH);
+            size_t s = mbstowcs(exePath, moduleFileName, MAX_PATH);
             (void)s;
             GetAppName(exePath, group->AppName);
         } else if (isUWP) {
