@@ -51,6 +51,7 @@ ALLOBJECTS = $(patsubst $(ROOTDIR)/%.c, $(OBJDIR)/%.o, $(ALLC))
 
 # Subsets, for link.
 AASOBJECTS = $(filter $(OBJDIR)/Sources/AltAppSwitcher/%, $(ALLOBJECTS))
+AASDLLOBJECTS = $(filter $(OBJDIR)/Sources/AltAppSwitcherDll/%, $(ALLOBJECTS))
 CONFIGOBJECTS = $(filter $(OBJDIR)/Sources/Config/%, $(ALLOBJECTS))
 SETTINGSOBJECTS = $(filter $(OBJDIR)/Sources/Settings/%, $(ALLOBJECTS))
 UPDATEROBJECTS = $(filter $(OBJDIR)/Sources/Updater/%, $(ALLOBJECTS))
@@ -66,7 +67,8 @@ SETTINGSLIB = -l Comctl32 -l Gdi32
 UPDATERLIBS = -l zip -l zlibstatic -l bcrypt -l curl -l curl.dll
 
 AASASSETS = $(patsubst $(ROOTDIR)/Assets/AAS/%, $(AASBUILDDIR)/%, $(wildcard $(ROOTDIR)/Assets/AAS/*))
-DLL = $(patsubst $(ROOTDIR)/SDK/Dll/$(ARCH)/%, $(AASBUILDDIR)/%, $(wildcard $(ROOTDIR)/SDK/Dll/$(ARCH)/*))
+SDKDLL = $(patsubst $(ROOTDIR)/SDK/Dll/$(ARCH)/%, $(AASBUILDDIR)/%, $(wildcard $(ROOTDIR)/SDK/Dll/$(ARCH)/*))
+AASDLL = $(AASBUILDDIR)/aasdll.dll
 
 # Do not make a non phony target depend on phony one, otherwise
 # the target will rebuild every time.
@@ -75,8 +77,9 @@ DLL = $(patsubst $(ROOTDIR)/SDK/Dll/$(ARCH)/%, $(AASBUILDDIR)/%, $(wildcard $(RO
 ALLAAS = $(AASBUILDDIR)/AltAppSwitcher.exe
 ALLAAS += $(AASBUILDDIR)/Settings.exe
 ALLAAS += $(AASBUILDDIR)/Updater.exe
+ALLAAS += $(AASBUILDDIR)/AASDll.dll
 ALLAAS += $(AASASSETS)
-ALLAAS += $(DLL)
+ALLAAS += $(SDKDLL)
 
 AASARCHIVE = $(OUTPUTDIR)/Deploy/AltAppSwitcher_$(ARCH).zip
 
@@ -115,12 +118,15 @@ $(AASBUILDDIR)/Settings.exe: $(SETTINGSOBJECTS) $(CONFIGOBJECTS) $(COMMONOBJECTS
 $(AASBUILDDIR)/Updater.exe: $(UPDATEROBJECTS) $(COMMONOBJECTS)
 	$(CC) $(LFLAGS) $(LDIRS) $(UPDATERLIBS) $^ -o $@
 
+$(AASBUILDDIR)/AASDll.dll: $(AASDLLOBJECTS) $(COMMONOBJECTS)
+	$(CC) -shared $(LFLAGS) $(LDIRS) $(AASLIBS) $^ -o $@
+
 # Assets:
 $(AASASSETS): $(AASBUILDDIR)/%: $(ROOTDIR)/Assets/AAS/%
 	python ./AAS.py Copy "$<" "$@"
 
 # Dll:
-$(DLL): $(AASBUILDDIR)/%: $(ROOTDIR)/SDK/Dll/$(ARCH)/%
+$(SDKDLL): $(AASBUILDDIR)/%: $(ROOTDIR)/SDK/Dll/$(ARCH)/%
 	python ./AAS.py Copy "$<" "$@"
 
 # Make compile_command.json (clangd)
