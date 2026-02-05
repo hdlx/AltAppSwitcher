@@ -68,7 +68,7 @@ UPDATERLIBS = -l zip -l zlibstatic -l bcrypt -l curl -l curl.dll
 
 AASASSETS = $(patsubst $(ROOTDIR)/Assets/AAS/%, $(AASBUILDDIR)/%, $(wildcard $(ROOTDIR)/Assets/AAS/*))
 SDKDLL = $(patsubst $(ROOTDIR)/SDK/Dll/$(ARCH)/%, $(AASBUILDDIR)/%, $(wildcard $(ROOTDIR)/SDK/Dll/$(ARCH)/*))
-AASDLL = $(AASBUILDDIR)/aasdll.dll
+AASDLL = $(AASBUILDDIR)/AAS.dll
 
 # Do not make a non phony target depend on phony one, otherwise
 # the target will rebuild every time.
