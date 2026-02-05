@@ -248,6 +248,7 @@ static BOOL GetWindowAUMI(HWND window, char* outUMI)
     return true;
 }
 
+/*
 static BOOL GetProcessAUMI_dbg(DWORD PID, char* outFileName)
 {
     static HRESULT (*GetProcessExplicitAppUserModelID)(HANDLE, PWSTR*) = NULL;
@@ -268,6 +269,7 @@ static BOOL GetProcessAUMI_dbg(DWORD PID, char* outFileName)
     wcharToChar(outFileName, AUMI);
     return true;
 }
+*/
 
 static BOOL GetProcessAUMI(DWORD PID, char* outFileName)
 {
@@ -824,7 +826,7 @@ static BOOL FillWinGroups(HWND hwnd, LPARAM lParam)
     static char AUMI[512];
     BOOL found = GetWindowAUMI(hwnd, AUMI);
     if (!found)
-        GetProcessAUMI_dbg(PID, AUMI);
+        GetProcessAUMI(PID, AUMI);
 
     ATOM winClass = IsRunWindow(hwnd) ? 0x8002 : 0; // Run
 
