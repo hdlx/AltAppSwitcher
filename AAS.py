@@ -55,6 +55,13 @@ def EmbedAndDeleteManifest(exePath):
     os.remove(f"{exePath}.manifest")
 
 def MakeArchive(srcDir, dstZip):
+    versionStr = ''
+    with open('Sources/Utils/Version.h', 'r') as f:
+        versionStr = f.read()
+        tokens = versionStr.split()
+        print(tokens)
+        versionStr = 'v{}_{}'.format(tokens[2], tokens[5])
+    dstZip += versionStr
     tempDir = f"{dstZip}".replace(".zip", "")
     if os.path.exists(tempDir):
         shutil.rmtree(tempDir)

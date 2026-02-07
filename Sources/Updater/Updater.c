@@ -54,7 +54,7 @@ static int GetLastAASVersion(BOOL preview, char* outVersion, char* assetURL)
     curl_easy_setopt(curl, CURLOPT_URL, "https://api.github.com/repos/hdlx/altappswitcher/releases");
     struct curl_slist* list = NULL;
     char userAgent[256] = {};
-    int a = sprintf_s(userAgent, sizeof(userAgent) / sizeof(userAgent[0]), "User-Agent: AltAppSwitcher_v%i.%i", MAJOR, MINOR);
+    int a = sprintf_s(userAgent, sizeof(userAgent) / sizeof(userAgent[0]), "User-Agent: AltAppSwitcher_v%i.%i", AAS_MAJOR, AAS_MINOR);
     ASSERT(a > 0);
     list = curl_slist_append(list, userAgent);
     list = curl_slist_append(list, "Accept: application/vnd.github+json");
@@ -100,7 +100,7 @@ static int GetLastAASVersion(BOOL preview, char* outVersion, char* assetURL)
     int x = sscanf_s(outVersion, "v%i.%i", &major, &minor);
     ASSERT(x > 0);
 
-    if (MAJOR >= major && MINOR >= minor) {
+    if (AAS_MAJOR >= major && AAS_MINOR >= minor) {
         cJSON_Delete(json);
         return 1;
     }
@@ -154,7 +154,7 @@ static void DownloadArchive(const char* dstFile, const char* url)
     curl_easy_setopt(curl, CURLOPT_URL, url);
     struct curl_slist* list = NULL;
     char userAgent[256] = {};
-    int a = sprintf_s(userAgent, sizeof(userAgent) / sizeof(userAgent[0]), "User-Agent: AltAppSwitcher_v%i.%i", MAJOR, MINOR);
+    int a = sprintf_s(userAgent, sizeof(userAgent) / sizeof(userAgent[0]), "User-Agent: AltAppSwitcher_v%i.%i", AAS_MAJOR, AAS_MINOR);
     ASSERT(a > 0);
     list = curl_slist_append(list, userAgent);
     // list = curl_slist_append(list, "Accept: application/vnd.github+json");
