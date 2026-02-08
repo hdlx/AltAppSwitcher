@@ -240,6 +240,7 @@ static BOOL GetWindowAUMI(HWND window, char* outUMI)
     PROPVARIANT pv = {};
     PropVariantInit(&pv);
     res = IPropertyStore_GetValue(propertyStore, &PKEY_AppUserModel_ID, &pv);
+    IPropertyStore_Release(propertyStore);
     if (!SUCCEEDED(res)) {
         ASSERT(false);
         return false;
@@ -250,6 +251,30 @@ static BOOL GetWindowAUMI(HWND window, char* outUMI)
     }
     if (pv.vt == VT_LPSTR) {
         strcpy_s(outUMI, 512 * sizeof(char), pv.pcVal);
+        return true;
+    }
+    return false;
+}
+
+static BOOL GetWindowIconFromPropStore(HWND window, char* outIconPath)
+{
+    IPropertyStore* propertyStore;
+    HRESULT res = SHGetPropertyStoreForWindow(window, &IID_IPropertyStore, (void**)&propertyStore);
+    if (!SUCCEEDED(res))
+        return false;
+    PROPVARIANT pv = {};
+    PropVariantInit(&pv);
+    res = IPropertyStore_GetValue(propertyStore, &PKEY_AppUserModel_RelaunchIconResource, &pv);
+    IPropertyStore_Release(propertyStore);
+    if (!SUCCEEDED(res)) {
+        return false;
+    }
+    if (pv.vt == VT_LPWSTR) {
+        wcharToChar(outIconPath, pv.pwszVal);
+        return true;
+    }
+    if (pv.vt == VT_LPSTR) {
+        strcpy_s(outIconPath, 512 * sizeof(char), pv.pcVal);
         return true;
     }
     return false;
@@ -915,31 +940,46 @@ static BOOL FillWinGroups(HWND hwnd, LPARAM lParam)
         }
         (void)stdIcon;
 #endif
+        ASSERT(group->IconBitmap == NULL);
 
-        BOOL isUWP = false;
         {
-            static wchar_t userModelID[256];
-            userModelID[0] = L'\0';
-            uint32_t userModelIDLength = 256;
-            GetApplicationUserModelId(process, &userModelIDLength, userModelID);
-            isUWP = userModelID[0] != L'\0';
+            static char iconPath[512] = {};
+            BOOL success = GetWindowIconFromPropStore(hwnd, iconPath);
+            if (success) {
+                static wchar_t iconPathW[512];
+                size_t s = mbstowcs(iconPathW, iconPath, 512);
+                (void)s;
+                GdipLoadImageFromFile(iconPathW, &group->IconBitmap);
+                wcscpy_s(group->AppName, sizeof(group->AppName), L"Non initialized name");
+            }
         }
 
-        if (!isUWP) {
-            static char moduleFileName[512] = {};
-            GetProcessAUMI(PID, moduleFileName);
-            group->IconBitmap = GetIconFromExe(moduleFileName);
-            group->AppName[0] = L'\0';
-            static wchar_t exePath[MAX_PATH];
-            size_t s = mbstowcs(exePath, moduleFileName, MAX_PATH);
-            (void)s;
-            GetAppName(exePath, group->AppName);
-        } else if (isUWP) {
-            static wchar_t iconPath[MAX_PATH];
-            iconPath[0] = L'\0';
-            group->AppName[0] = L'\0';
-            GetUWPIconAndAppName(process, iconPath, group->AppName, windowData);
-            GdipLoadImageFromFile(iconPath, &group->IconBitmap);
+        if (group->IconBitmap == NULL) {
+            BOOL isUWP = false;
+            {
+                static wchar_t userModelID[256];
+                userModelID[0] = L'\0';
+                uint32_t userModelIDLength = 256;
+                GetApplicationUserModelId(process, &userModelIDLength, userModelID);
+                isUWP = userModelID[0] != L'\0';
+            }
+
+            if (!isUWP) {
+                static char moduleFileName[512] = {};
+                GetProcessAUMI(PID, moduleFileName);
+                group->IconBitmap = GetIconFromExe(moduleFileName);
+                group->AppName[0] = L'\0';
+                static wchar_t exePath[MAX_PATH];
+                size_t s = mbstowcs(exePath, moduleFileName, MAX_PATH);
+                (void)s;
+                GetAppName(exePath, group->AppName);
+            } else if (isUWP) {
+                static wchar_t iconPath[MAX_PATH];
+                iconPath[0] = L'\0';
+                group->AppName[0] = L'\0';
+                GetUWPIconAndAppName(process, iconPath, group->AppName, windowData);
+                GdipLoadImageFromFile(iconPath, &group->IconBitmap);
+            }
         }
 
         {
