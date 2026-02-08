@@ -72,7 +72,7 @@ AASDLL = $(AASBUILDDIR)/AAS.dll
 
 # Do not make a non phony target depend on phony one, otherwise
 # the target will rebuild every time.
-.PHONY: default clean directories deploy
+.PHONY: default clean directories
 
 ALLAAS = $(AASBUILDDIR)/AltAppSwitcher.exe
 ALLAAS += $(AASBUILDDIR)/Settings.exe
@@ -81,21 +81,13 @@ ALLAAS += $(AASBUILDDIR)/AASDll.dll
 ALLAAS += $(AASASSETS)
 ALLAAS += $(SDKDLL)
 
-AASARCHIVE = $(OUTPUTDIR)/Deploy/AltAppSwitcher_$(ARCH).zip
-
 COMPILECOMMANDS = $(SOURCEDIR)/compile_commands.json
 
 default: directories $(ALLAAS) $(COMPILECOMMANDS)
 
-deploy: default $(AASARCHIVE)
-
 # Directory targets:
 directories:
 	python ./AAS.py MakeDirs $(CONF) $(ARCH)
-
-# Deploy targets:
-$(AASARCHIVE): $(ALLAAS)
-	python ./AAS.py MakeArchive $(BUILDDIR)/AAS $@
 
 # Compile object targets:
 # see 4.12.1 Syntax of Static Pattern Rules
