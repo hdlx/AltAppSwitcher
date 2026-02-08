@@ -54,14 +54,20 @@ def EmbedAndDeleteManifest(exePath):
     os.system(f"mt.exe -manifest \"{exePath}.manifest\" -outputresource:\"{exePath}\"")
     os.remove(f"{exePath}.manifest")
 
-def MakeArchive(srcDir, dstZip):
+def MakeArchive(srcDir):
+    arch = ''
+    if 'aarch64' in srcDir:
+        arch = 'aarch64'
+    elif 'x86_64' in srcDir:
+        arch = 'x86_64'
+    else:
+        raise Exception("Can't resolve arch")
     versionStr = ''
     with open('Sources/Utils/Version.h', 'r') as f:
         versionStr = f.read()
         tokens = versionStr.split()
-        print(tokens)
         versionStr = 'v{}_{}'.format(tokens[2], tokens[5])
-    dstZip += versionStr
+    dstZip = f'Output/Deploy/AltAppSwitcher_{versionStr}_{arch}.zip'
     tempDir = f"{dstZip}".replace(".zip", "")
     if os.path.exists(tempDir):
         shutil.rmtree(tempDir)
@@ -91,7 +97,7 @@ if __name__ == "__main__":
     elif fn == "MakeCompileCommands":
         MakeCompileCommands(args[1], args[2:])
     elif fn == "MakeArchive":
-        MakeArchive(args[1], args[2])
+        MakeArchive(args[1])
     elif fn == "Format":
         Format()
 
