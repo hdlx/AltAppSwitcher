@@ -235,17 +235,24 @@ static BOOL GetWindowAUMI(HWND window, char* outUMI)
     (void)aumid;
     IPropertyStore* propertyStore;
     HRESULT res = SHGetPropertyStoreForWindow(window, &IID_IPropertyStore, (void**)&propertyStore);
-    if (res != S_OK)
+    if (!SUCCEEDED(res))
         return false;
     PROPVARIANT pv = {};
     PropVariantInit(&pv);
     res = IPropertyStore_GetValue(propertyStore, &PKEY_AppUserModel_ID, &pv);
-    if (res != S_OK)
+    if (!SUCCEEDED(res)) {
+        ASSERT(false);
         return false;
-    if (pv.vt != VT_LPWSTR && pv.vt != VT_LPSTR)
-        return false;
-    strcpy_s(outUMI, 512 * sizeof(char), pv.pcVal);
-    return true;
+    }
+    if (pv.vt == VT_LPWSTR) {
+        wcharToChar(outUMI, pv.pwszVal);
+        return true;
+    }
+    if (pv.vt == VT_LPSTR) {
+        strcpy_s(outUMI, 512 * sizeof(char), pv.pcVal);
+        return true;
+    }
+    return false;
 }
 
 /*
@@ -271,16 +278,25 @@ static BOOL GetProcessAUMI_dbg(DWORD PID, char* outFileName)
 }
 */
 
+static BOOL GetExplicitAUMI(DWORD TID, char* outAUMI)
+{
+    (void)TID;
+    (void)outAUMI;
+    return false;
+}
+
 static BOOL GetProcessAUMI(DWORD PID, char* outFileName)
 {
     const HANDLE process = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, FALSE, PID);
     wchar_t UMI[512];
     uint32_t size = 512;
     LONG res = GetApplicationUserModelId(process, &size, UMI);
-    if (res == ERROR_SUCCESS)
+    if (res == ERROR_SUCCESS) {
         wcharToChar(outFileName, UMI);
-    else
-        GetModuleFileNameEx(process, NULL, outFileName, 512);
+        CloseHandle(process);
+        return true;
+    }
+    GetModuleFileNameEx(process, NULL, outFileName, 512);
     CloseHandle(process);
     return true;
 }
@@ -354,12 +370,12 @@ static BOOL FindUWPChild(HWND hwnd, LPARAM lParam)
     return TRUE;
 }
 
-static void FindActualPID(HWND hwnd, DWORD* PID)
+static void FindActualPID(HWND hwnd, DWORD* PID, DWORD* TID)
 {
     static char className[512];
     GetClassName(hwnd, className, 512);
     {
-        GetWindowThreadProcessId(hwnd, PID);
+        *TID = GetWindowThreadProcessId(hwnd, PID);
         const HANDLE proc = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, FALSE, *PID);
         uint32_t size = 512;
         wchar_t UMI[512];
@@ -821,13 +837,17 @@ static BOOL FillWinGroups(HWND hwnd, LPARAM lParam)
         return true;
 
     DWORD PID = 0;
+    DWORD TID = 0;
 
-    FindActualPID(hwnd, &PID);
+    FindActualPID(hwnd, &PID, &TID);
     static char AUMI[512];
     BOOL found = GetWindowAUMI(hwnd, AUMI);
     if (!found)
+        found = GetExplicitAUMI(TID, AUMI);
+    if (!found)
         GetProcessAUMI(PID, AUMI);
 
+    printf("%s\n", AUMI);
     ATOM winClass = IsRunWindow(hwnd) ? 0x8002 : 0; // Run
 
 #if false
