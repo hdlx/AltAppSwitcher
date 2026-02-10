@@ -1146,6 +1146,11 @@ static void ApplySwitchApp(const SWinGroup* winGroup, bool restoreMinimized)
     SetFocus(winGroup->Windows[0]);
 #endif
 
+    {
+        // https://github.com/hdlx/AltAppSwitcher/issues/96
+        SetForegroundWindow(winGroup->Windows[0]);
+    }
+
     for (int i = winCount - 1; i >= 0; i--) {
         const HWND win = winGroup->Windows[Modulo(i + 1, winCount)];
         if (!IsWindow(win))
