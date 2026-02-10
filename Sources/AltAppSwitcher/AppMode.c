@@ -23,6 +23,7 @@
 #include <PropKey.h>
 #include <time.h>
 #include <Shobjidl.h>
+#include <shlobj.h>
 #include "AppxPackaging.h"
 #undef COBJMACROS
 #include "Config/Config.h"
@@ -491,6 +492,56 @@ static void StoreAppInfoToMap(struct UWPIconMap* map, const wchar_t* aumid, cons
     map->Head = Modulo((int)(map->Head + 1), UWPICONMAPSIZE);
 }
 
+static bool FindLnk(const wchar_t* dirpath, const wchar_t* userModelID)
+{
+    WIN32_FIND_DATAW findData = {};
+    HANDLE hFind = FindFirstFileW(dirpath, &findData);
+    if (hFind == INVALID_HANDLE_VALUE) {
+        FindClose(hFind);
+        return false;
+    }
+
+    wchar_t filePath[512] = {}; // Can't be static as the function is recursive
+
+    do {
+        wprintf(L"File: %s\n", findData.cFileName);
+        if (wcscmp(findData.cFileName, L"..") == 0 || wcscmp(findData.cFileName, L".") == 0)
+            continue;
+        filePath[0] = L'\0';
+        wcscpy(filePath, dirpath);
+        filePath[wcslen(filePath) - 1] = L'\0';
+        wcscat(filePath, L"/");
+        wcscat(filePath, findData.cFileName);
+        DWORD ftyp = GetFileAttributesW(filePath);
+        if (ftyp == INVALID_FILE_ATTRIBUTES)
+            continue;
+        if (ftyp & FILE_ATTRIBUTE_DIRECTORY) {
+            wcscat(filePath, L"/*");
+            FindLnk(filePath, userModelID);
+            continue;
+        }
+        unsigned int nameLen = wcslen(findData.cFileName);
+        if (nameLen > 4 && wcscmp(findData.cFileName + nameLen - 4, L".lnk") == 0) {
+            wprintf(L"Link: %s\n", filePath);
+        }
+    } while (FindNextFileW(hFind, &findData));
+    FindClose(hFind);
+    return false;
+}
+
+static bool GetAppInfoFromLnk(const wchar_t* userModelID, wchar_t* outIconPath, wchar_t* outAppName)
+{
+    (void)outAppName;
+    (void)outIconPath;
+    static wchar_t* startMenu;
+    SHGetKnownFolderPath(&FOLDERID_StartMenu, 0, 0, &startMenu);
+    static wchar_t search[512] = {};
+    search[0] = L'\0';
+    wcscpy(search, startMenu);
+    wcscat(search, L"/*");
+    return FindLnk(search, userModelID);
+}
+
 // https://github.com/microsoft/Windows-classic-samples/blob/main/Samples/AppxPackingDescribeAppx/cpp/DescribeAppx.cpp
 static void GetAppInfoFromManifest(HANDLE process, const wchar_t* userModelID, wchar_t* outIconPath, wchar_t* outAppName, struct WindowData* windowData)
 {
@@ -956,10 +1007,21 @@ static BOOL FillWinGroups(HWND hwnd, LPARAM lParam)
         }
 #endif
 
+        bool found = false;
         static wchar_t iconPath[MAX_PATH] = {};
-        bool found = GetAppInfoFromMap(&windowData->StaticData->UWPIconMap, group->AUMID, iconPath, group->AppName);
-        if (found) {
-            GdipLoadImageFromFile(iconPath, &group->IconBitmap);
+
+        {
+            found = GetAppInfoFromMap(&windowData->StaticData->UWPIconMap, group->AUMID, iconPath, group->AppName);
+            if (found) {
+                GdipLoadImageFromFile(iconPath, &group->IconBitmap);
+            }
+        }
+
+        {
+            found = GetAppInfoFromLnk(group->AUMID, iconPath, group->AppName);
+            if (found) {
+                GdipLoadImageFromFile(iconPath, &group->IconBitmap);
+            }
         }
 
         if (!found) {

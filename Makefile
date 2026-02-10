@@ -62,7 +62,7 @@ GUIOBJECTS = $(filter $(OBJDIR)/Sources/Utils/GUI%, $(ALLOBJECTS))
 SDKOBJECTS = $(filter $(OBJDIR)/SDK%, $(ALLOBJECTS))
 COMMONOBJECTS = $(ERROROBJECTS) $(FILEOBJECTS) $(MSGOBJECTS) $(SDKOBJECTS)
 
-AASLIBS = -l dwmapi -l User32 -l Gdi32 -l Gdiplus -l shlwapi -l pthread -l Ole32 -l Comctl32
+AASLIBS = -l dwmapi -l User32 -l Gdi32 -l Gdiplus -l shlwapi -l pthread -l Ole32 -l Comctl32 -l uuid
 SETTINGSLIB = -l Comctl32 -l Gdi32
 UPDATERLIBS = -l zip -l zlibstatic -l bcrypt -l curl -l curl.dll
 
