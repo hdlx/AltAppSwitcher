@@ -39,7 +39,7 @@ static LRESULT MainWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
 #define MAX_WIN_GROUPS 64u
 
 typedef struct SWinGroup {
-    char AUMI[MAX_PATH];
+    wchar_t AUMID[MAX_PATH];
     ATOM WinClass;
     wchar_t AppName[MAX_PATH];
     wchar_t Caption[MAX_PATH];
@@ -219,7 +219,7 @@ static void DeinitGraphicsResources(struct GraphicsResources* pRes)
     ASSERT(Ok == GdipDeleteStringFormat(pRes->pFormat));
 }
 
-static void wcharToChar(char* dst, const wchar_t* src)
+void wcharToChar(char* dst, const wchar_t* src)
 {
     while (*src != L'\0') {
         *dst = (char)*src;
@@ -229,7 +229,17 @@ static void wcharToChar(char* dst, const wchar_t* src)
     *dst = '\0';
 }
 
-static BOOL GetWindowAUMI(HWND window, char* outUMI)
+static void CharToWChar(wchar_t* dst, const char* src)
+{
+    while (*src != '\0') {
+        *dst = (wchar_t)*src;
+        dst++;
+        src++;
+    }
+    *dst = L'\0';
+}
+
+static BOOL GetWindowAUMI(HWND window, wchar_t* outUMI)
 {
     PCWSTR aumid = (PCWSTR)GetPropW(window, L"AppUserModelID");
     (void)aumid;
@@ -246,16 +256,17 @@ static BOOL GetWindowAUMI(HWND window, char* outUMI)
         return false;
     }
     if (pv.vt == VT_LPWSTR) {
-        wcharToChar(outUMI, pv.pwszVal);
+        wcscpy_s(outUMI, 512 * sizeof(char), pv.pwszVal);
         return true;
     }
     if (pv.vt == VT_LPSTR) {
-        strcpy_s(outUMI, 512 * sizeof(char), pv.pcVal);
+        CharToWChar(outUMI, pv.pcVal);
         return true;
     }
     return false;
 }
 
+#if false
 static BOOL GetWindowIconFromPropStore(HWND window, char* outIconPath)
 {
     IPropertyStore* propertyStore;
@@ -279,6 +290,7 @@ static BOOL GetWindowIconFromPropStore(HWND window, char* outIconPath)
     }
     return false;
 }
+#endif
 
 /*
 static BOOL GetProcessAUMI_dbg(DWORD PID, char* outFileName)
@@ -303,25 +315,16 @@ static BOOL GetProcessAUMI_dbg(DWORD PID, char* outFileName)
 }
 */
 
-static BOOL GetExplicitAUMI(DWORD TID, char* outAUMI)
-{
-    (void)TID;
-    (void)outAUMI;
-    return false;
-}
-
-static BOOL GetProcessAUMI(DWORD PID, char* outFileName)
+static BOOL GetProcessAUMI(DWORD PID, wchar_t* outAUMID)
 {
     const HANDLE process = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, FALSE, PID);
-    wchar_t UMI[512];
     uint32_t size = 512;
-    LONG res = GetApplicationUserModelId(process, &size, UMI);
+    LONG res = GetApplicationUserModelId(process, &size, outAUMID);
     if (res == ERROR_SUCCESS) {
-        wcharToChar(outFileName, UMI);
         CloseHandle(process);
         return true;
     }
-    GetModuleFileNameEx(process, NULL, outFileName, 512);
+    GetModuleFileNameExW(process, NULL, outAUMID, 512);
     CloseHandle(process);
     return true;
 }
@@ -465,25 +468,32 @@ static void LoadIndirectString(const wchar_t* packagePath, const wchar_t* packag
     SHLoadIndirectString(indirectStr, output, 512, NULL);
 }
 
-// https://github.com/microsoft/Windows-classic-samples/blob/main/Samples/AppxPackingDescribeAppx/cpp/DescribeAppx.cpp
-static void GetUWPIconAndAppName(HANDLE process, wchar_t* outIconPath, wchar_t* outAppName, struct WindowData* windowData)
+static bool GetAppInfoFromMap(const struct UWPIconMap* map, const wchar_t* aumid, wchar_t* outIconPath, wchar_t* outAppName)
 {
-    static wchar_t userModelID[512];
-    {
-        uint32_t length = 512;
-        GetApplicationUserModelId(process, &length, userModelID);
-    }
-
-    struct UWPIconMap* iconMap = &windowData->StaticData->UWPIconMap;
+    const struct UWPIconMap* iconMap = map;
     for (uint32_t i = 0; i < iconMap->Count; i++) {
         const uint32_t i0 = Modulo((int)(iconMap->Head - 1 - i), UWPICONMAPSIZE);
-        if (wcscmp(iconMap->Data[i0].UserModelID, userModelID) != 0)
+        if (wcscmp(iconMap->Data[i0].UserModelID, aumid) != 0)
             continue;
         wcscpy(outIconPath, iconMap->Data[i0].Icon);
         wcscpy(outAppName, iconMap->Data[i0].AppName);
-        return;
+        return true;
     }
+    return false;
+}
 
+static void StoreAppInfoToMap(struct UWPIconMap* map, const wchar_t* aumid, const wchar_t* iconPath, const wchar_t* appName)
+{
+    wcscpy(map->Data[map->Head].UserModelID, aumid);
+    wcscpy(map->Data[map->Head].Icon, iconPath);
+    wcscpy(map->Data[map->Head].AppName, appName);
+    map->Count = min(map->Count + 1, UWPICONMAPSIZE);
+    map->Head = Modulo((int)(map->Head + 1), UWPICONMAPSIZE);
+}
+
+// https://github.com/microsoft/Windows-classic-samples/blob/main/Samples/AppxPackingDescribeAppx/cpp/DescribeAppx.cpp
+static void GetAppInfoFromManifest(HANDLE process, const wchar_t* userModelID, wchar_t* outIconPath, wchar_t* outAppName, struct WindowData* windowData)
+{
     CoInitializeEx(NULL, COINIT_APARTMENTTHREADED);
 
     PACKAGE_ID pid[32];
@@ -650,14 +660,6 @@ static void GetUWPIconAndAppName(HANDLE process, wchar_t* outIconPath, wchar_t* 
             wcscat(outIconPath, L"/");
             wcscat(outIconPath, findData.cFileName);
         }
-    }
-
-    {
-        wcscpy(iconMap->Data[iconMap->Head].UserModelID, userModelID);
-        wcscpy(iconMap->Data[iconMap->Head].Icon, outIconPath);
-        wcscpy(iconMap->Data[iconMap->Head].AppName, outAppName);
-        iconMap->Count = min(iconMap->Count + 1, UWPICONMAPSIZE);
-        iconMap->Head = Modulo((int)(iconMap->Head + 1), UWPICONMAPSIZE);
     }
 
     CoUninitialize();
@@ -865,14 +867,12 @@ static BOOL FillWinGroups(HWND hwnd, LPARAM lParam)
     DWORD TID = 0;
 
     FindActualPID(hwnd, &PID, &TID);
-    static char AUMI[512];
-    BOOL found = GetWindowAUMI(hwnd, AUMI);
+    static wchar_t AUMID[512];
+    BOOL found = GetWindowAUMI(hwnd, AUMID);
     if (!found)
-        found = GetExplicitAUMI(TID, AUMI);
-    if (!found)
-        GetProcessAUMI(PID, AUMI);
+        GetProcessAUMI(PID, AUMID);
 
-    printf("%s\n", AUMI);
+    wprintf(L"%s\n", AUMID);
     ATOM winClass = IsRunWindow(hwnd) ? 0x8002 : 0; // Run
 
 #if false
@@ -889,7 +889,7 @@ static BOOL FillWinGroups(HWND hwnd, LPARAM lParam)
     if (windowData->StaticData->Config->AppSwitcherMode == AppSwitcherModeApp) {
         for (uint32_t i = 0; i < winAppGroupArr->Size; i++) {
             SWinGroup* const group = &(winAppGroupArr->Data[i]);
-            if (group->WinClass == winClass && !strcmp(group->AUMI, AUMI)) {
+            if (group->WinClass == winClass && !wcscmp(group->AUMID, AUMID)) {
                 // Group found
                 static wchar_t caption[MAX_PATH];
                 caption[0] = L'\0';
@@ -924,7 +924,7 @@ static BOOL FillWinGroups(HWND hwnd, LPARAM lParam)
             return true;
 
         group = &winAppGroupArr->Data[winAppGroupArr->Size++];
-        strcpy_s(group->AUMI, sizeof(group->AUMI), AUMI);
+        wcscpy_s(group->AUMID, sizeof(group->AUMID), AUMID);
         group->WinClass = winClass;
         ASSERT(group->WindowCount == 0);
 
@@ -942,6 +942,7 @@ static BOOL FillWinGroups(HWND hwnd, LPARAM lParam)
 #endif
         ASSERT(group->IconBitmap == NULL);
 
+#if false
         {
             static char iconPath[512] = {};
             BOOL success = GetWindowIconFromPropStore(hwnd, iconPath);
@@ -953,8 +954,15 @@ static BOOL FillWinGroups(HWND hwnd, LPARAM lParam)
                 wcscpy_s(group->AppName, sizeof(group->AppName), L"Non initialized name");
             }
         }
+#endif
 
-        if (group->IconBitmap == NULL) {
+        static wchar_t iconPath[MAX_PATH] = {};
+        bool found = GetAppInfoFromMap(&windowData->StaticData->UWPIconMap, group->AUMID, iconPath, group->AppName);
+        if (found) {
+            GdipLoadImageFromFile(iconPath, &group->IconBitmap);
+        }
+
+        if (!found) {
             BOOL isUWP = false;
             {
                 static wchar_t userModelID[256];
@@ -965,20 +973,23 @@ static BOOL FillWinGroups(HWND hwnd, LPARAM lParam)
             }
 
             if (!isUWP) {
-                static char moduleFileName[512] = {};
-                GetProcessAUMI(PID, moduleFileName);
-                group->IconBitmap = GetIconFromExe(moduleFileName);
+                static char exePath[512] = {};
+                const HANDLE process = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, FALSE, PID);
+                GetModuleFileNameEx(process, NULL, exePath, 512);
+                CloseHandle(process);
+                group->IconBitmap = GetIconFromExe(exePath);
                 group->AppName[0] = L'\0';
-                static wchar_t exePath[MAX_PATH];
-                size_t s = mbstowcs(exePath, moduleFileName, MAX_PATH);
+                static wchar_t wexePath[MAX_PATH];
+                size_t s = mbstowcs(wexePath, exePath, MAX_PATH);
                 (void)s;
-                GetAppName(exePath, group->AppName);
+                GetAppName(wexePath, group->AppName);
             } else if (isUWP) {
                 static wchar_t iconPath[MAX_PATH];
                 iconPath[0] = L'\0';
                 group->AppName[0] = L'\0';
-                GetUWPIconAndAppName(process, iconPath, group->AppName, windowData);
+                GetAppInfoFromManifest(process, group->AUMID, iconPath, group->AppName, windowData);
                 GdipLoadImageFromFile(iconPath, &group->IconBitmap);
+                StoreAppInfoToMap(&windowData->StaticData->UWPIconMap, group->AUMID, iconPath, group->AppName);
             }
         }
 
