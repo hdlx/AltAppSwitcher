@@ -492,7 +492,7 @@ static void StoreAppInfoToMap(struct UWPIconMap* map, const wchar_t* aumid, cons
     map->Head = Modulo((int)(map->Head + 1), UWPICONMAPSIZE);
 }
 
-static bool FindLnk(const wchar_t* dirpath, const wchar_t* userModelID)
+static bool FindLnk(const wchar_t* dirpath, const wchar_t* userModelID, wchar_t* outName, wchar_t* outIcon)
 {
     WIN32_FIND_DATAW findData = {};
     HANDLE hFind = FindFirstFileW(dirpath, &findData);
@@ -503,30 +503,73 @@ static bool FindLnk(const wchar_t* dirpath, const wchar_t* userModelID)
 
     wchar_t filePath[512] = {}; // Can't be static as the function is recursive
 
+    bool found = false;
     do {
-        wprintf(L"File: %s\n", findData.cFileName);
+        // wprintf(L"File: %s\n", findData.cFileName);
         if (wcscmp(findData.cFileName, L"..") == 0 || wcscmp(findData.cFileName, L".") == 0)
             continue;
         filePath[0] = L'\0';
         wcscpy(filePath, dirpath);
         filePath[wcslen(filePath) - 1] = L'\0';
-        wcscat(filePath, L"/");
+        wcscat(filePath, L"\\");
         wcscat(filePath, findData.cFileName);
         DWORD ftyp = GetFileAttributesW(filePath);
         if (ftyp == INVALID_FILE_ATTRIBUTES)
             continue;
         if (ftyp & FILE_ATTRIBUTE_DIRECTORY) {
-            wcscat(filePath, L"/*");
-            FindLnk(filePath, userModelID);
+            wcscat(filePath, L"\\*");
+            found = FindLnk(filePath, userModelID, outName, outIcon);
+            if (found)
+                break;
             continue;
         }
         unsigned int nameLen = wcslen(findData.cFileName);
         if (nameLen > 4 && wcscmp(findData.cFileName + nameLen - 4, L".lnk") == 0) {
-            wprintf(L"Link: %s\n", filePath);
+            // wprintf(L"Link: %s\n", filePath);
+            CoInitializeEx(NULL, COINIT_APARTMENTTHREADED);
+            IShellLinkW* sl;
+            {
+                HRESULT hr = CoCreateInstance(&CLSID_ShellLink, 0, CLSCTX_INPROC_SERVER, &IID_IShellLinkW, (void**)&sl);
+                ASSERT(SUCCEEDED(hr));
+            }
+            IPersistFile* pf;
+            {
+                HRESULT hr = IShellLinkW_QueryInterface(sl, &IID_IPersistFile, (void**)&pf);
+                ASSERT(SUCCEEDED(hr));
+            }
+            {
+                HRESULT hr = IPersistFile_Load(pf, filePath, STGM_READ);
+                ASSERT(SUCCEEDED(hr));
+            }
+            {
+                IPropertyStore* propertyStore;
+                HRESULT hr = IShellLinkW_QueryInterface(sl, &IID_IPropertyStore, (void**)&propertyStore);
+                ASSERT(SUCCEEDED(hr));
+                PROPVARIANT pv = {};
+                PropVariantInit(&pv);
+                hr = IPropertyStore_GetValue(propertyStore, &PKEY_AppUserModel_ID, &pv);
+                IPropertyStore_Release(propertyStore);
+                if (!SUCCEEDED(hr)) {
+                    ASSERT(false);
+                    return false;
+                }
+                wchar_t foundAUMID[512] = {};
+                if (pv.vt == VT_LPWSTR)
+                    wcscpy_s(foundAUMID, 512 * sizeof(char), pv.pwszVal);
+                if (pv.vt == VT_LPSTR)
+                    CharToWChar(foundAUMID, pv.pcVal);
+                if (!wcscmp(foundAUMID, userModelID)) {
+                    int idx = 0;
+                    IShellLinkW_GetIconLocation(sl, outIcon, 512, &idx);
+                    wcscpy(outName, L"Unamed");
+                    found = true;
+                    break;
+                }
+            }
         }
     } while (FindNextFileW(hFind, &findData));
     FindClose(hFind);
-    return false;
+    return found;
 }
 
 static bool GetAppInfoFromLnk(const wchar_t* userModelID, wchar_t* outIconPath, wchar_t* outAppName)
@@ -538,8 +581,8 @@ static bool GetAppInfoFromLnk(const wchar_t* userModelID, wchar_t* outIconPath, 
     static wchar_t search[512] = {};
     search[0] = L'\0';
     wcscpy(search, startMenu);
-    wcscat(search, L"/*");
-    return FindLnk(search, userModelID);
+    wcscat(search, L"\\*");
+    return FindLnk(search, userModelID, outAppName, outIconPath);
 }
 
 // https://github.com/microsoft/Windows-classic-samples/blob/main/Samples/AppxPackingDescribeAppx/cpp/DescribeAppx.cpp
@@ -923,7 +966,7 @@ static BOOL FillWinGroups(HWND hwnd, LPARAM lParam)
     if (!found)
         GetProcessAUMI(PID, AUMID);
 
-    wprintf(L"%s\n", AUMID);
+    // wprintf(L"%s\n", AUMID);
     ATOM winClass = IsRunWindow(hwnd) ? 0x8002 : 0; // Run
 
 #if false
@@ -1021,6 +1064,7 @@ static BOOL FillWinGroups(HWND hwnd, LPARAM lParam)
             found = GetAppInfoFromLnk(group->AUMID, iconPath, group->AppName);
             if (found) {
                 GdipLoadImageFromFile(iconPath, &group->IconBitmap);
+                StoreAppInfoToMap(&windowData->StaticData->UWPIconMap, group->AUMID, iconPath, group->AppName);
             }
         }
 
