@@ -526,24 +526,23 @@ static bool FindLnk(const wchar_t* dirpath, const wchar_t* userModelID, wchar_t*
         unsigned int nameLen = wcslen(findData.cFileName);
         if (nameLen > 4 && wcscmp(findData.cFileName + nameLen - 4, L".lnk") == 0) {
             // wprintf(L"Link: %s\n", filePath);
-            CoInitializeEx(NULL, COINIT_APARTMENTTHREADED);
-            IShellLinkW* sl;
+            IShellLinkW* shellLink;
             {
-                HRESULT hr = CoCreateInstance(&CLSID_ShellLink, 0, CLSCTX_INPROC_SERVER, &IID_IShellLinkW, (void**)&sl);
+                HRESULT hr = CoCreateInstance(&CLSID_ShellLink, 0, CLSCTX_INPROC_SERVER, &IID_IShellLinkW, (void**)&shellLink);
                 ASSERT(SUCCEEDED(hr));
             }
-            IPersistFile* pf;
+            IPersistFile* persistFile;
             {
-                HRESULT hr = IShellLinkW_QueryInterface(sl, &IID_IPersistFile, (void**)&pf);
+                HRESULT hr = IShellLinkW_QueryInterface(shellLink, &IID_IPersistFile, (void**)&persistFile);
                 ASSERT(SUCCEEDED(hr));
             }
             {
-                HRESULT hr = IPersistFile_Load(pf, filePath, STGM_READ);
+                HRESULT hr = IPersistFile_Load(persistFile, filePath, STGM_READ);
                 ASSERT(SUCCEEDED(hr));
             }
             {
                 IPropertyStore* propertyStore;
-                HRESULT hr = IShellLinkW_QueryInterface(sl, &IID_IPropertyStore, (void**)&propertyStore);
+                HRESULT hr = IShellLinkW_QueryInterface(shellLink, &IID_IPropertyStore, (void**)&propertyStore);
                 ASSERT(SUCCEEDED(hr));
                 PROPVARIANT pv = {};
                 PropVariantInit(&pv);
@@ -560,12 +559,22 @@ static bool FindLnk(const wchar_t* dirpath, const wchar_t* userModelID, wchar_t*
                     CharToWChar(foundAUMID, pv.pcVal);
                 if (!wcscmp(foundAUMID, userModelID)) {
                     int idx = 0;
-                    IShellLinkW_GetIconLocation(sl, outIcon, 512, &idx);
+                    IShellLinkW_GetIconLocation(shellLink, outIcon, 512, &idx);
+                    wprintf(L"%s\n", outIcon);
                     wcscpy(outName, L"Unamed");
                     found = true;
-                    break;
+                }
+                {
+                    HRESULT hr = IPersistFile_Release(persistFile);
+                    ASSERT(SUCCEEDED(hr));
+                }
+                {
+                    HRESULT hr = IShellLinkW_Release(shellLink);
+                    ASSERT(SUCCEEDED(hr));
                 }
             }
+            if (found)
+                break;
         }
     } while (FindNextFileW(hFind, &findData));
     FindClose(hFind);
@@ -574,15 +583,26 @@ static bool FindLnk(const wchar_t* dirpath, const wchar_t* userModelID, wchar_t*
 
 static bool GetAppInfoFromLnk(const wchar_t* userModelID, wchar_t* outIconPath, wchar_t* outAppName)
 {
-    (void)outAppName;
-    (void)outIconPath;
+    CoInitializeEx(NULL, COINIT_APARTMENTTHREADED);
     static wchar_t* startMenu;
-    SHGetKnownFolderPath(&FOLDERID_StartMenu, 0, 0, &startMenu);
     static wchar_t search[512] = {};
-    search[0] = L'\0';
-    wcscpy(search, startMenu);
-    wcscat(search, L"\\*");
-    return FindLnk(search, userModelID, outAppName, outIconPath);
+    bool found = false;
+    {
+        SHGetKnownFolderPath(&FOLDERID_StartMenu, 0, 0, &startMenu);
+        search[0] = L'\0';
+        wcscpy(search, startMenu);
+        wcscat(search, L"\\*");
+        found = FindLnk(search, userModelID, outAppName, outIconPath);
+    }
+    if (!found) {
+        SHGetKnownFolderPath(&FOLDERID_CommonStartMenu, 0, 0, &startMenu);
+        search[0] = L'\0';
+        wcscpy(search, startMenu);
+        wcscat(search, L"\\*");
+        found = FindLnk(search, userModelID, outAppName, outIconPath);
+    }
+    CoUninitialize();
+    return found;
 }
 
 // https://github.com/microsoft/Windows-classic-samples/blob/main/Samples/AppxPackingDescribeAppx/cpp/DescribeAppx.cpp
@@ -1060,7 +1080,7 @@ static BOOL FillWinGroups(HWND hwnd, LPARAM lParam)
             }
         }
 
-        {
+        if (!found) {
             found = GetAppInfoFromLnk(group->AUMID, iconPath, group->AppName);
             if (found) {
                 GdipLoadImageFromFile(iconPath, &group->IconBitmap);
