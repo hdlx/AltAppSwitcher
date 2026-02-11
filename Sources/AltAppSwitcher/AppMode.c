@@ -848,9 +848,9 @@ static void GetAppName(const wchar_t* exePath, wchar_t* out)
     wcscpy(out, lastSlash + 1);
 }
 
-static GpBitmap* GetIconFromExe(const char* exePath)
+static GpBitmap* GetIconFromExe(const wchar_t* exePath)
 {
-    HMODULE module = LoadLibraryEx(exePath, NULL, LOAD_LIBRARY_AS_DATAFILE);
+    HMODULE module = LoadLibraryExW(exePath, NULL, LOAD_LIBRARY_AS_DATAFILE);
     ASSERT(module != NULL);
 
     // Finds icon resource in module
@@ -970,6 +970,11 @@ static BOOL IsRunWindow(HWND hwnd)
     return true;
 }
 
+static BOOL EndsWithW(const wchar_t* x, const wchar_t* y)
+{
+    return wcscmp(x + wcslen(x) - wcslen(y), y) == 0;
+}
+
 static BOOL FillWinGroups(HWND hwnd, LPARAM lParam)
 {
     struct WindowData* windowData = (struct WindowData*)lParam;
@@ -1076,14 +1081,20 @@ static BOOL FillWinGroups(HWND hwnd, LPARAM lParam)
         {
             found = GetAppInfoFromMap(&windowData->StaticData->UWPIconMap, group->AUMID, iconPath, group->AppName);
             if (found) {
-                GdipLoadImageFromFile(iconPath, &group->IconBitmap);
+                if (EndsWithW(iconPath, L".exe"))
+                    group->IconBitmap = GetIconFromExe(iconPath);
+                else
+                    GdipLoadImageFromFile(iconPath, &group->IconBitmap);
             }
         }
 
         if (!found) {
             found = GetAppInfoFromLnk(group->AUMID, iconPath, group->AppName);
             if (found) {
-                GdipLoadImageFromFile(iconPath, &group->IconBitmap);
+                if (EndsWithW(iconPath, L".exe"))
+                    group->IconBitmap = GetIconFromExe(iconPath);
+                else
+                    GdipLoadImageFromFile(iconPath, &group->IconBitmap);
                 StoreAppInfoToMap(&windowData->StaticData->UWPIconMap, group->AUMID, iconPath, group->AppName);
             }
         }
@@ -1099,16 +1110,14 @@ static BOOL FillWinGroups(HWND hwnd, LPARAM lParam)
             }
 
             if (!isUWP) {
-                static char exePath[512] = {};
+                static wchar_t exePath[512] = {};
                 const HANDLE process = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, FALSE, PID);
-                GetModuleFileNameEx(process, NULL, exePath, 512);
+                GetModuleFileNameExW(process, NULL, exePath, 512);
                 CloseHandle(process);
                 group->IconBitmap = GetIconFromExe(exePath);
                 group->AppName[0] = L'\0';
-                static wchar_t wexePath[MAX_PATH];
-                size_t s = mbstowcs(wexePath, exePath, MAX_PATH);
-                (void)s;
-                GetAppName(wexePath, group->AppName);
+                GetAppName(exePath, group->AppName);
+                StoreAppInfoToMap(&windowData->StaticData->UWPIconMap, group->AUMID, exePath, group->AppName);
             } else if (isUWP) {
                 static wchar_t iconPath[MAX_PATH];
                 iconPath[0] = L'\0';
