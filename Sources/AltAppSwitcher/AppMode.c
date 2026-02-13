@@ -560,7 +560,6 @@ static bool FindLnk(const wchar_t* dirpath, const wchar_t* userModelID, wchar_t*
                     if (SUCCEEDED(hr)) {
                         if (outIcon[0] != L'\0') {
                             wcscpy(outName, L"Unamed");
-                            found = true;
                         } else {
                             wcscpy(outIcon, linkPath);
                             wcscpy(outName, L"Unamed");
