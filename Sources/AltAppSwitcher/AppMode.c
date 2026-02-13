@@ -557,10 +557,14 @@ static bool FindLnk(const wchar_t* dirpath, const wchar_t* userModelID, wchar_t*
                     int idx = 0;
                     outIcon[0] = L'\0';
                     HRESULT hr = IShellLinkW_GetIconLocation(shellLink, outIcon, 512, &idx);
-                    ASSERT(SUCCEEDED(hr));
-                    if (outIcon[0] != L'\0') {
-                        // wprintf(L"%s\n", outIcon);
-                        wcscpy(outName, L"Unamed");
+                    if (SUCCEEDED(hr)) {
+                        if (outIcon[0] != L'\0') {
+                            wcscpy(outName, L"Unamed");
+                            found = true;
+                        } else {
+                            wcscpy(outIcon, linkPath);
+                            wcscpy(outName, L"Unamed");
+                        }
                         found = true;
                     }
                 }
@@ -583,10 +587,18 @@ static bool FindLnk(const wchar_t* dirpath, const wchar_t* userModelID, wchar_t*
                     CharToWChar(foundAUMID, pv.pcVal);
                 if (!wcscmp(foundAUMID, userModelID)) {
                     int idx = 0;
-                    IShellLinkW_GetIconLocation(shellLink, outIcon, 512, &idx);
-                    wprintf(L"%s\n", outIcon);
-                    wcscpy(outName, L"Unamed");
-                    found = true;
+                    HRESULT hr = IShellLinkW_GetIconLocation(shellLink, outIcon, 512, &idx);
+                    if (SUCCEEDED(hr)) {
+                        if (outIcon[0] != L'\0') {
+                            wcscpy(outName, L"Unamed");
+                        } else {
+                            static wchar_t linkPath[512];
+                            IShellLinkW_GetPath(shellLink, linkPath, 512, NULL, 0);
+                            wcscpy(outIcon, linkPath);
+                            wcscpy(outName, L"Unamed");
+                        }
+                        found = true;
+                    }
                 }
                 {
                     HRESULT hr = IPersistFile_Release(persistFile);
