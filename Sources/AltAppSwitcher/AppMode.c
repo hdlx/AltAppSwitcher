@@ -492,6 +492,11 @@ static void StoreAppInfoToMap(struct UWPIconMap* map, const wchar_t* aumid, cons
     map->Head = Modulo((int)(map->Head + 1), UWPICONMAPSIZE);
 }
 
+static BOOL EndsWithW(const wchar_t* x, const wchar_t* y)
+{
+    return wcscmp(x + wcslen(x) - wcslen(y), y) == 0;
+}
+
 static bool FindLnk(const wchar_t* dirpath, const wchar_t* userModelID, wchar_t* outName, wchar_t* outIcon)
 {
     WIN32_FIND_DATAW findData = {};
@@ -540,7 +545,21 @@ static bool FindLnk(const wchar_t* dirpath, const wchar_t* userModelID, wchar_t*
                 HRESULT hr = IPersistFile_Load(persistFile, filePath, STGM_READ);
                 ASSERT(SUCCEEDED(hr));
             }
-            {
+            if (EndsWithW(userModelID, L".exe")) {
+                static wchar_t linkPath[512];
+                IShellLinkW_GetPath(shellLink, linkPath, 512, NULL, 0);
+                if (!wcscmp(linkPath, userModelID)) {
+                    int idx = 0;
+                    outIcon[0] = L'\0';
+                    HRESULT hr = IShellLinkW_GetIconLocation(shellLink, outIcon, 512, &idx);
+                    ASSERT(SUCCEEDED(hr));
+                    if (outIcon[0] != L'\0') {
+                        // wprintf(L"%s\n", outIcon);
+                        wcscpy(outName, L"Unamed");
+                        found = true;
+                    }
+                }
+            } else {
                 IPropertyStore* propertyStore;
                 HRESULT hr = IShellLinkW_QueryInterface(shellLink, &IID_IPropertyStore, (void**)&propertyStore);
                 ASSERT(SUCCEEDED(hr));
@@ -568,10 +587,10 @@ static bool FindLnk(const wchar_t* dirpath, const wchar_t* userModelID, wchar_t*
                     HRESULT hr = IPersistFile_Release(persistFile);
                     ASSERT(SUCCEEDED(hr));
                 }
-                {
-                    HRESULT hr = IShellLinkW_Release(shellLink);
-                    ASSERT(SUCCEEDED(hr));
-                }
+            }
+            {
+                HRESULT hr = IShellLinkW_Release(shellLink);
+                ASSERT(SUCCEEDED(hr));
             }
             if (found)
                 break;
@@ -970,11 +989,6 @@ static BOOL IsRunWindow(HWND hwnd)
     return true;
 }
 
-static BOOL EndsWithW(const wchar_t* x, const wchar_t* y)
-{
-    return wcscmp(x + wcslen(x) - wcslen(y), y) == 0;
-}
-
 static BOOL FillWinGroups(HWND hwnd, LPARAM lParam)
 {
     struct WindowData* windowData = (struct WindowData*)lParam;
@@ -1081,7 +1095,7 @@ static BOOL FillWinGroups(HWND hwnd, LPARAM lParam)
         {
             found = GetAppInfoFromMap(&windowData->StaticData->UWPIconMap, group->AUMID, iconPath, group->AppName);
             if (found) {
-                if (EndsWithW(iconPath, L".exe"))
+                if (EndsWithW(iconPath, L".exe") || EndsWithW(iconPath, L".EXE"))
                     group->IconBitmap = GetIconFromExe(iconPath);
                 else
                     GdipLoadImageFromFile(iconPath, &group->IconBitmap);
@@ -1091,7 +1105,7 @@ static BOOL FillWinGroups(HWND hwnd, LPARAM lParam)
         if (!found) {
             found = GetAppInfoFromLnk(group->AUMID, iconPath, group->AppName);
             if (found) {
-                if (EndsWithW(iconPath, L".exe"))
+                if (EndsWithW(iconPath, L".exe") || EndsWithW(iconPath, L".EXE"))
                     group->IconBitmap = GetIconFromExe(iconPath);
                 else
                     GdipLoadImageFromFile(iconPath, &group->IconBitmap);
@@ -1102,11 +1116,17 @@ static BOOL FillWinGroups(HWND hwnd, LPARAM lParam)
         if (!found) {
             BOOL isUWP = false;
             {
+                /*
                 static wchar_t userModelID[256];
                 userModelID[0] = L'\0';
                 uint32_t userModelIDLength = 256;
                 GetApplicationUserModelId(process, &userModelIDLength, userModelID);
                 isUWP = userModelID[0] != L'\0';
+                */
+                UINT32 length = 0;
+                LONG rc = GetPackageFullName(process, &length, 0);
+                if (rc == ERROR_INSUFFICIENT_BUFFER)
+                    isUWP = true;
             }
 
             if (!isUWP) {

@@ -145,13 +145,13 @@ static LRESULT KbProc(int nCode, WPARAM wParam, LPARAM lParam)
         // Init
         if (prevMode == ModeNone && isAppHold && nextApp) {
             mode = ModeApp;
-            PostThreadMessage(MainThread, MSG_INIT_APP, 0, 0);
             PostThreadMessage(MainThread, MSG_RESTORE_KEY, KeyConfig->AppHold, 0);
+            PostThreadMessage(MainThread, MSG_INIT_APP, 0, 0);
             bypassMsg = true;
         } else if (prevMode == ModeNone && isWinHold && nextWin) {
             mode = ModeWin;
-            PostThreadMessage(MainThread, MSG_INIT_WIN, 0, 0);
             PostThreadMessage(MainThread, MSG_RESTORE_KEY, KeyConfig->WinHold, 0);
+            PostThreadMessage(MainThread, MSG_INIT_WIN, 0, 0);
             bypassMsg = true;
         }
     }
