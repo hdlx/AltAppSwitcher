@@ -21,7 +21,6 @@
 #include <uiautomationclient.h>
 #include <gdiplus/gdiplusenums.h>
 #include <PropKey.h>
-#include <time.h>
 #include <Shobjidl.h>
 #include <shlobj.h>
 #include "AppxPackaging.h"
@@ -497,7 +496,7 @@ static BOOL EndsWithW(const wchar_t* x, const wchar_t* y)
     return wcscmp(x + wcslen(x) - wcslen(y), y) == 0;
 }
 
-static bool FindLnk(const wchar_t* dirpath, const wchar_t* userModelID, wchar_t* outName, wchar_t* outIcon)
+static bool FindLnk(const wchar_t* dirpath, const wchar_t* userModelID, wchar_t* outName, wchar_t* outIcon, uint32_t depth)
 {
     WIN32_FIND_DATAW findData = {};
     HANDLE hFind = FindFirstFileW(dirpath, &findData);
@@ -506,7 +505,13 @@ static bool FindLnk(const wchar_t* dirpath, const wchar_t* userModelID, wchar_t*
         return false;
     }
 
-    wchar_t filePath[512] = {}; // Can't be static as the function is recursive
+#define MAX_DEPTH 32
+
+    if (depth >= MAX_DEPTH)
+        return false;
+
+    static wchar_t filePathArr[MAX_DEPTH][512];
+    wchar_t* filePath = filePathArr[depth];
 
     bool found = false;
     do {
@@ -523,7 +528,7 @@ static bool FindLnk(const wchar_t* dirpath, const wchar_t* userModelID, wchar_t*
             continue;
         if (ftyp & FILE_ATTRIBUTE_DIRECTORY) {
             wcscat(filePath, L"\\*");
-            found = FindLnk(filePath, userModelID, outName, outIcon);
+            found = FindLnk(filePath, userModelID, outName, outIcon, depth + 1);
             if (found)
                 break;
             continue;
@@ -545,7 +550,7 @@ static bool FindLnk(const wchar_t* dirpath, const wchar_t* userModelID, wchar_t*
                 HRESULT hr = IPersistFile_Load(persistFile, filePath, STGM_READ);
                 ASSERT(SUCCEEDED(hr));
             }
-            if (EndsWithW(userModelID, L".exe")) {
+            if (EndsWithW(userModelID, L".exe") || EndsWithW(userModelID, L".EXE")) {
                 static wchar_t linkPath[512];
                 IShellLinkW_GetPath(shellLink, linkPath, 512, NULL, 0);
                 if (!wcscmp(linkPath, userModelID)) {
@@ -611,14 +616,14 @@ static bool GetAppInfoFromLnk(const wchar_t* userModelID, wchar_t* outIconPath, 
         search[0] = L'\0';
         wcscpy(search, startMenu);
         wcscat(search, L"\\*");
-        found = FindLnk(search, userModelID, outAppName, outIconPath);
+        found = FindLnk(search, userModelID, outAppName, outIconPath, 0);
     }
     if (!found) {
         SHGetKnownFolderPath(&FOLDERID_CommonStartMenu, 0, 0, &startMenu);
         search[0] = L'\0';
         wcscpy(search, startMenu);
         wcscat(search, L"\\*");
-        found = FindLnk(search, userModelID, outAppName, outIconPath);
+        found = FindLnk(search, userModelID, outAppName, outIconPath, 0);
     }
     CoUninitialize();
     return found;
