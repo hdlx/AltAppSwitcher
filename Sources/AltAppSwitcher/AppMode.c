@@ -564,6 +564,8 @@ static bool FindLnk(const wchar_t* dirpath, const wchar_t* userModelID, wchar_t*
                             wcscpy(outIcon, linkPath);
                         }
                         wcscpy(outName, findData.cFileName);
+                        // Strip ".lnk"
+                        outName[wcslen(outName) - 4] = L'\0';
                         found = true;
                     }
                 }
@@ -598,6 +600,8 @@ static bool FindLnk(const wchar_t* dirpath, const wchar_t* userModelID, wchar_t*
                             wcscpy(outIcon, linkPath);
                         }
                         wcscpy(outName, findData.cFileName);
+                        // Strip ".lnk"
+                        outName[wcslen(outName) - 4] = L'\0';
                         found = true;
                     }
                 }
