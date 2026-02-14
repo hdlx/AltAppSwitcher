@@ -122,6 +122,7 @@ HWND CreateText(const char* text, const char* tooltip, GUIData* guiData)
 
 void CreatePercentField(const char* tooltip, float* value, GUIData* guiData)
 {
+    (void)tooltip;
     HINSTANCE inst = (HINSTANCE)GetWindowLongPtrA(guiData->Parent, GWLP_HINSTANCE);
     char sval[] = "000";
     int a = sprintf_s(sval, sizeof(sval) / sizeof(sval[0]), "%03d", (int)(*value * 100));
@@ -176,6 +177,7 @@ HWND CreateButton(const char* text, HMENU ID, GUIData* guiData)
 
 void CreateBoolControl(const char* tooltip, bool* value, GUIData* guiData)
 {
+    (void)tooltip;
     HINSTANCE inst = (HINSTANCE)GetWindowLongPtrA(guiData->Parent, GWLP_HINSTANCE);
     HWND button = CreateWindow(WC_BUTTON, "",
         WS_VISIBLE | WS_CHILD | BS_AUTOCHECKBOX | BS_FLAT | BS_CENTER,

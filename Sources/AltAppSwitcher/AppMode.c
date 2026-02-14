@@ -96,7 +96,7 @@ typedef struct SUWPIconMapElement {
     uint32_t UseIdx;
 } SUWPIconMapElement;
 
-#define UWPICONMAPSIZE 16
+#define UWPICONMAPSIZE MAX_WIN_GROUPS
 struct UWPIconMap {
     SUWPIconMapElement Data[UWPICONMAPSIZE];
     uint32_t UseIdx;
@@ -506,7 +506,7 @@ static void StoreAppInfoToMap(struct UWPIconMap* map, const wchar_t* aumid, GpBi
         }
     }
     // No free slot, all slots has been used this run.
-    // Very unlikely
+    // Should not happens since MAX_WIN_GROUPS == UWPICONMAPSIZE
     if (storeIdx == 0xffffffff) {
         ASSERT(false);
         return;
@@ -597,15 +597,19 @@ static bool FindLnk(wchar_t* dirpath, const wchar_t* userModelID, wchar_t* outNa
                 }
             } else {
                 IPropertyStore* propertyStore;
-                HRESULT hr = IShellLinkW_QueryInterface(shellLink, &IID_IPropertyStore, (void**)&propertyStore);
-                ASSERT(SUCCEEDED(hr));
+                {
+                    HRESULT hr = IShellLinkW_QueryInterface(shellLink, &IID_IPropertyStore, (void**)&propertyStore);
+                    ASSERT(SUCCEEDED(hr));
+                }
                 PROPVARIANT pv = {};
-                PropVariantInit(&pv);
-                hr = IPropertyStore_GetValue(propertyStore, &PKEY_AppUserModel_ID, &pv);
-                IPropertyStore_Release(propertyStore);
-                if (!SUCCEEDED(hr)) {
-                    ASSERT(false);
-                    return false;
+                {
+                    PropVariantInit(&pv);
+                    HRESULT hr = IPropertyStore_GetValue(propertyStore, &PKEY_AppUserModel_ID, &pv);
+                    ASSERT(SUCCEEDED(hr));
+                }
+                {
+                    HRESULT hr = IPropertyStore_Release(propertyStore);
+                    ASSERT(SUCCEEDED(hr));
                 }
                 static wchar_t foundAUMID[512] = {};
                 if (pv.vt == VT_LPWSTR)
