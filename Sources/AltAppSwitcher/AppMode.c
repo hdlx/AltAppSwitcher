@@ -1987,7 +1987,7 @@ static void Init(struct WindowData* windowData)
         for (uint32_t i = 0; i < windowData->WinGroups.Size; i++) {
             const int iconContainerSize = (int)windowData->Metrics.Container;
             const int pad = (int)windowData->Metrics.Pad;
-            int x = pad + (i * iconContainerSize);
+            int x = pad + (int)(i * iconContainerSize);
             windowData->FocusWindows[i] = CreateWindowEx(0, FOCUS_CLASS_NAME, NULL,
                 WS_CHILD /* | WS_VISIBLE */,
                 x, pad, iconContainerSize, iconContainerSize,
