@@ -402,6 +402,7 @@ static void FindActualPID(HWND hwnd, DWORD* PID, DWORD* TID)
 {
     static char className[512];
     GetClassName(hwnd, className, 512);
+#if false
     {
         *TID = GetWindowThreadProcessId(hwnd, PID);
         const HANDLE proc = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, FALSE, *PID);
@@ -413,6 +414,7 @@ static void FindActualPID(HWND hwnd, DWORD* PID, DWORD* TID)
             return;
         }
     }
+#endif
 
     if (!strcmp("ApplicationFrameWindow", className)) {
         {
@@ -1168,7 +1170,6 @@ static BOOL FillWinGroups(HWND hwnd, LPARAM lParam)
                     group->AppName[0] = L'\0';
                     GetAppName(exePath, group->AppName);
                 } else if (isUWP) {
-                    static wchar_t iconPath[MAX_PATH];
                     iconPath[0] = L'\0';
                     group->AppName[0] = L'\0';
                     GetAppInfoFromManifest(process, group->AUMID, iconPath, group->AppName, windowData);
