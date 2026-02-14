@@ -1105,25 +1105,12 @@ static BOOL FillWinGroups(HWND hwnd, LPARAM lParam)
         bool found = false;
         static wchar_t iconPath[MAX_PATH] = {};
 
-        {
-            found = GetAppInfoFromMap(&windowData->StaticData->UWPIconMap, group->AUMID, iconPath, group->AppName);
-            if (found) {
-                if (EndsWithW(iconPath, L".exe") || EndsWithW(iconPath, L".EXE"))
-                    group->IconBitmap = GetIconFromExe(iconPath);
-                else
-                    GdipLoadImageFromFile(iconPath, &group->IconBitmap);
-            }
-        }
+        found = GetAppInfoFromMap(&windowData->StaticData->UWPIconMap, group->AUMID, iconPath, group->AppName);
 
         if (!found) {
             found = GetAppInfoFromLnk(group->AUMID, iconPath, group->AppName);
-            if (found) {
-                if (EndsWithW(iconPath, L".exe") || EndsWithW(iconPath, L".EXE"))
-                    group->IconBitmap = GetIconFromExe(iconPath);
-                else
-                    GdipLoadImageFromFile(iconPath, &group->IconBitmap);
+            if (found)
                 StoreAppInfoToMap(&windowData->StaticData->UWPIconMap, group->AUMID, iconPath, group->AppName);
-            }
         }
 
         if (!found) {
@@ -1147,7 +1134,8 @@ static BOOL FillWinGroups(HWND hwnd, LPARAM lParam)
                 const HANDLE process = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, FALSE, PID);
                 GetModuleFileNameExW(process, NULL, exePath, 512);
                 CloseHandle(process);
-                group->IconBitmap = GetIconFromExe(exePath);
+                iconPath[0] = L'\0';
+                wcscpy(iconPath, exePath);
                 group->AppName[0] = L'\0';
                 GetAppName(exePath, group->AppName);
                 StoreAppInfoToMap(&windowData->StaticData->UWPIconMap, group->AUMID, exePath, group->AppName);
@@ -1160,6 +1148,11 @@ static BOOL FillWinGroups(HWND hwnd, LPARAM lParam)
                 StoreAppInfoToMap(&windowData->StaticData->UWPIconMap, group->AUMID, iconPath, group->AppName);
             }
         }
+
+        if (EndsWithW(iconPath, L".exe") || EndsWithW(iconPath, L".EXE"))
+            group->IconBitmap = GetIconFromExe(iconPath);
+        else
+            GdipLoadImageFromFile(iconPath, &group->IconBitmap);
 
         {
             group->Caption[0] = L'\0';
