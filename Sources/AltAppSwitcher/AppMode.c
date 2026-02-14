@@ -398,7 +398,7 @@ static BOOL FindUWPChild(HWND hwnd, LPARAM lParam)
     return TRUE;
 }
 
-static void FindActualPID(HWND hwnd, DWORD* PID, DWORD* TID)
+static void FindActualPID(HWND hwnd, DWORD* PID)
 {
     static char className[512];
     GetClassName(hwnd, className, 512);
@@ -1042,9 +1042,8 @@ static BOOL FillWinGroups(HWND hwnd, LPARAM lParam)
         return true;
 
     DWORD PID = 0;
-    DWORD TID = 0;
 
-    FindActualPID(hwnd, &PID, &TID);
+    FindActualPID(hwnd, &PID);
     static wchar_t AUMID[512];
     {
         BOOL found = GetWindowAUMI(hwnd, AUMID);
@@ -1280,7 +1279,7 @@ static void DestroyWin(HWND* win)
     *win = NULL;
 }
 
-static void Draw(struct WindowData* windowData, HDC dc, RECT clientRect);
+static void Draw(struct WindowData* windowData, RECT clientRect);
 
 static LRESULT FocusWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam);
 
@@ -1536,7 +1535,7 @@ static void CloseButtonRect(float* outRect, const Metrics* m, uint32_t idx)
     outRect[3] = r.Y + r.Height;
 }
 
-static void Draw(struct WindowData* windowData, HDC dc, RECT clientRect)
+static void Draw(struct WindowData* windowData, RECT clientRect)
 {
     ASSERT(windowData);
     if (!windowData)
@@ -1859,7 +1858,7 @@ typedef struct CloseThreadData {
 static DWORD CloseThread(LPVOID data)
 {
     const CloseThreadData* d = (const CloseThreadData*)data;
-    for (int i = 0; i < d->Count; i++) {
+    for (uint32_t i = 0; i < d->Count; i++) {
         const HWND win = d->Win[i];
         while (IsWindow(win)) {
             usleep(1000);
@@ -1890,7 +1889,7 @@ static void Init(struct WindowData* windowData)
     // Save persistant data and kill child window if any.
     struct StaticData* sd = windowData->StaticData;
     HWND w = windowData->MainWin;
-    for (int i = 0; i < windowData->FocusWindowCount; i++) {
+    for (uint32_t i = 0; i < windowData->FocusWindowCount; i++) {
         if (!IsRunWindow(windowData->FocusWindows[i]))
             continue;
         DestroyWindow(windowData->FocusWindows[i]);
@@ -1975,13 +1974,13 @@ static void Init(struct WindowData* windowData)
     SetLayeredWindowAttributes(windowData->MainWin, 0, 0, LWA_ALPHA);
     ShowWindow(windowData->MainWin, SW_SHOW);
     RECT clientRect = { 0, 0, (LONG)windowData->Metrics.WinX, (LONG)windowData->Metrics.WinY };
-    Draw(windowData, GetDC(windowData->MainWin), clientRect);
+    Draw(windowData, clientRect);
     SetLayeredWindowAttributes(windowData->MainWin, 0, 255, LWA_ALPHA);
 
     SetCapture(windowData->MainWin);
 
     if (!windowData->StaticData->Config->DebugDisableIconFocus) {
-        for (int i = 0; i < windowData->WinGroups.Size; i++) {
+        for (uint32_t i = 0; i < windowData->WinGroups.Size; i++) {
             const int iconContainerSize = (int)windowData->Metrics.Container;
             const int pad = (int)windowData->Metrics.Pad;
             int x = pad + (i * iconContainerSize);
@@ -2064,7 +2063,7 @@ static LRESULT CALLBACK MainWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPAR
 
             ctd.MainWin = hwnd;
             const SWinGroup* winGroup = &windowData.WinGroups.Data[windowData.MouseSelection];
-            for (int i = 0; i < winGroup->WindowCount; i++) {
+            for (uint32_t i = 0; i < winGroup->WindowCount; i++) {
                 const HWND win = winGroup->Windows[i];
                 ctd.Count++;
                 ctd.Win[i] = win;
@@ -2073,7 +2072,7 @@ static LRESULT CALLBACK MainWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPAR
             DWORD tid;
             ht = CreateThread(NULL, 0, CloseThread, (void*)&ctd, 0, &tid);
 
-            for (int i = 0; i < winGroup->WindowCount; i++) {
+            for (uint32_t i = 0; i < winGroup->WindowCount; i++) {
                 const HWND win = winGroup->Windows[i];
                 PostMessage(win, WM_CLOSE, 0, 0);
             }
@@ -2126,7 +2125,7 @@ static LRESULT CALLBACK MainWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPAR
         }
         RECT clientRect;
         ASSERT(GetClientRect(hwnd, &clientRect));
-        Draw(&windowData, ps.hdc, clientRect);
+        Draw(&windowData, clientRect);
         EndPaint(hwnd, &ps);
         return 0;
     }

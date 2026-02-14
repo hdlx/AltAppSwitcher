@@ -30,7 +30,7 @@ CC = $(ARCH)-w64-mingw32-clang
 CFLAGS = -I $(ROOTDIR)/SDK/Headers -I $(ROOTDIR)/Sources -I $(ROOTDIR)/SDK/Sources
 LDIRS = -L $(LIBDIR) -L $(LIBDIR)/curl
 LFLAGS = -static -static-libgcc -Werror
-CFLAGS += -Wall -D ARCH_$(ARCH)=1 -D NTDDI_VERSION=NTDDI_WIN10 -target $(ARCH)-w64-mingw32 -Werror -std=c11
+CFLAGS += -Wall -Wextra -Wshadow -Werror -D ARCH_$(ARCH)=1 -D NTDDI_VERSION=NTDDI_WIN10 -target $(ARCH)-w64-mingw32 -std=c11
 
 ifeq ($(CONF), Debug)
 CFLAGS += -g3 -fsanitize=address,undefined
@@ -93,11 +93,11 @@ directories:
 # see 4.12.1 Syntax of Static Pattern Rules
 clang_tidy_disable_if_dbg = 
 ifeq ($(CONF), Debug)
-clang_tidy_disable_if_dbg = --checks=-*
+clang_tidy_disable_if_dbg = --allow-no-checks --checks=-*
 endif
 $(ALLOBJECTS): $(OBJDIR)/%.o: $(ROOTDIR)/%.c $(ALLH)
 	clang-format $< --dry-run --Werror
-	clang-tidy $< --warnings-as-errors=* --allow-no-checks $(clang_tidy_disable_if_dbg) -- $(CFLAGS)
+	clang-tidy $< --warnings-as-errors=* $(clang_tidy_disable_if_dbg) -- $(CFLAGS)
 	$(CC) $(CFLAGS) -MJ $@.json -c $< -o $@
 
 # Build exe targets (link):
