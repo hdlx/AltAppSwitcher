@@ -558,12 +558,12 @@ static bool FindLnk(const wchar_t* dirpath, const wchar_t* userModelID, wchar_t*
                     outIcon[0] = L'\0';
                     HRESULT hr = IShellLinkW_GetIconLocation(shellLink, outIcon, 512, &idx);
                     if (SUCCEEDED(hr)) {
-                        if (outIcon[0] != L'\0') {
-                            wcscpy(outName, L"Unamed");
-                        } else {
+                        if (outIcon[0] == L'\0') {
+                            // Success but no out path: it means it uses icon
+                            // from the link target (actual .exe)
                             wcscpy(outIcon, linkPath);
-                            wcscpy(outName, L"Unamed");
                         }
+                        wcscpy(outName, findData.cFileName);
                         found = true;
                     }
                 }
@@ -588,14 +588,16 @@ static bool FindLnk(const wchar_t* dirpath, const wchar_t* userModelID, wchar_t*
                     int idx = 0;
                     HRESULT hr = IShellLinkW_GetIconLocation(shellLink, outIcon, 512, &idx);
                     if (SUCCEEDED(hr)) {
-                        if (outIcon[0] != L'\0') {
+                        if (outIcon[0] == L'\0') {
                             wcscpy(outName, L"Unamed");
                         } else {
+                            // Success but no out path: it means it uses icon
+                            // from the link target (actual .exe)
                             static wchar_t linkPath[512];
                             IShellLinkW_GetPath(shellLink, linkPath, 512, NULL, 0);
                             wcscpy(outIcon, linkPath);
-                            wcscpy(outName, L"Unamed");
                         }
+                        wcscpy(outName, findData.cFileName);
                         found = true;
                     }
                 }
