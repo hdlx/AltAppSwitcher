@@ -496,45 +496,39 @@ static BOOL EndsWithW(const wchar_t* x, const wchar_t* y)
     return wcscmp(x + wcslen(x) - wcslen(y), y) == 0;
 }
 
-static bool FindLnk(const wchar_t* dirpath, const wchar_t* userModelID, wchar_t* outName, wchar_t* outIcon, uint32_t depth)
+static bool FindLnk(wchar_t* dirpath, const wchar_t* userModelID, wchar_t* outName, wchar_t* outIcon, uint32_t depth)
 {
+    const uint32_t dirPathLen = wcslen(dirpath);
+    wcscat(dirpath, L"\\*");
     WIN32_FIND_DATAW findData = {};
     HANDLE hFind = FindFirstFileW(dirpath, &findData);
     if (hFind == INVALID_HANDLE_VALUE) {
+        dirpath[dirPathLen] = L'\0';
         FindClose(hFind);
         return false;
     }
-
-#define MAX_DEPTH 32
-
-    if (depth >= MAX_DEPTH)
-        return false;
-
-    static wchar_t filePathArr[MAX_DEPTH][512];
-    wchar_t* filePath = filePathArr[depth];
 
     bool found = false;
     do {
         // wprintf(L"File: %s\n", findData.cFileName);
         if (wcscmp(findData.cFileName, L"..") == 0 || wcscmp(findData.cFileName, L".") == 0)
             continue;
-        filePath[0] = L'\0';
-        wcscpy(filePath, dirpath);
-        filePath[wcslen(filePath) - 1] = L'\0';
-        wcscat(filePath, L"\\");
-        wcscat(filePath, findData.cFileName);
-        DWORD ftyp = GetFileAttributesW(filePath);
+        dirpath[dirPathLen] = L'\0';
+        wcscat(dirpath, L"\\");
+        wcscat(dirpath, findData.cFileName);
+        // wprintf(L"File/dir: %s\n", dirpath);
+        DWORD ftyp = GetFileAttributesW(dirpath);
         if (ftyp == INVALID_FILE_ATTRIBUTES)
             continue;
         if (ftyp & FILE_ATTRIBUTE_DIRECTORY) {
-            wcscat(filePath, L"\\*");
-            found = FindLnk(filePath, userModelID, outName, outIcon, depth + 1);
+            found = FindLnk(dirpath, userModelID, outName, outIcon, depth + 1);
             if (found)
                 break;
             continue;
         }
-        unsigned int nameLen = wcslen(findData.cFileName);
-        if (nameLen > 4 && wcscmp(findData.cFileName + nameLen - 4, L".lnk") == 0) {
+        if (!EndsWithW(findData.cFileName, L".lnk"))
+            continue;
+        {
             // wprintf(L"Link: %s\n", filePath);
             IShellLinkW* shellLink;
             {
@@ -547,7 +541,7 @@ static bool FindLnk(const wchar_t* dirpath, const wchar_t* userModelID, wchar_t*
                 ASSERT(SUCCEEDED(hr));
             }
             {
-                HRESULT hr = IPersistFile_Load(persistFile, filePath, STGM_READ);
+                HRESULT hr = IPersistFile_Load(persistFile, dirpath, STGM_READ);
                 ASSERT(SUCCEEDED(hr));
             }
             if (EndsWithW(userModelID, L".exe") || EndsWithW(userModelID, L".EXE")) {
@@ -581,7 +575,7 @@ static bool FindLnk(const wchar_t* dirpath, const wchar_t* userModelID, wchar_t*
                     ASSERT(false);
                     return false;
                 }
-                wchar_t foundAUMID[512] = {};
+                static wchar_t foundAUMID[512] = {};
                 if (pv.vt == VT_LPWSTR)
                     wcscpy_s(foundAUMID, 512 * sizeof(char), pv.pwszVal);
                 if (pv.vt == VT_LPSTR)
@@ -591,8 +585,6 @@ static bool FindLnk(const wchar_t* dirpath, const wchar_t* userModelID, wchar_t*
                     HRESULT hr = IShellLinkW_GetIconLocation(shellLink, outIcon, 512, &idx);
                     if (SUCCEEDED(hr)) {
                         if (outIcon[0] == L'\0') {
-                            wcscpy(outName, L"Unamed");
-                        } else {
                             // Success but no out path: it means it uses icon
                             // from the link target (actual .exe)
                             static wchar_t linkPath[512];
@@ -618,6 +610,7 @@ static bool FindLnk(const wchar_t* dirpath, const wchar_t* userModelID, wchar_t*
                 break;
         }
     } while (FindNextFileW(hFind, &findData));
+    dirpath[dirPathLen] = L'\0';
     FindClose(hFind);
     return found;
 }
@@ -626,21 +619,19 @@ static bool GetAppInfoFromLnk(const wchar_t* userModelID, wchar_t* outIconPath, 
 {
     CoInitializeEx(NULL, COINIT_APARTMENTTHREADED);
     static wchar_t* startMenu;
-    static wchar_t search[512] = {};
+    static wchar_t workPath[512] = {};
     bool found = false;
     {
         SHGetKnownFolderPath(&FOLDERID_StartMenu, 0, 0, &startMenu);
-        search[0] = L'\0';
-        wcscpy(search, startMenu);
-        wcscat(search, L"\\*");
-        found = FindLnk(search, userModelID, outAppName, outIconPath, 0);
+        workPath[0] = L'\0';
+        wcscpy(workPath, startMenu);
+        found = FindLnk(workPath, userModelID, outAppName, outIconPath, 0);
     }
     if (!found) {
         SHGetKnownFolderPath(&FOLDERID_CommonStartMenu, 0, 0, &startMenu);
-        search[0] = L'\0';
-        wcscpy(search, startMenu);
-        wcscat(search, L"\\*");
-        found = FindLnk(search, userModelID, outAppName, outIconPath, 0);
+        workPath[0] = L'\0';
+        wcscpy(workPath, startMenu);
+        found = FindLnk(workPath, userModelID, outAppName, outIconPath, 0);
     }
     CoUninitialize();
     return found;
