@@ -916,9 +916,9 @@ static void GetAppName(const wchar_t* exePath, wchar_t* out)
     wcscpy(out, lastSlash + 1);
 }
 
-static GpBitmap* GetIconFromExe(const wchar_t* exePath)
+static GpBitmap* GetIconFromBinary(const wchar_t* binPath)
 {
-    HMODULE module = LoadLibraryExW(exePath, NULL, LOAD_LIBRARY_AS_DATAFILE);
+    HMODULE module = LoadLibraryExW(binPath, NULL, LOAD_LIBRARY_AS_DATAFILE);
     ASSERT(module != NULL);
 
     // Finds icon resource in module
@@ -1183,9 +1183,14 @@ static BOOL FillWinGroups(HWND hwnd, LPARAM lParam)
             // Load bitmap
             {
                 if (EndsWithW(iconPath, L".exe") || EndsWithW(iconPath, L".EXE"))
-                    group->IconBitmap = GetIconFromExe(iconPath);
-                else
+                    group->IconBitmap = GetIconFromBinary(iconPath);
+                else {
                     GdipLoadImageFromFile(iconPath, &group->IconBitmap);
+                    if (!group->IconBitmap) {
+                        // Icon path can be a binary without .exe extension (p4v)
+                        group->IconBitmap = GetIconFromBinary(iconPath);
+                    }
+                }
             }
 
             // Default icon
