@@ -30,7 +30,7 @@ CC = $(ARCH)-w64-mingw32-clang
 CFLAGS = -I $(ROOTDIR)/SDK/Headers -I $(ROOTDIR)/Sources -I $(ROOTDIR)/SDK/Sources
 LDIRS = -L $(LIBDIR) -L $(LIBDIR)/curl
 LFLAGS = -static -static-libgcc -Werror
-CFLAGS += -Wall -D ARCH_$(ARCH)=1 -D NTDDI_VERSION=NTDDI_WIN10 -target $(ARCH)-w64-mingw32 -Werror -std=c11
+CFLAGS += -Wall -Wextra -Wshadow -Werror -D ARCH_$(ARCH)=1 -D NTDDI_VERSION=NTDDI_WIN10 -target $(ARCH)-w64-mingw32 -std=c11
 
 ifeq ($(CONF), Debug)
 CFLAGS += -g3 -fsanitize=address,undefined
@@ -51,6 +51,7 @@ ALLOBJECTS = $(patsubst $(ROOTDIR)/%.c, $(OBJDIR)/%.o, $(ALLC))
 
 # Subsets, for link.
 AASOBJECTS = $(filter $(OBJDIR)/Sources/AltAppSwitcher/%, $(ALLOBJECTS))
+AASDLLOBJECTS = $(filter $(OBJDIR)/Sources/AltAppSwitcherDll/%, $(ALLOBJECTS))
 CONFIGOBJECTS = $(filter $(OBJDIR)/Sources/Config/%, $(ALLOBJECTS))
 SETTINGSOBJECTS = $(filter $(OBJDIR)/Sources/Settings/%, $(ALLOBJECTS))
 UPDATEROBJECTS = $(filter $(OBJDIR)/Sources/Updater/%, $(ALLOBJECTS))
@@ -61,12 +62,13 @@ GUIOBJECTS = $(filter $(OBJDIR)/Sources/Utils/GUI%, $(ALLOBJECTS))
 SDKOBJECTS = $(filter $(OBJDIR)/SDK%, $(ALLOBJECTS))
 COMMONOBJECTS = $(ERROROBJECTS) $(FILEOBJECTS) $(MSGOBJECTS) $(SDKOBJECTS)
 
-AASLIBS = -l dwmapi -l User32 -l Gdi32 -l Gdiplus -l shlwapi -l pthread -l Ole32 -l Comctl32
+AASLIBS = -l dwmapi -l User32 -l Gdi32 -l Gdiplus -l shlwapi -l pthread -l Ole32 -l Comctl32 -l uuid
 SETTINGSLIB = -l Comctl32 -l Gdi32
 UPDATERLIBS = -l zip -l zlibstatic -l bcrypt -l curl -l curl.dll
 
 AASASSETS = $(patsubst $(ROOTDIR)/Assets/AAS/%, $(AASBUILDDIR)/%, $(wildcard $(ROOTDIR)/Assets/AAS/*))
-DLL = $(patsubst $(ROOTDIR)/SDK/Dll/$(ARCH)/%, $(AASBUILDDIR)/%, $(wildcard $(ROOTDIR)/SDK/Dll/$(ARCH)/*))
+SDKDLL = $(patsubst $(ROOTDIR)/SDK/Dll/$(ARCH)/%, $(AASBUILDDIR)/%, $(wildcard $(ROOTDIR)/SDK/Dll/$(ARCH)/*))
+AASDLL = $(AASBUILDDIR)/AAS.dll
 
 # Do not make a non phony target depend on phony one, otherwise
 # the target will rebuild every time.
@@ -75,8 +77,9 @@ DLL = $(patsubst $(ROOTDIR)/SDK/Dll/$(ARCH)/%, $(AASBUILDDIR)/%, $(wildcard $(RO
 ALLAAS = $(AASBUILDDIR)/AltAppSwitcher.exe
 ALLAAS += $(AASBUILDDIR)/Settings.exe
 ALLAAS += $(AASBUILDDIR)/Updater.exe
+# ALLAAS += $(AASBUILDDIR)/AASDll.dll
 ALLAAS += $(AASASSETS)
-ALLAAS += $(DLL)
+ALLAAS += $(SDKDLL)
 
 COMPILECOMMANDS = $(SOURCEDIR)/compile_commands.json
 
@@ -88,7 +91,7 @@ directories:
 
 # Compile object targets:
 # see 4.12.1 Syntax of Static Pattern Rules
-clang_tidy_disable_if_dbg = 
+clang_tidy_disable_if_dbg =
 ifeq ($(CONF), Debug)
 clang_tidy_disable_if_dbg = --checks=-*
 endif
@@ -107,12 +110,15 @@ $(AASBUILDDIR)/Settings.exe: $(SETTINGSOBJECTS) $(CONFIGOBJECTS) $(COMMONOBJECTS
 $(AASBUILDDIR)/Updater.exe: $(UPDATEROBJECTS) $(COMMONOBJECTS)
 	$(CC) $(LFLAGS) $(LDIRS) $(UPDATERLIBS) $^ -o $@
 
+$(AASBUILDDIR)/AASDll.dll: $(AASDLLOBJECTS) $(COMMONOBJECTS)
+	$(CC) -shared $(LFLAGS) $(LDIRS) $(AASLIBS) $^ -o $@
+
 # Assets:
 $(AASASSETS): $(AASBUILDDIR)/%: $(ROOTDIR)/Assets/AAS/%
 	python ./AAS.py Copy "$<" "$@"
 
 # Dll:
-$(DLL): $(AASBUILDDIR)/%: $(ROOTDIR)/SDK/Dll/$(ARCH)/%
+$(SDKDLL): $(AASBUILDDIR)/%: $(ROOTDIR)/SDK/Dll/$(ARCH)/%
 	python ./AAS.py Copy "$<" "$@"
 
 # Make compile_command.json (clangd)

@@ -206,7 +206,7 @@ static void Extract(const char* targetDir)
         if (!dstFile)
             return;
         long long sum = 0;
-        while (sum != zs.size) {
+        while (sum != (long long)zs.size) {
             long long len = zip_fread(zf, buf, sizeof(buf));
             unsigned long long a = fwrite(buf, sizeof(unsigned char), len, dstFile);
             ASSERT(a > 0);

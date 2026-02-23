@@ -86,8 +86,11 @@ static void ButtonMessage(UINT buttonID, GUIData* guiData, void* userData)
     }
 }
 
-int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int nShowCmd)
+int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int nShowCmd) // NOLINT
 {
+    (void)hPrevInstance;
+    (void)lpCmdLine;
+    (void)nShowCmd;
     Config config = {};
     GUIWindow(SetupGUI, ButtonMessage, (void*)&config, hInstance, "AASSettings");
     return 0;

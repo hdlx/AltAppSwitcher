@@ -283,7 +283,7 @@ static void NextWin(void* windowDataVoidPtr)
 {
     struct WindowData* windowData = windowDataVoidPtr;
     ASSERT(windowData);
-    if (windowData->Selection >= windowData->CurrentWinGroup.WindowCount)
+    if (windowData->Selection >= (int)windowData->CurrentWinGroup.WindowCount)
         return;
     HWND win = windowData->CurrentWinGroup.Windows[windowData->Selection];
     DWORD targetWinThread = GetWindowThreadProcessId(win, NULL);
