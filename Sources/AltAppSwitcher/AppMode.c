@@ -931,9 +931,11 @@ static GpBitmap* GetIconFromBinary(const wchar_t* binPath, int iconIdx)
     uint32_t iconResID = 0xFFFFFFFF;
     {
         char name[256];
+        // char* indirection is mandatory as EnumResourceNames might write the pointer
+        // and not the target buffer.
         struct GetIconGroupNameData data = { .outName = name, .inIdx = iconIdx };
         EnumResourceNames(module, RT_GROUP_ICON, GetIconGroupName, (LONG_PTR)&data);
-        HRSRC iconGrp = FindResource(module, data.outName, RT_GROUP_ICON); // Use outname (*char) and not name (char[]). WHY?
+        HRSRC iconGrp = FindResource(module, data.outName, RT_GROUP_ICON);
         if (iconGrp == NULL) {
             FreeLibrary(module);
             return NULL;
