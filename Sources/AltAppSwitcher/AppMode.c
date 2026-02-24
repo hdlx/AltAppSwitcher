@@ -617,8 +617,8 @@ static bool FindLnk(wchar_t* dirpath, const wchar_t* userModelID, wchar_t* outNa
                 if (pv.vt == VT_LPSTR)
                     CharToWChar(foundAUMID, pv.pcVal);
                 if (!wcscmp(foundAUMID, userModelID)) {
-                    int idx = 0;
-                    HRESULT hr = IShellLinkW_GetIconLocation(shellLink, outIcon, 512, &idx);
+                    *outIconIdx = 0;
+                    HRESULT hr = IShellLinkW_GetIconLocation(shellLink, outIcon, 512, outIconIdx);
                     if (SUCCEEDED(hr)) {
                         if (outIcon[0] == L'\0') {
                             // Success but no out path: it means it uses icon
@@ -880,6 +880,17 @@ static BOOL GetIconGroupName(HMODULE hModule, LPCSTR lpType, LPSTR lpName, LONG_
     (void)lpName;
     (void)lParam;
     struct GetIconGroupNameData* data = (struct GetIconGroupNameData*)lParam;
+    if (data->inIdx < 0) {
+        // Negative value means resource ID.
+        // Testable with "run" window.
+        // Positive means icon index. Not handled, needs a repro.
+        if (IS_INTRESOURCE(lpName) && ((WORD)(ULONG_PTR)lpName == -data->inIdx)) {
+            data->outName = lpName;
+            return false; // Found
+        }
+        return true;
+    }
+    // No resource specified: pick first icon group.
     if (IS_INTRESOURCE(lpName)) {
         data->outName = lpName;
     } else {
