@@ -528,7 +528,7 @@ static BOOL EndsWithW(const wchar_t* x, const wchar_t* y)
     return wcscmp(x + wcslen(x) - wcslen(y), y) == 0;
 }
 
-static bool FindLnk(wchar_t* dirpath, const wchar_t* userModelID, wchar_t* outName, wchar_t* outIcon, uint32_t depth)
+static bool FindLnk(wchar_t* dirpath, const wchar_t* userModelID, wchar_t* outName, wchar_t* outIcon, int* outIconIdx)
 {
     const uint32_t dirPathLen = wcslen(dirpath);
     wcscat(dirpath, L"\\*");
@@ -553,7 +553,7 @@ static bool FindLnk(wchar_t* dirpath, const wchar_t* userModelID, wchar_t* outNa
         if (ftyp == INVALID_FILE_ATTRIBUTES)
             continue;
         if (ftyp & FILE_ATTRIBUTE_DIRECTORY) {
-            found = FindLnk(dirpath, userModelID, outName, outIcon, depth + 1);
+            found = FindLnk(dirpath, userModelID, outName, outIcon, outIconIdx);
             if (found)
                 break;
             continue;
@@ -580,9 +580,9 @@ static bool FindLnk(wchar_t* dirpath, const wchar_t* userModelID, wchar_t* outNa
                 static wchar_t linkPath[512];
                 IShellLinkW_GetPath(shellLink, linkPath, 512, NULL, 0);
                 if (!wcscmp(linkPath, userModelID)) {
-                    int idx = 0;
+                    *outIconIdx = 0;
                     outIcon[0] = L'\0';
-                    HRESULT hr = IShellLinkW_GetIconLocation(shellLink, outIcon, 512, &idx);
+                    HRESULT hr = IShellLinkW_GetIconLocation(shellLink, outIcon, 512, outIconIdx);
                     if (SUCCEEDED(hr)) {
                         if (outIcon[0] == L'\0') {
                             // Success but no out path: it means it uses icon
@@ -651,7 +651,7 @@ static bool FindLnk(wchar_t* dirpath, const wchar_t* userModelID, wchar_t* outNa
     return found;
 }
 
-static bool GetAppInfoFromLnk(const wchar_t* userModelID, wchar_t* outIconPath, wchar_t* outAppName)
+static bool GetAppInfoFromLnk(const wchar_t* userModelID, wchar_t* outIconPath, wchar_t* outAppName, int* outIconIdx)
 {
     CoInitializeEx(NULL, COINIT_APARTMENTTHREADED);
     static wchar_t* startMenu;
@@ -661,13 +661,13 @@ static bool GetAppInfoFromLnk(const wchar_t* userModelID, wchar_t* outIconPath, 
         SHGetKnownFolderPath(&FOLDERID_StartMenu, 0, 0, &startMenu);
         workPath[0] = L'\0';
         wcscpy(workPath, startMenu);
-        found = FindLnk(workPath, userModelID, outAppName, outIconPath, 0);
+        found = FindLnk(workPath, userModelID, outAppName, outIconPath, outIconIdx);
     }
     if (!found) {
         SHGetKnownFolderPath(&FOLDERID_CommonStartMenu, 0, 0, &startMenu);
         workPath[0] = L'\0';
         wcscpy(workPath, startMenu);
-        found = FindLnk(workPath, userModelID, outAppName, outIconPath, 0);
+        found = FindLnk(workPath, userModelID, outAppName, outIconPath, outIconIdx);
     }
     CoUninitialize();
     return found;
@@ -868,16 +868,22 @@ typedef struct {
 } GRPICONDIR, *LPGRPICONDIR;
 #pragma pack(pop)
 
+struct GetIconGroupNameData {
+    char* outName;
+    int inIdx;
+};
+
 static BOOL GetIconGroupName(HMODULE hModule, LPCSTR lpType, LPSTR lpName, LONG_PTR lParam)
 {
     (void)hModule;
     (void)lpType;
     (void)lpName;
     (void)lParam;
+    struct GetIconGroupNameData* data = (struct GetIconGroupNameData*)lParam;
     if (IS_INTRESOURCE(lpName)) {
-        *(char**)lParam = lpName;
+        data->outName = lpName;
     } else {
-        strcpy_s(*(char**)lParam, sizeof(char) * 256, lpName);
+        strcpy_s(data->outName, sizeof(char) * 256, lpName);
     }
     return false;
 }
@@ -916,18 +922,18 @@ static void GetAppName(const wchar_t* exePath, wchar_t* out)
     wcscpy(out, lastSlash + 1);
 }
 
-static GpBitmap* GetIconFromBinary(const wchar_t* binPath)
+static GpBitmap* GetIconFromBinary(const wchar_t* binPath, int iconIdx)
 {
     HMODULE module = LoadLibraryExW(binPath, NULL, LOAD_LIBRARY_AS_DATAFILE);
-    ASSERT(module != NULL);
+    ASSERT(module);
 
     // Finds icon resource in module
     uint32_t iconResID = 0xFFFFFFFF;
     {
         char name[256];
-        char* pName = name;
-        EnumResourceNames(module, RT_GROUP_ICON, GetIconGroupName, (LONG_PTR)&pName);
-        HRSRC iconGrp = FindResource(module, pName, RT_GROUP_ICON);
+        struct GetIconGroupNameData data = { .outName = name, .inIdx = iconIdx };
+        EnumResourceNames(module, RT_GROUP_ICON, GetIconGroupName, (LONG_PTR)&data);
+        HRSRC iconGrp = FindResource(module, data.outName, RT_GROUP_ICON); // Use outname (*char) and not name (char[]). WHY?
         if (iconGrp == NULL) {
             FreeLibrary(module);
             return NULL;
@@ -1146,8 +1152,9 @@ static BOOL FillWinGroups(HWND hwnd, LPARAM lParam)
 
         if (!found) {
             static wchar_t iconPath[MAX_PATH] = {};
+            int iconIdx = 0;
             iconPath[0] = L'\0';
-            found = GetAppInfoFromLnk(group->AUMID, iconPath, group->AppName);
+            found = GetAppInfoFromLnk(group->AUMID, iconPath, group->AppName, &iconIdx);
 
             if (!found) {
                 const HANDLE process = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, FALSE, PID);
@@ -1182,13 +1189,15 @@ static BOOL FillWinGroups(HWND hwnd, LPARAM lParam)
 
             // Load bitmap
             {
-                if (EndsWithW(iconPath, L".exe") || EndsWithW(iconPath, L".EXE"))
-                    group->IconBitmap = GetIconFromBinary(iconPath);
+                static wchar_t iconPathExpanded[MAX_PATH] = {};
+                ExpandEnvironmentStringsW(iconPath, iconPathExpanded, MAX_PATH - 1);
+                if (EndsWithW(iconPathExpanded, L".exe") || EndsWithW(iconPathExpanded, L".EXE"))
+                    group->IconBitmap = GetIconFromBinary(iconPathExpanded, iconIdx);
                 else {
                     GdipLoadImageFromFile(iconPath, &group->IconBitmap);
                     if (!group->IconBitmap) {
                         // Icon path can be a binary without .exe extension (p4v)
-                        group->IconBitmap = GetIconFromBinary(iconPath);
+                        group->IconBitmap = GetIconFromBinary(iconPathExpanded, iconIdx);
                     }
                 }
             }
