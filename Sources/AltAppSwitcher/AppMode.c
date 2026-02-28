@@ -1148,12 +1148,24 @@ void GetAppInfos(DWORD PID, struct StaticData* staticData, const wchar_t* aumid,
     }
 }
 
-// {
-//     bool found = false;
-//     GpBitmap* appIcon = NULL;
-//     static wchar_t appName[MAX_PATH];
-//     GetAppInfos(PID, windowData->StaticData, group->AUMID, &group->IconBitmap, group->AppName);
-// }
+static BOOL WarmCache(HWND hwnd, LPARAM lParam)
+{
+    struct StaticData* staticData = (struct StaticData*)lParam;
+    if (!IsEligibleWindow(hwnd, staticData->Config, NULL, false))
+        return true;
+    DWORD PID = 0;
+    FindActualPID(hwnd, &PID);
+    static wchar_t AUMID[512];
+    {
+        BOOL found = GetWindowAUMI(hwnd, AUMID);
+        if (!found)
+            GetProcessAUMI(PID, AUMID);
+    }
+    GpBitmap* appIcon = NULL;
+    static wchar_t appName[MAX_PATH];
+    GetAppInfos(PID, staticData, AUMID, &appIcon, appName);
+    return true;
+}
 
 static BOOL FillWinGroups(HWND hwnd, LPARAM lParam)
 {
@@ -1335,6 +1347,8 @@ void AppModeInit(HINSTANCE instance, const struct Config* cfg)
         wc.hbrBackground = GetSysColorBrush(COLOR_HIGHLIGHT);
         RegisterClass(&wc);
     }
+
+    EnumWindows(WarmCache, (LPARAM)&StaticData);
 }
 
 void AppModeDeinit()

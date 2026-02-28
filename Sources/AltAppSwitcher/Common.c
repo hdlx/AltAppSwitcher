@@ -156,7 +156,7 @@ bool IsEligibleWindow(HWND hwnd, const struct Config* cfg, HMONITOR mouseMonitor
         return false;
 
     // Filter apps by monitor if enabled
-    if (cfg->AppFilterMode == AppFilterModeMouseMonitor) {
+    if (cfg->AppFilterMode == AppFilterModeMouseMonitor && mouseMonitor) {
         if (!IsWindowOnMonitor(hwnd, mouseMonitor))
             return true;
     }
