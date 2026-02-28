@@ -1377,10 +1377,16 @@ void AppModeDeinit()
 
 HWND AppModeCreateWindow()
 {
-    DWORD fgwinthread = GetWindowThreadProcessId(GetForegroundWindow(), NULL);
-    AttachThreadInput(GetCurrentThreadId(), fgwinthread, TRUE);
+    DWORD fgwinthread = 0;
+    if (!((SHORT)GetAsyncKeyState(VK_LBUTTON) & 0x8000))
+        fgwinthread = GetWindowThreadProcessId(GetForegroundWindow(), NULL);
+    if (fgwinthread) {
+        printf("AttachThreadInput\n");
+        WINBOOL r = AttachThreadInput(GetCurrentThreadId(), fgwinthread, TRUE);
+        ASSERT(r);
+    }
     HWND hwnd = CreateWindowEx(
-        WS_EX_TOPMOST | WS_EX_TOOLWINDOW | WS_EX_LAYERED, // Optional window styles (WS_EX_)
+        WS_EX_TOPMOST | WS_EX_LAYERED | WS_EX_NOACTIVATE, // Optional window styles (WS_EX_)
         MAIN_CLASS_NAME, // Window class
         "", // Window text
         WS_BORDER | WS_POPUP, // Window style
@@ -1396,7 +1402,12 @@ HWND AppModeCreateWindow()
     );
     ASSERT(hwnd);
     SetForegroundWindow(hwnd);
-    AttachThreadInput(GetCurrentThreadId(), fgwinthread, FALSE);
+    // HWND hwnd = 0;
+    if (fgwinthread) {
+        // printf("SFW\n");
+        WINBOOL r = AttachThreadInput(GetCurrentThreadId(), fgwinthread, FALSE);
+        ASSERT(r);
+    }
     return hwnd;
 }
 
