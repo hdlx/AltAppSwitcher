@@ -1913,6 +1913,10 @@ static void DeinitApp(struct WindowData* windowData)
 #endif
 }
 
+void AppModeCloseApp(HWND window) {
+    PostMessage(window, MSG_WIN_CLOSE_APP, 0, 0);
+}
+
 static void Init(struct WindowData* windowData)
 {
     ASSERT(windowData->StaticData);
@@ -2024,6 +2028,29 @@ static void Init(struct WindowData* windowData)
     }
 }
 
+void CloseAppGroup(const SWinGroup* winGroup, HWND hwnd) {
+    static HANDLE ht = 0;
+    static CloseThreadData ctd = {};
+    if (ht)
+        TerminateThread(ht, 0);
+    ctd.Count = 0;
+
+    ctd.MainWin = hwnd;
+    for (uint32_t i = 0; i < winGroup->WindowCount; i++) {
+        const HWND win = winGroup->Windows[i];
+        ctd.Count++;
+        ctd.Win[i] = win;
+    }
+
+    DWORD tid;
+    ht = CreateThread(NULL, 0, CloseThread, (void*)&ctd, 0, &tid);
+
+    for (uint32_t i = 0; i < winGroup->WindowCount; i++) {
+        const HWND win = winGroup->Windows[i];
+        PostMessage(win, WM_CLOSE, 0, 0);
+    }
+}
+
 static LRESULT CALLBACK MainWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 {
     static struct WindowData windowData = {};
@@ -2086,27 +2113,14 @@ static LRESULT CALLBACK MainWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPAR
             return 0;
 
         if (windowData.CloseHover) {
-            static HANDLE ht = 0;
-            static CloseThreadData ctd = {};
-            if (ht)
-                TerminateThread(ht, 0);
-            ctd.Count = 0;
-
-            ctd.MainWin = hwnd;
             const SWinGroup* winGroup = &windowData.WinGroups.Data[windowData.MouseSelection];
-            for (uint32_t i = 0; i < winGroup->WindowCount; i++) {
-                const HWND win = winGroup->Windows[i];
-                ctd.Count++;
-                ctd.Win[i] = win;
-            }
+            CloseAppGroup(winGroup, hwnd);
 
-            DWORD tid;
-            ht = CreateThread(NULL, 0, CloseThread, (void*)&ctd, 0, &tid);
-
-            for (uint32_t i = 0; i < winGroup->WindowCount; i++) {
-                const HWND win = winGroup->Windows[i];
-                PostMessage(win, WM_CLOSE, 0, 0);
-            }
+            return 0;
+        }
+        case MSG_WIN_CLOSE_APP: {
+            const SWinGroup* winGroup = &windowData.WinGroups.Data[windowData.Selection];
+            CloseAppGroup(winGroup, hwnd);
 
             return 0;
         }
