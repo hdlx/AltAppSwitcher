@@ -9,6 +9,7 @@ struct KeyConfig {
     unsigned int WinSwitch;
     unsigned int Invert;
     unsigned int PrevApp;
+    unsigned int AppClose;
 };
 
 typedef enum ThemeMode {
@@ -63,7 +64,7 @@ typedef struct EnumString {
     unsigned int Value;
 } EnumString;
 
-extern const EnumString keyES[15];
+extern const EnumString keyES[17];
 extern const EnumString themeES[4];
 extern const EnumString appSwitcherModeES[3];
 extern const EnumString displayNameES[4];

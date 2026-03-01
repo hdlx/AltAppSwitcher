@@ -30,6 +30,10 @@ static void SetupGUI(GUIData* gui, void* userData)
     CreateComboBox("", &cfg->Key.Invert, keyES, gui);
     CreateText("Previous app", "", gui);
     CreateComboBox("", &cfg->Key.PrevApp, keyES, gui);
+    CreateText("", "", gui); // placeholder
+    CreateText("", "", gui); // placeholder
+    CreateText("App close", "", gui);
+    CreateComboBox("", &cfg->Key.AppClose, keyES, gui);
 
     GridLayout(1, gui);
     CreateText("Graphic options:", "", gui);

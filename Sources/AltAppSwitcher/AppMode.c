@@ -133,6 +133,8 @@ typedef struct SFoundWin {
     uint32_t Size;
 } SFoundWin;
 
+void CloseAppGroup(const SWinGroup* winGroup, HWND hwnd);
+
 static void InitGraphicsResources(struct GraphicsResources* pRes, const Config* config)
 {
     // Text
@@ -1853,6 +1855,12 @@ static int ProcessKeys(struct WindowData* windowData, UINT uMsg, WPARAM wParam)
             MoveSelection(windowData, invert ? -x : x);
             return 0;
         }
+
+        // App close
+        if (wParam == windowData->StaticData->Config->Key.AppClose) {
+            const SWinGroup* winGroup = &windowData->WinGroups.Data[windowData->Selection];
+            CloseAppGroup(winGroup, windowData->MainWin);
+        }
     }
     default:
         break;
@@ -2021,6 +2029,29 @@ static void Init(struct WindowData* windowData)
     }
 }
 
+void CloseAppGroup(const SWinGroup* winGroup, HWND hwnd) {
+    static HANDLE ht = 0;
+    static CloseThreadData ctd = {};
+    if (ht)
+        TerminateThread(ht, 0);
+    ctd.Count = 0;
+
+    ctd.MainWin = hwnd;
+    for (uint32_t i = 0; i < winGroup->WindowCount; i++) {
+        const HWND win = winGroup->Windows[i];
+        ctd.Count++;
+        ctd.Win[i] = win;
+    }
+
+    DWORD tid;
+    ht = CreateThread(NULL, 0, CloseThread, (void*)&ctd, 0, &tid);
+
+    for (uint32_t i = 0; i < winGroup->WindowCount; i++) {
+        const HWND win = winGroup->Windows[i];
+        PostMessage(win, WM_CLOSE, 0, 0);
+    }
+}
+
 static LRESULT CALLBACK MainWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 {
     static struct WindowData windowData = {};
@@ -2083,27 +2114,8 @@ static LRESULT CALLBACK MainWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPAR
             return 0;
 
         if (windowData.CloseHover) {
-            static HANDLE ht = 0;
-            static CloseThreadData ctd = {};
-            if (ht)
-                TerminateThread(ht, 0);
-            ctd.Count = 0;
-
-            ctd.MainWin = hwnd;
             const SWinGroup* winGroup = &windowData.WinGroups.Data[windowData.MouseSelection];
-            for (uint32_t i = 0; i < winGroup->WindowCount; i++) {
-                const HWND win = winGroup->Windows[i];
-                ctd.Count++;
-                ctd.Win[i] = win;
-            }
-
-            DWORD tid;
-            ht = CreateThread(NULL, 0, CloseThread, (void*)&ctd, 0, &tid);
-
-            for (uint32_t i = 0; i < winGroup->WindowCount; i++) {
-                const HWND win = winGroup->Windows[i];
-                PostMessage(win, WM_CLOSE, 0, 0);
-            }
+            CloseAppGroup(winGroup, hwnd);
 
             return 0;
         }
