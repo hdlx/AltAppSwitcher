@@ -115,8 +115,7 @@ static LRESULT KbProc(int nCode, WPARAM wParam, LPARAM lParam)
     const bool prevAppKey = kbStrut.vkCode == KeyConfig->PrevApp;
     const bool winHoldKey = kbStrut.vkCode == KeyConfig->WinHold;
     const bool nextWinKey = kbStrut.vkCode == KeyConfig->WinSwitch;
-    const bool appCloseKey = kbStrut.vkCode == KeyConfig->AppClose;
-    const bool isWatchedKey = appHoldKey || nextAppKey || prevAppKey || winHoldKey || nextWinKey || appCloseKey;
+    const bool isWatchedKey = appHoldKey || nextAppKey || prevAppKey || winHoldKey || nextWinKey;
     if (!isWatchedKey)
         return CallNextHookEx(NULL, nCode, wParam, lParam);
 
@@ -132,7 +131,6 @@ static LRESULT KbProc(int nCode, WPARAM wParam, LPARAM lParam)
         const bool appHoldRelease = appHoldKey && rel;
         const bool nextApp = nextAppKey && !rel;
         const bool nextWin = nextWinKey && !rel;
-        const bool closeApp = appCloseKey && rel;
         const bool isWinHold = GetAsyncKeyState((SHORT)KeyConfig->WinHold) & 0x8000;
         const bool isAppHold = GetAsyncKeyState((SHORT)KeyConfig->AppHold) & 0x8000;
 
@@ -154,12 +152,6 @@ static LRESULT KbProc(int nCode, WPARAM wParam, LPARAM lParam)
             mode = ModeWin;
             PostThreadMessage(MainThread, MSG_RESTORE_KEY, KeyConfig->WinHold, 0);
             PostThreadMessage(MainThread, MSG_INIT_WIN, 0, 0);
-            bypassMsg = true;
-        }
-
-        // App close
-        if (prevMode == ModeApp && closeApp) {
-            PostThreadMessage(MainThread, MSG_MAIN_CLOSE_APP, 0, 0);
             bypassMsg = true;
         }
     }
@@ -303,12 +295,6 @@ int StartAltAppSwitcher(HINSTANCE instance)
             if (IsWindow(appData.app_mode_window)) {
                 AppModeDestroyWindow(appData.app_mode_window);
                 appData.app_mode_window = NULL;
-            }
-            break;
-        }
-        case MSG_MAIN_CLOSE_APP: {
-            if (IsWindow(appData.app_mode_window)) {
-                AppModeCloseApp(appData.app_mode_window);
             }
             break;
         }

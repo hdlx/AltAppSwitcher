@@ -133,6 +133,8 @@ typedef struct SFoundWin {
     uint32_t Size;
 } SFoundWin;
 
+void CloseAppGroup(const SWinGroup* winGroup, HWND hwnd);
+
 static void InitGraphicsResources(struct GraphicsResources* pRes, const Config* config)
 {
     // Text
@@ -1856,6 +1858,12 @@ static int ProcessKeys(struct WindowData* windowData, UINT uMsg, WPARAM wParam)
             MoveSelection(windowData, invert ? -x : x);
             return 0;
         }
+
+        // App close
+        if (wParam == windowData->StaticData->Config->Key.AppClose) {
+            const SWinGroup* winGroup = &windowData->WinGroups.Data[windowData->Selection];
+            CloseAppGroup(winGroup, windowData->MainWin);
+        }
     }
     default:
         break;
@@ -1911,10 +1919,6 @@ static void DeinitApp(struct WindowData* windowData)
 #else
     ApplySwitchApp(&appData->WinGroups.Data[appData->Selection]);
 #endif
-}
-
-void AppModeCloseApp(HWND window) {
-    PostMessage(window, MSG_WIN_CLOSE_APP, 0, 0);
 }
 
 static void Init(struct WindowData* windowData)
@@ -2114,12 +2118,6 @@ static LRESULT CALLBACK MainWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPAR
 
         if (windowData.CloseHover) {
             const SWinGroup* winGroup = &windowData.WinGroups.Data[windowData.MouseSelection];
-            CloseAppGroup(winGroup, hwnd);
-
-            return 0;
-        }
-        case MSG_WIN_CLOSE_APP: {
-            const SWinGroup* winGroup = &windowData.WinGroups.Data[windowData.Selection];
             CloseAppGroup(winGroup, hwnd);
 
             return 0;
