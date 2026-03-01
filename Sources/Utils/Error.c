@@ -22,7 +22,7 @@ static void GetErrStr(DWORD err, char* str, uint32_t strSize)
     LocalFree(msg);
 }
 
-void ASSError(const char* file, uint32_t line, const char* assertStr, bool crash)
+void ASSError(const char* file, uint32_t line, const char* assertStr)
 {
     // Call GetLastError first, otherwise other winapi calls might overwrite last error.
     DWORD err = GetLastError();
@@ -41,21 +41,17 @@ void ASSError(const char* file, uint32_t line, const char* assertStr, bool crash
     LogPath(logFile);
 
     FILE* f = fopen(logFile, "ab");
-    const char* type = crash ? "Assert" : "Verify";
     if (f != NULL) {
         int r = fprintf_s(f, "%s:\nFile: %s, line: %u:\n", timeStr, file, line);
         ASSERT(r > 0);
-        r = fprintf_s(f, "%s: %s\n", type, assertStr);
+        r = fprintf_s(f, "%s: %s\n", "Error:", assertStr);
         ASSERT(r > 0);
         r = fprintf_s(f, "Last winapi error: %s\n\n", winMsg[0] == '\0' ? "None" : winMsg);
         ASSERT(r > 0);
         r = fclose(f);
         ASSERT(r == 0);
 
-        printf("%s: %s\n", type, assertStr);
+        printf("%s: %s\n", "Error", assertStr);
         printf("Last winapi error: %s\n\n", winMsg[0] == '\0' ? "None" : winMsg);
     }
-
-    if (crash)
-        DebugBreak();
 }

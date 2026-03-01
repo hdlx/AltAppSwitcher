@@ -3,11 +3,11 @@
 #include <assert.h>
 #define ASSERT(arg)                               \
     if (!(arg)) {                                 \
-        ASSError(__FILE__, __LINE__, #arg, true); \
+        ASSError(__FILE__, __LINE__, #arg);       \
         assert(false);                            \
     }
 #define VERIFY(arg)                                \
     if (!(arg)) {                                  \
-        ASSError(__FILE__, __LINE__, #arg, false); \
+        ASSError(__FILE__, __LINE__, #arg);        \
     }
-void ASSError(const char* file, unsigned int line, const char* assertStr, bool crash);
+void ASSError(const char* file, unsigned int line, const char* assertStr);
