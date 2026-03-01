@@ -22,8 +22,11 @@ static void GetErrStr(DWORD err, char* str, uint32_t strSize)
     LocalFree(msg);
 }
 
-void ASSError(const char* file, uint32_t line, const char* assertStr)
+void ASSError(const char* file, uint32_t line, const char* assertStr, ...)
 {
+    va_list vaargs;
+    va_start(vaargs, assertStr);
+
     // Call GetLastError first, otherwise other winapi calls might overwrite last error.
     DWORD err = GetLastError();
     SetLastError(0);
@@ -44,14 +47,21 @@ void ASSError(const char* file, uint32_t line, const char* assertStr)
     if (f != NULL) {
         int r = fprintf_s(f, "%s:\nFile: %s, line: %u:\n", timeStr, file, line);
         ASSERT(r > 0);
-        r = fprintf_s(f, "%s: %s\n", "Error:", assertStr);
+        r = fprintf_s(f, "Error: ");
+        ASSERT(r > 0);
+        r = vfprintf_s(f, assertStr, vaargs);
+        ASSERT(r > 0);
+        r = fprintf_s(f, "\n");
         ASSERT(r > 0);
         r = fprintf_s(f, "Last winapi error: %s\n\n", winMsg[0] == '\0' ? "None" : winMsg);
         ASSERT(r > 0);
         r = fclose(f);
         ASSERT(r == 0);
 
-        printf("%s: %s\n", "Error", assertStr);
+        printf("Error: ");
+        vprintf(assertStr, vaargs);
+        printf("\n");
         printf("Last winapi error: %s\n\n", winMsg[0] == '\0' ? "None" : winMsg);
     }
+    va_end(vaargs);
 }

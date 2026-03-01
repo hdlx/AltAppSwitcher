@@ -938,7 +938,11 @@ static void GetAppName(const wchar_t* exePath, wchar_t* out)
 static GpBitmap* GetIconFromBinary(const wchar_t* binPath, int iconIdx)
 {
     HMODULE module = LoadLibraryExW(binPath, NULL, LOAD_LIBRARY_AS_DATAFILE);
-    ASSERT(module);
+    if (!module) {
+        static char binPathChar[512];
+        wcharToChar(binPathChar, binPath);
+        ASSERT_MSG(false, "LoadLibrary failed with path: %s", binPathChar);
+    }
 
     // Finds icon resource in module
     uint32_t iconResID = 0xFFFFFFFF;
