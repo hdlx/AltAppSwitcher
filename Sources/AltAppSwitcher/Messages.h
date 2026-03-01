@@ -3,7 +3,6 @@
 #define MSG_INIT_WIN (WM_USER + 7)
 #define MSG_DEINIT (WM_USER + 8)
 #define MSG_RESTORE_KEY (WM_USER + 9)
-#define MSG_CLOSE_APP (WM_USER + 13)
 
 // Apply thread
 #define MSG_NEXT_WIN (WM_USER + 10)
