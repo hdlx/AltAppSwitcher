@@ -2029,7 +2029,8 @@ static void Init(struct WindowData* windowData)
     }
 }
 
-void CloseAppGroup(const SWinGroup* winGroup, HWND hwnd) {
+void CloseAppGroup(const SWinGroup* winGroup, HWND hwnd)
+{
     static HANDLE ht = 0;
     static CloseThreadData ctd = {};
     if (ht)
