@@ -1104,7 +1104,7 @@ void GetAppInfos(DWORD PID, struct StaticData* staticData, const wchar_t* aumid,
         }
 
         // Load bitmap
-        {
+        if (wcslen(iconPath)) {
             static wchar_t iconPathExpanded[MAX_PATH] = {};
             ExpandEnvironmentStringsW(iconPath, iconPathExpanded, MAX_PATH - 1);
             if (EndsWithW(iconPathExpanded, L".exe") || EndsWithW(iconPathExpanded, L".EXE"))
