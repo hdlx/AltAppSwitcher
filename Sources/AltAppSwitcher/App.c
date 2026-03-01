@@ -209,6 +209,7 @@ int StartAltAppSwitcher(HINSTANCE instance)
         PATCH_TILDE(appData.Config.Key.WinSwitch);
         PATCH_TILDE(appData.Config.Key.Invert);
         PATCH_TILDE(appData.Config.Key.PrevApp);
+        PATCH_TILDE(appData.Config.Key.AppClose);
 #undef PATCH_TILDE
 
         appData.Elevated = false;

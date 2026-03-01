@@ -8,7 +8,8 @@
 #include "Utils/File.h"
 
 #define AAS_NONE_VK 0xFFFFFFFE
-const EnumString keyES[15] = {
+#define VK_Q (0x51)
+const EnumString keyES[17] = {
     { "left alt", VK_LMENU },
     { "right alt", VK_RMENU },
     { "alt", VK_MENU },
@@ -22,8 +23,10 @@ const EnumString keyES[15] = {
     { "left shift", VK_LSHIFT },
     { "right shift", VK_RSHIFT },
     { "tab", VK_TAB },
+    { "q", VK_Q },
+    { "f4", VK_F4 },
     { "none", AAS_NONE_VK },
-    { "end", 0xFFFFFFFF }
+    { "end", 0xFFFFFFFF },
 };
 
 const EnumString themeES[4] = {
@@ -130,6 +133,7 @@ void DefaultConfig(Config* config)
     config->Key.WinSwitch = VK_OEM_3;
     config->Key.Invert = VK_LSHIFT;
     config->Key.PrevApp = VK_OEM_3;
+    config->Key.AppClose = VK_Q;
     config->Mouse = true;
     config->CheckForUpdates = true;
     config->ThemeMode = ThemeModeAuto;
@@ -189,6 +193,7 @@ void LoadConfig(Config* config)
     GET_ENUM("next window key", config->Key.WinSwitch, keyES);
     GET_ENUM("invert order key", config->Key.Invert, keyES);
     GET_ENUM("previous app key", config->Key.PrevApp, keyES);
+    GET_ENUM("close app key", config->Key.AppClose, keyES);
 
     GET_ENUM("theme", config->ThemeMode, themeES);
     GET_ENUM("app switcher mode", config->AppSwitcherMode, appSwitcherModeES);
@@ -258,6 +263,7 @@ void WriteConfig(const Config* config)
     WRITE_ENUM("next window key", config->Key.WinSwitch, keyES);
     WRITE_ENUM("invert order key", config->Key.Invert, keyES);
     WRITE_ENUM("previous app key", config->Key.PrevApp, keyES);
+    WRITE_ENUM("close app key", config->Key.AppClose, keyES);
     WRITE_ENUM("theme", config->ThemeMode, themeES);
     WRITE_ENUM("app switcher mode", config->AppSwitcherMode, appSwitcherModeES);
     WRITE_ENUM("display name", config->DisplayName, displayNameES);
