@@ -188,9 +188,18 @@ static HWND GetFirstChild(HWND win)
 }
 #endif
 
+void AssertSingleInstance() {
+    HANDLE hMutex = CreateMutexA(NULL, TRUE, "Global\\AltAppSwitcher{4fb3d3f7-9f35-41ce-b4d2-83c18eac3f54}");
+    if (GetLastError() == ERROR_ALREADY_EXISTS) {
+        CloseHandle(hMutex);
+        ExitProcess(1);
+    }
+}
+
 int StartAltAppSwitcher(HINSTANCE instance)
 {
     SetLastError(0);
+    AssertSingleInstance();
     ASSERT(SetPriorityClass(GetCurrentProcess(), HIGH_PRIORITY_CLASS));
 
     static struct AppData appData = {};
