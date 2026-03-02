@@ -1377,7 +1377,7 @@ HWND AppModeCreateWindow()
         fgwinthread = GetWindowThreadProcessId(GetForegroundWindow(), NULL);
     if (fgwinthread) {
         WINBOOL r = AttachThreadInput(GetCurrentThreadId(), fgwinthread, TRUE);
-        ASSERT(r);
+        VERIFY(r);
     }
     HWND hwnd = CreateWindowEx(
         WS_EX_TOPMOST | WS_EX_LAYERED | WS_EX_NOACTIVATE, // Optional window styles (WS_EX_)
@@ -1398,7 +1398,7 @@ HWND AppModeCreateWindow()
     SetForegroundWindow(hwnd);
     if (fgwinthread) {
         WINBOOL r = AttachThreadInput(GetCurrentThreadId(), fgwinthread, FALSE);
-        ASSERT(r);
+        VERIFY(r);
     }
     return hwnd;
 }
