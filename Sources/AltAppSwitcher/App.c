@@ -188,7 +188,8 @@ static HWND GetFirstChild(HWND win)
 }
 #endif
 
-static void AssertSingleInstance() {
+static void AssertSingleInstance()
+{
     HANDLE hMutex = CreateMutexA(NULL, TRUE, "Global\\AltAppSwitcher{4fb3d3f7-9f35-41ce-b4d2-83c18eac3f54}");
     if (GetLastError() == ERROR_ALREADY_EXISTS) {
         CloseHandle(hMutex);
