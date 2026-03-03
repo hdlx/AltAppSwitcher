@@ -1372,10 +1372,12 @@ void AppModeDeinit()
 
 HWND AppModeCreateWindow()
 {
+    DWORD curThread = GetCurrentThreadId();
     DWORD fgwinthread = 0;
+    // Do not attach if drag in progress. Messes up drag.
     if (!((SHORT)GetAsyncKeyState(VK_LBUTTON) & 0x8000))
         fgwinthread = GetWindowThreadProcessId(GetForegroundWindow(), NULL);
-    if (fgwinthread) {
+    if (fgwinthread && fgwinthread != curThread) {
         WINBOOL r = AttachThreadInput(GetCurrentThreadId(), fgwinthread, TRUE);
         VERIFY(r);
     }
@@ -1396,7 +1398,7 @@ HWND AppModeCreateWindow()
     );
     ASSERT(hwnd);
     SetForegroundWindow(hwnd);
-    if (fgwinthread) {
+    if (fgwinthread && fgwinthread != curThread) {
         WINBOOL r = AttachThreadInput(GetCurrentThreadId(), fgwinthread, FALSE);
         VERIFY(r);
     }
