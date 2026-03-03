@@ -816,7 +816,7 @@ static void GetAppInfoFromManifest(HANDLE process, const wchar_t* userModelID, w
         const wchar_t* postLogoName = NULL;
         {
             const wchar_t* at = wcsstr(findData.cFileName, logoNoExt);
-            if (at == NULL)
+            if (at != findData.cFileName) // "StartsWith" rather than "Contains" (contains is incorrect why latest outlook)
                 continue;
             postLogoName = at + wcslen(logoNoExt);
         }
