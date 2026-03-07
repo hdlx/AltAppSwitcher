@@ -5,7 +5,7 @@
 static void PostAASMsg(int msg)
 {
     HANDLE procSnap = CreateToolhelp32Snapshot((DWORD)TH32CS_SNAPPROCESS, (DWORD)0);
-    PROCESSENTRY32 procEntry = {};
+    PROCESSENTRY32 procEntry = { };
     procEntry.dwSize = sizeof(procEntry);
     BOOL procRes = Process32First(procSnap, &procEntry);
     while (procRes) {
@@ -15,7 +15,7 @@ static void PostAASMsg(int msg)
         }
         {
             HANDLE threadSnap = CreateToolhelp32Snapshot((DWORD)TH32CS_SNAPTHREAD, (DWORD)0);
-            THREADENTRY32 threadEntry = {};
+            THREADENTRY32 threadEntry = { };
             threadEntry.dwSize = sizeof(threadEntry);
             BOOL threadRes = Thread32First(threadSnap, &threadEntry);
             while (threadRes) {
@@ -43,7 +43,7 @@ void CloseAAS()
 int AASIsRunning()
 {
     HANDLE procSnap = CreateToolhelp32Snapshot((DWORD)TH32CS_SNAPPROCESS, (DWORD)0);
-    PROCESSENTRY32 procEntry = {};
+    PROCESSENTRY32 procEntry = { };
     procEntry.dwSize = sizeof(procEntry);
     BOOL procRes = Process32First(procSnap, &procEntry);
     while (procRes) {

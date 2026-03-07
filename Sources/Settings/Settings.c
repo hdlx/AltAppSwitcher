@@ -95,7 +95,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
     (void)hPrevInstance;
     (void)lpCmdLine;
     (void)nShowCmd;
-    Config config = {};
+    Config config = { };
     GUIWindow(SetupGUI, ButtonMessage, (void*)&config, hInstance, "AASSettings");
     return 0;
 }

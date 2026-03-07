@@ -85,7 +85,7 @@ static void CreateTooltip(HWND parent, HWND tool, char* string)
         0, 0, 100, 100,
         parent, NULL, (HINSTANCE)GetWindowLongPtr(parent, GWLP_HINSTANCE), NULL);
     SetWindowPos(tt, HWND_TOPMOST, CW_USEDEFAULT, CW_USEDEFAULT, CW_USEDEFAULT, CW_USEDEFAULT, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
-    TOOLINFO ti = {};
+    TOOLINFO ti = { };
     ti.cbSize = sizeof(TOOLINFO);
     ti.uFlags = TTF_IDISHWND | TTF_SUBCLASS;
     ti.uId = (UINT_PTR)tool;
@@ -168,7 +168,7 @@ HWND CreateButton(const char* text, HMENU ID, GUIData* guiData)
         guiData->Cell.X, guiData->Cell.Y, 0, 0,
         guiData->Parent, (HMENU)ID, inst, NULL);
     SendMessage(button, WM_SETFONT, (WPARAM)guiData->Font, true);
-    SIZE size = {};
+    SIZE size = { };
     Button_GetIdealSize(button, &size);
     SetWindowPos(button, NULL, guiData->Cell.X + (guiData->Cell.W / 2) - (size.cx / 2), guiData->Cell.Y, size.cx, guiData->Cell.H, 0);
     NextCell(guiData);
@@ -184,7 +184,7 @@ void CreateBoolControl(const char* tooltip, bool* value, GUIData* guiData)
         guiData->Cell.X, guiData->Cell.Y, guiData->Cell.W, guiData->Cell.H,
         guiData->Parent, (HMENU)0, inst, NULL);
     SendMessage(button, BM_SETCHECK, (WPARAM)*value ? BST_CHECKED : BST_UNCHECKED, true);
-    SIZE size = {};
+    SIZE size = { };
     Button_GetIdealSize(button, &size);
     guiData->BBindings[guiData->BBindingCount].CheckBox = button;
     guiData->BBindings[guiData->BBindingCount].TargetValue = value;
@@ -194,7 +194,7 @@ void CreateBoolControl(const char* tooltip, bool* value, GUIData* guiData)
 
 static void InitGUIData(GUIData* guiData, HWND parent)
 {
-    NONCLIENTMETRICS metrics = {};
+    NONCLIENTMETRICS metrics = { };
     metrics.cbSize = sizeof(metrics);
     SystemParametersInfo(SPI_GETNONCLIENTMETRICS, metrics.cbSize, &metrics, 0);
     metrics.lfCaptionFont.lfHeight = (LONG)((float)metrics.lfCaptionFont.lfHeight * 1.2f);
@@ -214,7 +214,7 @@ static void InitGUIData(GUIData* guiData, HWND parent)
             0, 0, 0, 0,
             parent, NULL, NULL, NULL);
         SendMessage(combobox, WM_SETFONT, (LPARAM)guiData->Font, true);
-        RECT rect = {};
+        RECT rect = { };
         GetWindowRect(combobox, &rect);
         guiData->Cell.H = rect.bottom - rect.top;
         DestroyWindow(combobox);
@@ -222,7 +222,7 @@ static void InitGUIData(GUIData* guiData, HWND parent)
     guiData->Cell.X = WIN_PAD;
     guiData->Cell.Y = WIN_PAD;
     {
-        RECT parentRect = {};
+        RECT parentRect = { };
         GetClientRect(guiData->Parent, &parentRect);
         guiData->Cell.W = (parentRect.right - parentRect.left - WIN_PAD - WIN_PAD);
     }
@@ -258,7 +258,7 @@ void ApplyBindings(const GUIData* guiData)
         const EnumBinding* bd = &guiData->EBindings[i];
 
         const unsigned int iValue = SendMessage(bd->ComboBox, (UINT)CB_GETCURSEL, (WPARAM)0, (LPARAM)0);
-        char sValue[64] = {};
+        char sValue[64] = { };
         SendMessage(bd->ComboBox, (UINT)CB_GETLBTEXT, (WPARAM)iValue, (LPARAM)sValue);
         bool found = false;
         for (unsigned int j = 0; bd->EnumStrings[j].Value != 0xFFFFFFFF; j++) {
@@ -291,7 +291,7 @@ typedef struct UserData {
 
 static LRESULT GUIWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 {
-    static GUIData guiData = {};
+    static GUIData guiData = { };
     static UserData* userData = 0;
     switch (uMsg) {
     case WM_DESTROY: {
@@ -374,7 +374,7 @@ void GUIWindow(void (*setupGUI)(GUIData*, void*),
     // Class
     COLORREF col = LIGHT_COLOR;
     HBRUSH bkg = CreateSolidBrush(col);
-    WNDCLASS wc = {};
+    WNDCLASS wc = { };
     wc.lpfnWndProc = GUIWindowProc;
     wc.hInstance = instance;
     wc.lpszClassName = className;
@@ -390,7 +390,7 @@ void GUIWindow(void (*setupGUI)(GUIData*, void*),
         0, 0, 0, 0,
         NULL, NULL, instance, (LPVOID)userData);
 
-    MSG msg = {};
+    MSG msg = { };
     while (GetMessage(&msg, NULL, 0, 0)) {
         TranslateMessage(&msg);
         DispatchMessage(&msg);

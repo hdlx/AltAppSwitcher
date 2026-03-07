@@ -83,6 +83,7 @@ def Format():
         for name in files:
             if name.endswith(".c") or name.endswith(".h"):
                 os.system(f"clang-format.exe { path }/{ name } -i")
+                print(f"clang-format.exe { path }/{ name } -i")
 
 import sys
 if __name__ == "__main__": 

@@ -150,7 +150,7 @@ void DefaultConfig(Config* config)
 void LoadConfig(Config* config)
 {
     DefaultConfig(config);
-    char configFile[MAX_PATH] = {};
+    char configFile[MAX_PATH] = { };
     ConfigPath(configFile);
     FILE* file = fopen(configFile, "rb");
     if (file == NULL) {
@@ -167,9 +167,9 @@ void LoadConfig(Config* config)
 #define GET_FLOAT(ENTRY, DST) \
     TryGetFloat(keyValues, ENTRY, &(DST))
 
-    static StrPair keyValues[32] = {};
+    static StrPair keyValues[32] = { };
 
-    static char lineBuf[1024] = {};
+    static char lineBuf[1024] = { };
     unsigned int i = 0;
     while (fgets(lineBuf, 1024, file)) {
         if (!strncmp(lineBuf, "//", 2))
@@ -241,7 +241,7 @@ static void WriteFloat(FILE* file, const char* entry, float value)
 
 void WriteConfig(const Config* config)
 {
-    char configFile[MAX_PATH] = {};
+    char configFile[MAX_PATH] = { };
     ConfigPath(configFile);
     FILE* file = fopen(configFile, "w");
     ASSERT(file);

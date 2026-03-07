@@ -67,7 +67,7 @@ static void CopyFile(const char* srcStr, const char* dstStr)
         ASSERT(a == 0);
         return;
     }
-    unsigned char buf[1024] = {};
+    unsigned char buf[1024] = { };
     while (true) {
         int a = fseek(src, 0, SEEK_CUR);
         ASSERT(a == 0);
@@ -95,14 +95,14 @@ void CopyDirContent(const char* srcDir, const char* dstDir)
         stat(e->d_name, &info);
         if (info.st_mode & S_IFDIR) {
         } else if (info.st_mode & S_IFREG) {
-            char srcFile[256] = {};
+            char srcFile[256] = { };
             {
                 strcpy_s(srcFile, sizeof(srcFile), srcDir);
                 StrBToF(srcFile);
                 strcat_s(srcFile, sizeof(srcFile), "/");
                 strcat_s(srcFile, sizeof(srcFile), e->d_name);
             }
-            char dstFile[256] = {};
+            char dstFile[256] = { };
             {
                 strcpy_s(dstFile, sizeof(dstFile), dstDir);
                 StrBToF(dstFile);
@@ -119,7 +119,7 @@ void CopyDirContent(const char* srcDir, const char* dstDir)
 void ConfigPath(char* outPath)
 {
     outPath[0] = '\0';
-    char currentExe[MAX_PATH] = {};
+    char currentExe[MAX_PATH] = { };
     GetModuleFileName(NULL, currentExe, MAX_PATH);
     ParentDir(currentExe, outPath);
     strcat_s(outPath, sizeof(char) * MAX_PATH, "/AltAppSwitcherConfig.txt");
@@ -128,7 +128,7 @@ void ConfigPath(char* outPath)
 void LogPath(char* outPath)
 {
     outPath[0] = '\0';
-    char currentExe[MAX_PATH] = {};
+    char currentExe[MAX_PATH] = { };
     GetModuleFileName(NULL, currentExe, MAX_PATH);
     ParentDir(currentExe, outPath);
     strcat_s(outPath, sizeof(char) * MAX_PATH, "/AltAppSwitcherLog.txt");
@@ -137,7 +137,7 @@ void LogPath(char* outPath)
 void UpdaterPath(char* outPath)
 {
     outPath[0] = '\0';
-    char currentExe[MAX_PATH] = {};
+    char currentExe[MAX_PATH] = { };
     GetModuleFileName(NULL, currentExe, MAX_PATH);
     ParentDir(currentExe, outPath);
     strcat_s(outPath, sizeof(char) * MAX_PATH, "/Updater.exe");

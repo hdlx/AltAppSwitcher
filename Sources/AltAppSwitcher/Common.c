@@ -114,7 +114,7 @@ bool IsEligibleWindow(HWND hwnd, const struct Config* cfg, HMONITOR mouseMonitor
 {
     if (hwnd == GetShellWindow()) // Desktop
         return false;
-    WINDOWINFO wi = {};
+    WINDOWINFO wi = { };
     wi.cbSize = sizeof(WINDOWINFO);
     GetWindowInfo(hwnd, &wi);
     if (!(wi.dwStyle & WS_VISIBLE))
@@ -210,7 +210,7 @@ static char WorkerClassName[] = "AASWorker";
 
 void CommonInit(HINSTANCE instance)
 {
-    WNDCLASS wc = {};
+    WNDCLASS wc = { };
     wc.lpfnWndProc = WorkerWindowProc;
     wc.hInstance = instance;
     wc.lpszClassName = WorkerClassName;
@@ -233,7 +233,7 @@ static DWORD WorkerThread(LPVOID data)
         0, 0, 0, 0, HWND_MESSAGE, NULL, arg->instance, arg);
     SetEvent(arg->workerReady);
 
-    MSG msg = {};
+    MSG msg = { };
     while (GetMessage(&msg, arg->workerWin, 0, 0) > 0) {
         TranslateMessage(&msg);
         DispatchMessage(&msg);

@@ -40,7 +40,7 @@ struct StaticData {
     HMODULE Instance;
 };
 
-struct StaticData StaticData = {};
+struct StaticData StaticData = { };
 
 struct WindowData {
     HWND MainWin;
@@ -175,7 +175,7 @@ static void FindActualPID(HWND hwnd, DWORD* PID)
 static BOOL IsRunWindow(HWND hwnd)
 {
     {
-        WINDOWINFO wi = {};
+        WINDOWINFO wi = { };
         wi.cbSize = sizeof(WINDOWINFO);
         GetWindowInfo(hwnd, &wi);
         if (wi.atomWindowType != 0x8002)
@@ -187,7 +187,7 @@ static BOOL IsRunWindow(HWND hwnd)
         return false;
 
     {
-        WINDOWINFO wi = {};
+        WINDOWINFO wi = { };
         wi.cbSize = sizeof(WINDOWINFO);
         GetWindowInfo(owner, &wi);
         if (wi.atomWindowType != 0xC01A)
@@ -335,12 +335,12 @@ struct MainWindowArg {
 };
 static LRESULT MainWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 {
-    static struct WindowData windowData = {};
+    static struct WindowData windowData = { };
 
     switch (uMsg) {
     case WM_CREATE: {
         struct MainWindowArg* arg = (struct MainWindowArg*)((CREATESTRUCTA*)lParam)->lpCreateParams;
-        windowData = (struct WindowData) {};
+        windowData = (struct WindowData) { };
         windowData.MainWin = hwnd;
         windowData.StaticData = arg->StaticData;
         InitializeSwitchWin(arg->ForegroundWindow, &windowData);
@@ -411,7 +411,7 @@ void WinModeInit(HINSTANCE instance, const struct Config* cfg)
     StaticData.Config = cfg;
 
     {
-        WNDCLASS wc = {};
+        WNDCLASS wc = { };
         wc.lpfnWndProc = MainWindowProc;
         wc.hInstance = instance;
         wc.lpszClassName = MAIN_CLASS_NAME;

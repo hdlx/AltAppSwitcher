@@ -42,12 +42,8 @@ static DWORD MainThread;
 
 static void RestoreKey(WORD keyCode)
 {
-    // if (GetAsyncKeyState(VK_RCONTROL) & 0x8000)
-    // {
-    //     printf("WHY\n");
-    // }
     {
-        INPUT input = {};
+        INPUT input = { };
         input.type = INPUT_KEYBOARD;
         input.ki.wVk = VK_RCONTROL;
         input.ki.dwFlags = 0;
@@ -59,7 +55,7 @@ static void RestoreKey(WORD keyCode)
 
     {
         // Needed ?
-        INPUT input = {};
+        INPUT input = { };
         input.type = INPUT_KEYBOARD;
         input.ki.wVk = KeyConfig->Invert;
         input.ki.dwFlags = KEYEVENTF_KEYUP;
@@ -67,7 +63,7 @@ static void RestoreKey(WORD keyCode)
         ASSERT(uSent == 1);
     }
     {
-        INPUT input = {};
+        INPUT input = { };
         input.type = INPUT_KEYBOARD;
         input.ki.wVk = keyCode;
         input.ki.dwFlags = KEYEVENTF_KEYUP;
@@ -78,7 +74,7 @@ static void RestoreKey(WORD keyCode)
     usleep(1000);
     if (GetAsyncKeyState(VK_RCONTROL) & 0x8000) {
         // printf("need reset key 0\n");
-        INPUT input = {};
+        INPUT input = { };
         input.type = INPUT_KEYBOARD;
         input.ki.wVk = VK_RCONTROL;
         input.ki.dwFlags = KEYEVENTF_KEYUP;
@@ -89,7 +85,7 @@ static void RestoreKey(WORD keyCode)
     usleep(1000);
     if (GetKeyState(VK_RCONTROL) & 0x8000) {
         // printf("need reset key 1\n");
-        INPUT input = {};
+        INPUT input = { };
         input.type = INPUT_KEYBOARD;
         input.ki.wVk = VK_RCONTROL;
         input.ki.dwFlags = KEYEVENTF_KEYUP;
@@ -166,7 +162,7 @@ static DWORD KbHookCb(LPVOID param)
 {
     (void)param;
     ASSERT(SetWindowsHookEx(WH_KEYBOARD_LL, KbProc, 0, 0));
-    MSG msg = {};
+    MSG msg = { };
 
     while (GetMessage(&msg, NULL, 0, 0) > 0) { }
 
@@ -203,7 +199,7 @@ int StartAltAppSwitcher(HINSTANCE instance)
     AssertSingleInstance();
     ASSERT(SetPriorityClass(GetCurrentProcess(), HIGH_PRIORITY_CLASS));
 
-    static struct AppData appData = {};
+    static struct AppData appData = { };
     {
         appData.Instance = instance;
         // Hook needs globals
@@ -233,11 +229,11 @@ int StartAltAppSwitcher(HINSTANCE instance)
             CloseHandle(tok);
         }
 
-        char updater[MAX_PATH] = {};
+        char updater[MAX_PATH] = { };
         UpdaterPath(updater);
         if (appData.Config.CheckForUpdates && access(updater, F_OK) == 0) {
-            STARTUPINFO si = {};
-            PROCESS_INFORMATION pi = {};
+            STARTUPINFO si = { };
+            PROCESS_INFORMATION pi = { };
             CreateProcess(NULL, updater, 0, 0, false, CREATE_NEW_PROCESS_GROUP, 0, 0,
                 &si, &pi);
         }
@@ -247,9 +243,10 @@ int StartAltAppSwitcher(HINSTANCE instance)
     AppModeInit(instance, &appData.Config);
     WinModeInit(instance, &appData.Config);
 
-    HANDLE threadKbHook = CreateRemoteThread(GetCurrentProcess(), NULL, 0, KbHookCb, (void*)&appData, 0, NULL);
+    HANDLE threadKbHook = CreateThread(NULL, 0, KbHookCb, (void*)&appData, CREATE_SUSPENDED, NULL);
     (void)threadKbHook;
-
+    SetThreadPriority(threadKbHook, THREAD_PRIORITY_TIME_CRITICAL);
+    ResumeThread(threadKbHook);
     AllowSetForegroundWindow(GetCurrentProcessId());
 
     HANDLE token;
@@ -268,7 +265,7 @@ int StartAltAppSwitcher(HINSTANCE instance)
     ChangeWindowMessageFilter(MSG_RESTART_AAS, MSGFLT_ADD);
     ChangeWindowMessageFilter(MSG_CLOSE_AAS, MSGFLT_ADD);
 
-    MSG msg = {};
+    MSG msg = { };
     bool restartAAS = false;
     bool closeAAS = false;
     while (GetMessage(&msg, NULL, 0, 0) > 0) {
@@ -334,10 +331,10 @@ int StartAltAppSwitcher(HINSTANCE instance)
     WinModeDeinit();
 
     if (restartAAS) {
-        STARTUPINFO si = {};
-        PROCESS_INFORMATION pi = {};
+        STARTUPINFO si = { };
+        PROCESS_INFORMATION pi = { };
 
-        char currentExe[MAX_PATH] = {};
+        char currentExe[MAX_PATH] = { };
         GetModuleFileName(NULL, currentExe, MAX_PATH);
 
         CreateProcess(NULL, currentExe, 0, 0, false, CREATE_NEW_PROCESS_GROUP, 0, 0,

@@ -111,7 +111,7 @@ struct StaticData {
     ULONG_PTR GdiplusToken;
 };
 
-static struct StaticData StaticData = {};
+static struct StaticData StaticData = { };
 
 struct WindowData {
     HWND MainWin;
@@ -249,7 +249,7 @@ static BOOL GetWindowAUMI(HWND window, wchar_t* outUMI)
     HRESULT res = SHGetPropertyStoreForWindow(window, &IID_IPropertyStore, (void**)&propertyStore);
     if (!SUCCEEDED(res))
         return false;
-    PROPVARIANT pv = {};
+    PROPVARIANT pv = { };
     PropVariantInit(&pv);
     res = IPropertyStore_GetValue(propertyStore, &PKEY_AppUserModel_ID, &pv);
     IPropertyStore_Release(propertyStore);
@@ -516,7 +516,7 @@ static void StoreAppInfoToMap(struct UWPIconMap* map, const wchar_t* aumid, GpBi
 
     if (map->Data[storeIdx].UserModelID[0] != L'\0') {
         GdipDisposeImage(map->Data[storeIdx].Icon);
-        map->Data[storeIdx] = (SUWPIconMapElement) {};
+        map->Data[storeIdx] = (SUWPIconMapElement) { };
     }
 
     wcscpy(map->Data[storeIdx].UserModelID, aumid);
@@ -534,7 +534,7 @@ static bool FindLnk(wchar_t* dirpath, const wchar_t* userModelID, wchar_t* outNa
 {
     const uint32_t dirPathLen = wcslen(dirpath);
     wcscat(dirpath, L"\\*");
-    WIN32_FIND_DATAW findData = {};
+    WIN32_FIND_DATAW findData = { };
     HANDLE hFind = FindFirstFileW(dirpath, &findData);
     if (hFind == INVALID_HANDLE_VALUE) {
         dirpath[dirPathLen] = L'\0';
@@ -603,7 +603,7 @@ static bool FindLnk(wchar_t* dirpath, const wchar_t* userModelID, wchar_t* outNa
                     HRESULT hr = IShellLinkW_QueryInterface(shellLink, &IID_IPropertyStore, (void**)&propertyStore);
                     ASSERT(SUCCEEDED(hr));
                 }
-                PROPVARIANT pv = {};
+                PROPVARIANT pv = { };
                 {
                     PropVariantInit(&pv);
                     HRESULT hr = IPropertyStore_GetValue(propertyStore, &PKEY_AppUserModel_ID, &pv);
@@ -613,7 +613,7 @@ static bool FindLnk(wchar_t* dirpath, const wchar_t* userModelID, wchar_t* outNa
                     HRESULT hr = IPropertyStore_Release(propertyStore);
                     ASSERT(SUCCEEDED(hr));
                 }
-                static wchar_t foundAUMID[512] = {};
+                static wchar_t foundAUMID[512] = { };
                 if (pv.vt == VT_LPWSTR)
                     wcscpy_s(foundAUMID, 512 * sizeof(char), pv.pwszVal);
                 if (pv.vt == VT_LPSTR)
@@ -657,7 +657,7 @@ static bool GetAppInfoFromLnk(const wchar_t* userModelID, wchar_t* outIconPath, 
 {
     CoInitializeEx(NULL, COINIT_APARTMENTTHREADED);
     static wchar_t* startMenu;
-    static wchar_t workPath[512] = {};
+    static wchar_t workPath[512] = { };
     bool found = false;
     {
         SHGetKnownFolderPath(&FOLDERID_StartMenu, 0, 0, &startMenu);
@@ -999,12 +999,12 @@ static GpBitmap* GetIconFromBinary(const wchar_t* binPath, int iconIdx)
     // Creates a gdi bitmap from the win base api bitmap
     GpBitmap* out;
     {
-        BITMAP bm = {};
+        BITMAP bm = { };
         GetObject(hbm, sizeof(BITMAP), &bm);
         const int iconSize = bm.bmWidth;
         GdipCreateBitmapFromScan0(iconSize, iconSize, 4 * iconSize, PixelFormat32bppARGB, NULL, &out);
         GpRect r = { 0, 0, iconSize, iconSize };
-        BitmapData dstData = {};
+        BitmapData dstData = { };
         GdipBitmapLockBits(out, &r, 0, PixelFormat32bppARGB, &dstData);
         GetBitmapBits(hbm, (LONG)sizeof(uint32_t) * iconSize * iconSize, dstData.Scan0);
         // Check if color has non zero alpha (is there an alternative)
@@ -1018,10 +1018,10 @@ static GpBitmap* GetIconFromBinary(const wchar_t* binPath, int iconIdx)
         }
         // If no alpha, init
         if (noAlpha && hbmMask != NULL && iconSize <= 256) {
-            BITMAP bitmapMask = {};
+            BITMAP bitmapMask = { };
             GetObject(hbmMask, sizeof(bitmapMask), (LPVOID)&bitmapMask);
             unsigned int maskByteSize = bitmapMask.bmWidthBytes * bitmapMask.bmHeight;
-            static char maskData[256 * 256 * 1 / 8] = {};
+            static char maskData[256 * 256 * 1 / 8] = { };
             GetBitmapBits(hbmMask, (LONG)maskByteSize, maskData);
             for (int i = 0; i < iconSize * iconSize; i++) {
                 unsigned int aFromMask = (0x1 & (maskData[i / 8] >> (7 - i % 8))) ? 0 : 0xFF000000;
@@ -1041,7 +1041,7 @@ static GpBitmap* GetIconFromBinary(const wchar_t* binPath, int iconIdx)
 static BOOL IsRunWindow(HWND hwnd)
 {
     {
-        WINDOWINFO wi = {};
+        WINDOWINFO wi = { };
         wi.cbSize = sizeof(WINDOWINFO);
         GetWindowInfo(hwnd, &wi);
         if (wi.atomWindowType != 0x8002)
@@ -1053,7 +1053,7 @@ static BOOL IsRunWindow(HWND hwnd)
         return false;
 
     {
-        WINDOWINFO wi = {};
+        WINDOWINFO wi = { };
         wi.cbSize = sizeof(WINDOWINFO);
         GetWindowInfo(owner, &wi);
         if (wi.atomWindowType != 0xC01A)
@@ -1067,7 +1067,7 @@ void GetAppInfos(DWORD PID, struct StaticData* staticData, const wchar_t* aumid,
 {
     bool found = GetAppInfoFromMap(&staticData->UWPIconMap, aumid, outIcon, outAppName);
     if (!found) {
-        static wchar_t iconPath[MAX_PATH] = {};
+        static wchar_t iconPath[MAX_PATH] = { };
         int iconIdx = 0;
         iconPath[0] = L'\0';
         found = GetAppInfoFromLnk(aumid, iconPath, outAppName, &iconIdx);
@@ -1089,7 +1089,7 @@ void GetAppInfos(DWORD PID, struct StaticData* staticData, const wchar_t* aumid,
                     isUWP = true;
             }
             if (!isUWP) {
-                static wchar_t exePath[512] = {};
+                static wchar_t exePath[512] = { };
                 GetModuleFileNameExW(process, NULL, exePath, 512);
                 iconPath[0] = L'\0';
                 wcscpy(iconPath, exePath);
@@ -1105,7 +1105,7 @@ void GetAppInfos(DWORD PID, struct StaticData* staticData, const wchar_t* aumid,
 
         // Load bitmap
         if (wcslen(iconPath)) {
-            static wchar_t iconPathExpanded[MAX_PATH] = {};
+            static wchar_t iconPathExpanded[MAX_PATH] = { };
             ExpandEnvironmentStringsW(iconPath, iconPathExpanded, MAX_PATH - 1);
             if (EndsWithW(iconPathExpanded, L".exe") || EndsWithW(iconPathExpanded, L".EXE"))
                 *outIcon = GetIconFromBinary(iconPathExpanded, iconIdx);
@@ -1135,12 +1135,12 @@ void GetAppInfos(DWORD PID, struct StaticData* staticData, const wchar_t* aumid,
             // Creates a gdi bitmap from the win base api bitmap
             GpBitmap* out;
             {
-                BITMAP bm = {};
+                BITMAP bm = { };
                 GetObject(hbm, sizeof(BITMAP), &bm);
                 const uint32_t iconSize = bm.bmWidth;
                 GdipCreateBitmapFromScan0((int)iconSize, (int)iconSize, (int)(4 * iconSize), PixelFormat32bppARGB, NULL, &out);
                 GpRect r = { 0, 0, (int)iconSize, (int)iconSize };
-                BitmapData dstData = {};
+                BitmapData dstData = { };
                 GdipBitmapLockBits(out, &r, 0, PixelFormat32bppARGB, &dstData);
                 GetBitmapBits(hbm, (LONG)(sizeof(uint32_t) * iconSize * iconSize), dstData.Scan0);
                 GdipBitmapUnlockBits(out, &dstData);
@@ -1324,7 +1324,7 @@ void AppModeInit(HINSTANCE instance, const struct Config* cfg)
 
     StaticData.GdiplusToken = 0;
     {
-        GdiplusStartupInput gdiplusStartupInput = {};
+        GdiplusStartupInput gdiplusStartupInput = { };
         gdiplusStartupInput.GdiplusVersion = 1;
         uint32_t status = GdiplusStartup(&StaticData.GdiplusToken, &gdiplusStartupInput, NULL);
         ASSERT(!status);
@@ -1333,7 +1333,7 @@ void AppModeInit(HINSTANCE instance, const struct Config* cfg)
     InitGraphicsResources(&StaticData.GraphicsResources, cfg);
 
     {
-        WNDCLASS wc = {};
+        WNDCLASS wc = { };
         wc.lpfnWndProc = MainWindowProc;
         wc.hInstance = instance;
         wc.lpszClassName = MAIN_CLASS_NAME;
@@ -1344,7 +1344,7 @@ void AppModeInit(HINSTANCE instance, const struct Config* cfg)
     }
 
     {
-        WNDCLASS wc = {};
+        WNDCLASS wc = { };
         wc.lpfnWndProc = FocusWindowProc;
         wc.hInstance = instance;
         wc.lpszClassName = FOCUS_CLASS_NAME;
@@ -1363,7 +1363,7 @@ void AppModeDeinit()
         if (StaticData.UWPIconMap.Data[i].Icon)
             GdipDisposeImage(StaticData.UWPIconMap.Data[i].Icon);
     }
-    StaticData.UWPIconMap = (struct UWPIconMap) {};
+    StaticData.UWPIconMap = (struct UWPIconMap) { };
     DeinitGraphicsResources(&StaticData.GraphicsResources);
     GdiplusShutdown(StaticData.GdiplusToken);
     UnregisterClass(MAIN_CLASS_NAME, StaticData.Instance);
@@ -1550,7 +1550,7 @@ static void DrawRoundedRect(GpGraphics* pGraphics, GpPen* pPen, GpBrush* pBrush,
 
 static bool IsInside(int x, int y, HWND win)
 {
-    RECT r = {};
+    RECT r = { };
     ASSERT(GetClientRect(win, &r));
     return x > r.left && x < r.right && y > r.top && y < r.bottom;
 }
@@ -1943,7 +1943,7 @@ static void Init(struct WindowData* windowData)
         DeleteObject(windowData->Bitmap);
 
     // Clear
-    *windowData = (struct WindowData) {};
+    *windowData = (struct WindowData) { };
 
     windowData->StaticData = sd;
     windowData->MainWin = w;
@@ -2038,7 +2038,7 @@ static void Init(struct WindowData* windowData)
 void CloseAppGroup(const SWinGroup* winGroup, HWND hwnd)
 {
     static HANDLE ht = 0;
-    static CloseThreadData ctd = {};
+    static CloseThreadData ctd = { };
     if (ht)
         TerminateThread(ht, 0);
     ctd.Count = 0;
@@ -2061,7 +2061,7 @@ void CloseAppGroup(const SWinGroup* winGroup, HWND hwnd)
 
 static LRESULT CALLBACK MainWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 {
-    static struct WindowData windowData = {};
+    static struct WindowData windowData = { };
 
     if (ProcessKeys(&windowData, uMsg, wParam) == 0)
         return 0;
@@ -2087,7 +2087,7 @@ static LRESULT CALLBACK MainWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPAR
         return 0;
     }
     case WM_CREATE: {
-        windowData = (struct WindowData) {};
+        windowData = (struct WindowData) { };
         windowData.StaticData = (struct StaticData*)((CREATESTRUCTA*)lParam)->lpCreateParams;
         windowData.MainWin = hwnd;
         Init(&windowData);
@@ -2165,7 +2165,7 @@ static LRESULT CALLBACK MainWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPAR
         return 0;
     }
     case WM_PAINT: {
-        PAINTSTRUCT ps = {};
+        PAINTSTRUCT ps = { };
         if (BeginPaint(hwnd, &ps) == NULL) {
             ASSERT(false);
             return 0;

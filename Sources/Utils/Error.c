@@ -31,7 +31,7 @@ void ASSError(const char* file, uint32_t line, const char* assertStr, ...)
     DWORD err = GetLastError();
     SetLastError(0);
 
-    char winMsg[512] = {};
+    char winMsg[512] = { };
     if (err != 0) {
         GetErrStr(err, winMsg, 512);
     }
@@ -40,7 +40,7 @@ void ASSError(const char* file, uint32_t line, const char* assertStr, ...)
     char* timeStr = ctime(&mytime); // NOLINT
     timeStr[strlen(timeStr) - 1] = '\0';
 
-    char logFile[MAX_PATH] = {};
+    char logFile[MAX_PATH] = { };
     LogPath(logFile);
 
     FILE* f = fopen(logFile, "ab");
