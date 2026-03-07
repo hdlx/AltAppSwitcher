@@ -1,2 +1,2 @@
 #define AAS_MAJOR 0
-#define AAS_MINOR 76
+#define AAS_MINOR 77
