@@ -4,11 +4,6 @@ Checks:
     cert-*,
     concurrency-*,
     portability-*,
-    readability-*,
     -bugprone-easily-swappable-parameters,
-    -readability-identifier-length,
-    -readability-magic-numbers,
-    -readability-uppercase-literal-suffix,
-    -readability-braces-around-statements,
-    -readability-function-cognitive-complexity,
+    -portability-avoid-pragma-once,
     -cert-dcl16-c

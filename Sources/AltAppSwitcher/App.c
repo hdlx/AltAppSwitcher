@@ -111,19 +111,19 @@ static LRESULT KbProc(int nCode, WPARAM wParam, LPARAM lParam)
     const bool prevAppKey = kbStrut.vkCode == KeyConfig->PrevApp;
     const bool winHoldKey = kbStrut.vkCode == KeyConfig->WinHold;
     const bool nextWinKey = kbStrut.vkCode == KeyConfig->WinSwitch;
-    const bool isWatchedKey = appHoldKey || nextAppKey || prevAppKey || winHoldKey || nextWinKey;
+    const bool isWatchedKey = appHoldKey || nextAppKey || prevAppKey || winHoldKey || nextWinKey; // NOLINT
     if (!isWatchedKey)
         return CallNextHookEx(NULL, nCode, wParam, lParam);
 
     static enum Mode mode = ModeNone;
 
-    const bool rel = kbStrut.flags & LLKHF_UP;
+    const bool rel = (kbStrut.flags & LLKHF_UP) != 0;
 
     // Update target app state
     bool bypassMsg = false;
     const enum Mode prevMode = mode;
     {
-        const bool winHoldRelease = winHoldKey && rel;
+        const bool winHoldRelease = (winHoldKey && rel) != 0;
         const bool appHoldRelease = appHoldKey && rel;
         const bool nextApp = nextAppKey && !rel;
         const bool nextWin = nextWinKey && !rel;

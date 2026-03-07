@@ -75,6 +75,7 @@ def MakeArchive(srcDir):
     for x in os.listdir(tempDir):
         if x.endswith(".exe"):
             EmbedAndDeleteManifest(os.path.join(tempDir, x))
+    print(shutil.get_archive_formats())
     shutil.make_archive(tempDir, "zip", tempDir)
     shutil.rmtree(tempDir)
 
