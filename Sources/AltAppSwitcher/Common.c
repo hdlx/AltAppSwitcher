@@ -39,20 +39,21 @@ static const char* WindowsClassNamesToSkip[] = {
 
 static bool BelongsToCurrentDesktop(HWND window)
 {
-    IVirtualDesktopManager* vdm = NULL;
-    (void)vdm;
-    CoInitialize(NULL);
-    CoCreateInstance(&CLSID_VirtualDesktopManager, NULL, CLSCTX_ALL, &IID_IVirtualDesktopManager, (void**)&vdm);
-
+    static IVirtualDesktopManager* vdm = NULL;
     if (!vdm) {
-        CoUninitialize();
-        return true;
+        // Do not init each time, this affects the perf. a lot
+        CoInitialize(NULL);
+        CoCreateInstance(&CLSID_VirtualDesktopManager, NULL, CLSCTX_ALL, &IID_IVirtualDesktopManager, (void**)&vdm);
+        if (!vdm) {
+            CoUninitialize();
+            return true;
+        }
     }
-
     WINBOOL isCurrent = true;
     IVirtualDesktopManager_IsWindowOnCurrentVirtualDesktop(vdm, window, &isCurrent);
-    IVirtualDesktopManager_Release(vdm);
-    CoUninitialize();
+    // Not clean, we should release.
+    // IVirtualDesktopManager_Release(vdm);
+    // CoUninitialize();
     return isCurrent;
 }
 
