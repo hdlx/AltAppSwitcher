@@ -1111,7 +1111,7 @@ static BOOL IsRunWindow(HWND hwnd)
 void GetAppInfos(DWORD PID, struct StaticData* staticData, const wchar_t* aumid, GpBitmap** outIcon, wchar_t* outAppName)
 {
     bool found = GetAppInfoFromMap(&staticData->UWPIconMap, aumid, outIcon, outAppName);
-    if (!found) {
+    if (!   found) {
         static wchar_t iconPath[MAX_PATH] = {};
         int iconIdx = 0;
         iconPath[0] = L'\0';
