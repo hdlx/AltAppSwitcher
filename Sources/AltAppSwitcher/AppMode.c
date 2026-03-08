@@ -109,6 +109,7 @@ struct StaticData {
     const struct Config* Config;
     HMODULE Instance;
     ULONG_PTR GdiplusToken;
+    IVirtualDesktopManager* VDM;
 };
 
 static struct StaticData StaticData = { };
@@ -1157,7 +1158,7 @@ void GetAppInfos(DWORD PID, struct StaticData* staticData, const wchar_t* aumid,
 static BOOL WarmCache(HWND hwnd, LPARAM lParam)
 {
     struct StaticData* staticData = (struct StaticData*)lParam;
-    if (!IsEligibleWindow(hwnd, staticData->Config, NULL, false))
+    if (!IsEligibleWindow(hwnd, staticData->Config, NULL, false, staticData->VDM))
         return true;
     DWORD PID = 0;
     FindActualPID(hwnd, &PID);
@@ -1177,7 +1178,7 @@ static BOOL FillWinGroups(HWND hwnd, LPARAM lParam)
 {
     struct WindowData* windowData = (struct WindowData*)lParam;
 
-    if (!IsEligibleWindow(hwnd, windowData->StaticData->Config, windowData->MouseMonitor, false))
+    if (!IsEligibleWindow(hwnd, windowData->StaticData->Config, windowData->MouseMonitor, false, windowData->StaticData->VDM))
         return true;
 
     DWORD PID = 0;
@@ -1307,11 +1308,12 @@ static void Draw(struct WindowData* windowData, RECT clientRect);
 
 static LRESULT FocusWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam);
 
-void AppModeInit(HINSTANCE instance, const struct Config* cfg)
+void AppModeInit(HINSTANCE instance, const struct Config* cfg, IVirtualDesktopManager* VDM)
 {
     StaticData.Instance = instance;
     StaticData.Config = cfg;
     StaticData.Elevated = false;
+    StaticData.VDM = VDM;
     {
         HANDLE tok;
         OpenProcessToken(GetCurrentProcess(), TOKEN_QUERY, &tok);

@@ -38,6 +38,7 @@ typedef struct SWinGroup {
 struct StaticData {
     const struct Config* Config;
     HMODULE Instance;
+    IVirtualDesktopManager* VDM;
 };
 
 struct StaticData StaticData = { };
@@ -200,7 +201,7 @@ static BOOL IsRunWindow(HWND hwnd)
 static BOOL FillCurrentWinGroup(HWND hwnd, LPARAM lParam)
 {
     struct WindowData* windowData = (struct WindowData*)(lParam);
-    if (!IsEligibleWindow(hwnd, windowData->StaticData->Config, windowData->MouseMonitor, !windowData->StaticData->Config->RestoreMinimizedWindows))
+    if (!IsEligibleWindow(hwnd, windowData->StaticData->Config, windowData->MouseMonitor, !windowData->StaticData->Config->RestoreMinimizedWindows, windowData->StaticData->VDM))
         return true;
     DWORD PID = 0;
     FindActualPID(hwnd, &PID);
@@ -220,7 +221,7 @@ static void InitializeSwitchWin(HWND foregroundWindow, struct WindowData* window
     HWND win = foregroundWindow;
     ASSERT(win);
     while (true) {
-        if (!win || IsEligibleWindow(win, windowData->StaticData->Config, windowData->MouseMonitor, false))
+        if (!win || IsEligibleWindow(win, windowData->StaticData->Config, windowData->MouseMonitor, false, windowData->StaticData->VDM))
             break;
         win = GetParent(win);
     }
@@ -405,10 +406,11 @@ static LRESULT MainWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
     return DefWindowProc(hwnd, uMsg, wParam, lParam);
 }
 
-void WinModeInit(HINSTANCE instance, const struct Config* cfg)
+void WinModeInit(HINSTANCE instance, const struct Config* cfg, IVirtualDesktopManager* VDM)
 {
     StaticData.Instance = instance;
     StaticData.Config = cfg;
+    StaticData.VDM = VDM;
 
     {
         WNDCLASS wc = { };

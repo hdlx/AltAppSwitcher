@@ -37,23 +37,12 @@ static const char* WindowsClassNamesToSkip[] = {
     "Dwm"
 };
 
-static bool BelongsToCurrentDesktop(HWND window)
+static bool BelongsToCurrentDesktop(HWND window, IVirtualDesktopManager* vdm)
 {
-    static IVirtualDesktopManager* vdm = NULL;
-    if (!vdm) {
-        // Do not init each time, this affects the perf. a lot
-        CoInitialize(NULL);
-        CoCreateInstance(&CLSID_VirtualDesktopManager, NULL, CLSCTX_ALL, &IID_IVirtualDesktopManager, (void**)&vdm);
-        if (!vdm) {
-            CoUninitialize();
-            return true;
-        }
-    }
+    if (!vdm)
+        return true;
     WINBOOL isCurrent = true;
     IVirtualDesktopManager_IsWindowOnCurrentVirtualDesktop(vdm, window, &isCurrent);
-    // Not clean, we should release.
-    // IVirtualDesktopManager_Release(vdm);
-    // CoUninitialize();
     return isCurrent;
 }
 
@@ -111,7 +100,7 @@ int Modulo(int a, int b)
     return (a % b + b) % b;
 }
 
-bool IsEligibleWindow(HWND hwnd, const struct Config* cfg, HMONITOR mouseMonitor, bool ignoreMinimizedWindows)
+bool IsEligibleWindow(HWND hwnd, const struct Config* cfg, HMONITOR mouseMonitor, bool ignoreMinimizedWindows, IVirtualDesktopManager* vdm)
 {
     if (hwnd == GetShellWindow()) // Desktop
         return false;
@@ -138,7 +127,7 @@ bool IsEligibleWindow(HWND hwnd, const struct Config* cfg, HMONITOR mouseMonitor
     if ((isOwned) && !(wi.dwExStyle & WS_EX_APPWINDOW))
         return false;
 
-    if (cfg->DesktopFilter == DesktopFilterCurrent && !BelongsToCurrentDesktop(hwnd))
+    if (cfg->DesktopFilter == DesktopFilterCurrent && !BelongsToCurrentDesktop(hwnd, vdm))
         return false;
 
     if (!IsWindowVisible(hwnd))

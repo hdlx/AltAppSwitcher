@@ -11,6 +11,7 @@
 #include <appmodel.h>
 #include <unistd.h>
 #include <uiautomationclient.h>
+#include <Shobjidl.h>
 #undef COBJMACROS
 #include "Config/Config.h"
 #include "Utils/Error.h"
@@ -35,6 +36,7 @@ struct AppData {
     HINSTANCE Instance;
     HWND app_mode_window;
     HWND win_mode_window;
+    IVirtualDesktopManager* VDM;
 };
 
 static const struct KeyConfig* KeyConfig;
@@ -199,6 +201,8 @@ int StartAltAppSwitcher(HINSTANCE instance)
     AssertSingleInstance();
     ASSERT(SetPriorityClass(GetCurrentProcess(), HIGH_PRIORITY_CLASS));
 
+    CoInitialize(NULL);
+
     static struct AppData appData = { };
     {
         appData.Instance = instance;
@@ -237,11 +241,13 @@ int StartAltAppSwitcher(HINSTANCE instance)
             CreateProcess(NULL, updater, 0, 0, false, CREATE_NEW_PROCESS_GROUP, 0, 0,
                 &si, &pi);
         }
+
+        CoCreateInstance(&CLSID_VirtualDesktopManager, NULL, CLSCTX_ALL, &IID_IVirtualDesktopManager, (void**)&appData.VDM);
     }
 
     CommonInit(instance);
-    AppModeInit(instance, &appData.Config);
-    WinModeInit(instance, &appData.Config);
+    AppModeInit(instance, &appData.Config, appData.VDM);
+    WinModeInit(instance, &appData.Config, appData.VDM);
 
     HANDLE threadKbHook = CreateThread(NULL, 0, KbHookCb, (void*)&appData, CREATE_SUSPENDED, NULL);
     (void)threadKbHook;
@@ -340,5 +346,9 @@ int StartAltAppSwitcher(HINSTANCE instance)
         CreateProcess(NULL, currentExe, 0, 0, false, CREATE_NEW_PROCESS_GROUP, 0, 0,
             &si, &pi);
     }
+
+    if (appData.VDM)
+        IVirtualDesktopManager_Release(appData.VDM);
+    CoUninitialize();
     return 0;
 }
