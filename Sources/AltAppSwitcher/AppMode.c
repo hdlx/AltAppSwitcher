@@ -1618,9 +1618,10 @@ static void Draw(struct WindowData* windowData, RECT clientRect)
     {
         GpFontCollection* fc = NULL;
         ASSERT(Ok == GdipNewInstalledFontCollection(&fc));
-        if (Ok != GdipCreateFontFamilyFromName(L"Segoe UI Emoji", fc, &pFontFamily)) {
-            ASSERT(Ok == GdipCreateFontFamilyFromName(L"Segoe UI", fc, &pFontFamily));
-        }
+        // if (Ok != GdipCreateFontFamilyFromName(L"Segoe UI Emoji", fc, &pFontFamily)) {
+        //     ASSERT(Ok == GdipCreateFontFamilyFromName(L"Segoe UI", fc, &pFontFamily));
+        // }
+        ASSERT(Ok == GdipCreateFontFamilyFromName(L"Segoe UI", fc, &pFontFamily));
         ASSERT(Ok == GdipCreateFont(pFontFamily, nameHeight, FontStyleRegular, (int)MetafileFrameUnitPixel, &fontName));
     }
 
