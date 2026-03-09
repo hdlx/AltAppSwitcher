@@ -4,6 +4,8 @@
 #include <stdio.h>
 #include <minwindef.h>
 #include <libloaderapi.h>
+#include <fileapi.h>
+#include <handleapi.h>
 
 static int DeleteForFtw(const char* path, const struct stat* data, int type, struct FTW* ftw)
 {
@@ -85,35 +87,35 @@ static void CopyFile(const char* srcStr, const char* dstStr)
 
 void CopyDirContent(const char* srcDir, const char* dstDir)
 {
-    DIR* dir = opendir(srcDir);
-    ASSERT(dir);
-    if (!dir)
+    char search[260] = { };
+    strcpy_s(search, sizeof(search), srcDir);
+    strcat_s(search, sizeof(search), "/*");
+    WIN32_FIND_DATAA findData = { };
+    HANDLE hFind = FindFirstFile(search, &findData);
+    if (hFind == INVALID_HANDLE_VALUE) {
+        FindClose(hFind);
         return;
-    struct dirent* e = readdir(dir); // NOLINT
-    while (e != NULL) {
-        char srcFile[260] = { };
-        {
-            strcpy_s(srcFile, sizeof(srcFile), srcDir);
-            StrBToF(srcFile);
-            strcat_s(srcFile, sizeof(srcFile), "/");
-            strcat_s(srcFile, sizeof(srcFile), e->d_name);
-        }
-        struct stat info = { };
-        stat(srcFile, &info);
-        if (S_ISDIR(info.st_mode)) {
-        } else if (S_ISREG(info.st_mode)) {
-            char dstFile[260] = { };
-            {
-                strcpy_s(dstFile, sizeof(dstFile), dstDir);
-                StrBToF(dstFile);
-                strcat_s(dstFile, sizeof(dstFile), "/");
-                strcat_s(dstFile, sizeof(dstFile), e->d_name);
-            }
-            CopyFile(srcFile, dstFile);
-        }
-        e = readdir(dir); // NOLINT
     }
-    closedir(dir);
+    char srcFile[260] = { };
+    char dstFile[260] = { };
+    do {
+        if (strcmp(findData.cFileName, "..") == 0 || strcmp(findData.cFileName, ".") == 0)
+            continue;
+        strcpy_s(srcFile, sizeof(srcFile), srcDir);
+        strcat_s(srcFile, sizeof(srcFile), "/");
+        strcat_s(srcFile, sizeof(srcFile), findData.cFileName);
+        DWORD ftyp = GetFileAttributesA(srcFile);
+        if (ftyp == INVALID_FILE_ATTRIBUTES)
+            continue;
+        if (ftyp & FILE_ATTRIBUTE_DIRECTORY)
+            continue;
+        strcpy_s(dstFile, sizeof(dstFile), dstDir);
+        StrBToF(dstFile);
+        strcat_s(dstFile, sizeof(dstFile), "/");
+        strcat_s(dstFile, sizeof(dstFile), findData.cFileName);
+        CopyFile(srcFile, dstFile);
+    } while (FindNextFileA(hFind, &findData));
+    FindClose(hFind);
 }
 
 void ConfigPath(char* outPath)
