@@ -185,8 +185,19 @@ static void DownloadArchive(const char* dstFile, const char* url)
 static void Extract(const char* targetDir)
 {
     CloseAASBlocking();
+
+    char archivePath[MAX_PATH] = { };
+    {
+        char currentDir[MAX_PATH] = { };
+        char currentExe[MAX_PATH] = { };
+        GetModuleFileName(NULL, currentExe, MAX_PATH);
+        ParentDir(currentExe, currentDir);
+        int e = sprintf_s(archivePath, sizeof(archivePath), "%s/%s", currentDir, "AltAppSwitcher.zip");
+        ASSERT(e > 0);
+    }
+
     int err = 0;
-    struct zip* z = zip_open("./AltAppSwitcher.zip", 0, &err);
+    struct zip* z = zip_open(archivePath, 0, &err);
     ASSERT(z);
     if (!z)
         return;
@@ -303,10 +314,12 @@ int main(int argc, char* argv[])
     }
 
     // Run copied updater
-    char args[512] = { };
-    int a = sprintf_s(args, sizeof(args) / sizeof(args[0]), "--target \"%s\"", currentDir);
+    char cmd[1024] = { };
+    int a = sprintf_s(cmd, sizeof(cmd) / sizeof(cmd[0]), "%s --target \"%s\"", updaterPath, currentDir);
     ASSERT(a > 0);
-    ShellExecute(NULL, "runas", updaterPath, args, tempDir, SW_SHOWNORMAL);
+    STARTUPINFO si = { };
+    PROCESS_INFORMATION pi = { };
+    CreateProcess(NULL, cmd, 0, 0, false, CREATE_NEW_PROCESS_GROUP, 0, 0, &si, &pi);
 
     return 0;
 }
