@@ -58,6 +58,10 @@ static int GetLastAASVersion(BOOL preview, char* outVersion, char* assetURL)
     ASSERT(a > 0);
     list = curl_slist_append(list, userAgent);
     list = curl_slist_append(list, "Accept: application/vnd.github+json");
+#if false // put api key here
+    list = curl_slist_append(list, "Authorization: Bearer xxxx");
+    list = curl_slist_append(list, "X-GitHub-Api-Version: 2022-11-28");
+#endif
     curl_easy_setopt(curl, CURLOPT_HTTPHEADER, list);
     curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, 0L);
     curl_easy_setopt(curl, CURLOPT_SSL_VERIFYHOST, 0L);

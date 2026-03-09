@@ -91,18 +91,18 @@ void CopyDirContent(const char* srcDir, const char* dstDir)
         return;
     struct dirent* e = readdir(dir); // NOLINT
     while (e != NULL) {
-        struct stat info;
-        stat(e->d_name, &info);
-        if (info.st_mode & S_IFDIR) {
-        } else if (info.st_mode & S_IFREG) {
-            char srcFile[256] = { };
-            {
-                strcpy_s(srcFile, sizeof(srcFile), srcDir);
-                StrBToF(srcFile);
-                strcat_s(srcFile, sizeof(srcFile), "/");
-                strcat_s(srcFile, sizeof(srcFile), e->d_name);
-            }
-            char dstFile[256] = { };
+        char srcFile[260] = { };
+        {
+            strcpy_s(srcFile, sizeof(srcFile), srcDir);
+            StrBToF(srcFile);
+            strcat_s(srcFile, sizeof(srcFile), "/");
+            strcat_s(srcFile, sizeof(srcFile), e->d_name);
+        }
+        struct stat info = { };
+        stat(srcFile, &info);
+        if (S_ISDIR(info.st_mode)) {
+        } else if (S_ISREG(info.st_mode)) {
+            char dstFile[260] = { };
             {
                 strcpy_s(dstFile, sizeof(dstFile), dstDir);
                 StrBToF(dstFile);
