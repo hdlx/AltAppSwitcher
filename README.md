@@ -40,7 +40,7 @@ Here is my setup:
 ### Dependencies:
 - **Clang and Windows libraries:**\
 Download **UCRT Clang MinGW**, unzip and add `Bin` subfolder to "Path" so `clang` (and other tools from MinGW) can be called from a terminal.\
-I'm using `llvm-mingw-20251202-ucrt-x86_64` from [Clang (mingw)](https://github.com/mstorsjo/llvm-mingw) at the time of writing.
+I'm using `llvm-mingw-20260224-ucrt-x86_64` from [Clang (mingw)](https://github.com/mstorsjo/llvm-mingw) at the time of writing.
 - **Python:**\
 Download **Python** and install or add to "Path" so `python` can be called from a terminal.\
 Alternatively, you can use MinGW-provided Python under `Python/bin`.
