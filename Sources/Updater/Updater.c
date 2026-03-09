@@ -291,11 +291,11 @@ int main(int argc, char* argv[])
     }
 
     // Copy updater to temp
-    char updaterPath[256] = { };
+    char updaterPath[260] = { };
+    char currentDir[260] = { };
     {
         char currentExe[256] = { };
         GetModuleFileName(NULL, currentExe, 256);
-        char currentDir[256] = { };
         ParentDir(currentExe, currentDir);
         CopyDirContent(currentDir, tempDir);
         strcat_s(updaterPath, sizeof(updaterPath), tempDir);
@@ -304,9 +304,7 @@ int main(int argc, char* argv[])
 
     // Run copied updater
     char args[512] = { };
-    char AASDir[256] = { };
-    GetCurrentDirectory(256, AASDir);
-    int a = sprintf_s(args, sizeof(args) / sizeof(args[0]), "--target \"%s\"", AASDir);
+    int a = sprintf_s(args, sizeof(args) / sizeof(args[0]), "--target \"%s\"", currentDir);
     ASSERT(a > 0);
     ShellExecute(NULL, "runas", updaterPath, args, tempDir, SW_SHOWNORMAL);
 
