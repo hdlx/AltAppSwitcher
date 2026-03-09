@@ -5,6 +5,7 @@ setlocal ENABLEDELAYEDEXPANSION
 cd /d "%~dp0"
 
 set fullPath=%cd%\AltAppSwitcher.exe
+set workDir=%cd%
 
 if not exist "%fullPath%" (
     msg * "AltAppSwitcher.exe not found."
@@ -68,6 +69,7 @@ echo   ^</Settings^>
 echo   ^<Actions^>
 echo     ^<Exec^>
 echo       ^<Command^>%fullPath%^</Command^>
+echo       ^<WorkingDirectory^>%workDir%^</WorkingDirectory^>
 echo     ^</Exec^>
 echo   ^</Actions^>
 echo ^</Task^>
