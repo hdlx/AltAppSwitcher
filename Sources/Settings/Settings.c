@@ -2,9 +2,12 @@
 #include <windowsx.h>
 #include <wingdi.h>
 #include <commctrl.h>
+#include <stdio.h>
 #include "Config/Config.h"
 #include "Utils/GUI.h"
 #include "Utils/Message.h"
+#include "Utils/Version.h"
+#include "Utils/Error.h"
 
 #define APPLY_BUTTON_ID 1993
 
@@ -30,10 +33,10 @@ static void SetupGUI(GUIData* gui, void* userData)
     CreateComboBox("", &cfg->Key.Invert, keyES, gui);
     CreateText("Previous app", "", gui);
     CreateComboBox("", &cfg->Key.PrevApp, keyES, gui);
-    CreateText("", "", gui); // placeholder
-    CreateText("", "", gui); // placeholder
     CreateText("App close", "", gui);
     CreateComboBox("", &cfg->Key.AppClose, keyES, gui);
+    CreateText("", "", gui);
+    CreateText("", "", gui);
 
     GridLayout(1, gui);
     CreateText("Graphic options:", "", gui);
@@ -96,6 +99,9 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
     (void)lpCmdLine;
     (void)nShowCmd;
     Config config = { };
-    GUIWindow(SetupGUI, ButtonMessage, (void*)&config, hInstance, "AASSettings");
+    char title[260];
+    int a = sprintf_s(title, sizeof(title), "AAS settings - v%u.%u", AAS_MAJOR, AAS_MINOR);
+    ASSERT(a > 0);
+    GUIWindow(SetupGUI, ButtonMessage, (void*)&config, hInstance, title);
     return 0;
 }
