@@ -68,8 +68,18 @@ static int GetLastAASVersion(BOOL preview, char* outVersion, char* assetURL)
     curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, writeData);
     curl_easy_setopt(curl, CURLOPT_WRITEDATA, &response);
     curl_easy_setopt(curl, CURLOPT_CA_CACHE_TIMEOUT, 604800L);
-    res = curl_easy_perform(curl);
-    ASSERT(res == CURLE_OK)
+    int sec_waited = 0;
+    while (true) {
+        res = curl_easy_perform(curl);
+        if (res == CURLE_OK)
+            break;
+        if (sec_waited > 60) {
+            curl_easy_cleanup(curl);
+            return 0;
+        }
+        usleep(1000000);
+        sec_waited++;
+    }
     {
         void* old = response.Data;
         response.Data = realloc(old, response.Size + 1);
