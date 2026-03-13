@@ -14,7 +14,7 @@ $(error Bad ARCH argument)
 endif
 
 # Directories
-ROOTDIR = $(CURDIR)
+ROOTDIR = .
 OUTPUTDIR = $(ROOTDIR)/Output
 BUILDDIR = $(OUTPUTDIR)/$(CONF)_$(ARCH)
 SOURCEDIR = $(ROOTDIR)/Sources
