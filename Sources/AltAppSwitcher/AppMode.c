@@ -942,7 +942,8 @@ static GpBitmap* GetIconFromBinary(const wchar_t* binPath, int iconIdx)
     if (!module) {
         static char binPathChar[512];
         wcharToChar(binPathChar, binPath);
-        ASSERT_MSG(false, "LoadLibrary failed with path: %s", binPathChar);
+        VERIFY_MSG(false, "LoadLibrary failed with path: %s", binPathChar);
+        return NULL;
     }
 
     // Finds icon resource in module

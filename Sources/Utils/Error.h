@@ -15,4 +15,8 @@
     if (!(arg)) {                           \
         ASSError(__FILE__, __LINE__, #arg); \
     }
+#define VERIFY_MSG(arg, str, ...)                       \
+    if (!(arg)) {                                       \
+        ASSError(__FILE__, __LINE__, str, __VA_ARGS__); \
+    }
 void ASSError(const char* file, unsigned int line, const char* assertStr, ...);
