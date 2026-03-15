@@ -8,7 +8,8 @@ set fullPath=%cd%\AltAppSwitcher.exe
 set workDir=%cd%
 
 if not exist "%fullPath%" (
-    msg * "AltAppSwitcher.exe not found."
+    echo "AltAppSwitcher.exe not found."
+	pause
     exit
 )
 
@@ -16,7 +17,8 @@ call :createTask HighestAvailable
 if !errorlevel! neq 0 (
     call :createTask LeastPrivilege
     if !errorlevel! neq 0 (
-        msg * "Task creation failed. If a previous task was created with admin privileges, please re-run this utility as an admin."
+        echo "Task creation failed. If a previous task was created with admin privileges, please re-run this utility as an admin."
+	pause
         exit
     )
     set "limited=true"
@@ -25,16 +27,18 @@ if !errorlevel! neq 0 (
 reg add "HKEY_CURRENT_USER\SOFTWARE\Microsoft\Windows\CurrentVersion\Run" /v "AltAppSwitcher" /t REG_SZ /d "schtasks /run /tn AltAppSwitcher" /f
 
 if !errorlevel! neq 0 (
-    msg * "Adding task to run failed."
+    echo "Adding task to run failed."
+    pause
     exit
 )
 
 if "%limited%" == "true" (
-    msg * "Startup task added with limited rights. Re-run this utility as admin for admin rights."
+    echo "Startup task added with limited rights. Re-run this utility as admin for admin rights."
 ) else (
-    msg * "Startup task added. Re-run this utility when moving AltAppSwitcher.exe."
+    echo "Startup task added. Re-run this utility when moving AltAppSwitcher.exe."
 )
-exit /b
+pause
+exit
 
 :createTask
 set "curUser=%USERDOMAIN%\%USERNAME%"
