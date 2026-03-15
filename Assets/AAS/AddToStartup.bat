@@ -1,5 +1,4 @@
 @echo off
-
 setlocal ENABLEDELAYEDEXPANSION
 
 cd /d "%~dp0"
@@ -9,7 +8,7 @@ set workDir=%cd%
 
 if not exist "%fullPath%" (
     echo "AltAppSwitcher.exe not found."
-	pause
+    pause
     exit
 )
 
@@ -18,7 +17,7 @@ if !errorlevel! neq 0 (
     call :createTask LeastPrivilege
     if !errorlevel! neq 0 (
         echo "Task creation failed. If a previous task was created with admin privileges, please re-run this utility as an admin."
-	pause
+        pause
         exit
     )
     set "limited=true"
@@ -79,7 +78,7 @@ echo   ^</Actions^>
 echo ^</Task^>
 ) > "%xmlFile%"
 
-schtasks /create /tn AltAppSwitcher /xml "%xmlFile%" /F
+schtasks /create /tn AltAppSwitcher /xml "%xmlFile%" /F >nul 2>&1
 
 set "result=!errorlevel!"
 del "%xmlFile%"
