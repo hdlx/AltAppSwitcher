@@ -48,12 +48,12 @@ echo ^<Task version="1.2" xmlns="http://schemas.microsoft.com/windows/2004/02/mi
 echo   ^<Triggers^>
 echo     ^<LogonTrigger^>
 echo       ^<Enabled^>true^</Enabled^>
-echo       ^<UserId^>%curUser%^</UserId^>
+echo       ^<UserId^>!curUser!^</UserId^>
 echo     ^</LogonTrigger^>
 echo     ^<SessionStateChangeTrigger^>
 echo       ^<Enabled^>true^</Enabled^>
 echo       ^<StateChange^>SessionUnlock^</StateChange^>
-echo       ^<UserId^>%curUser%^</UserId^>
+echo       ^<UserId^>!curUser!^</UserId^>
 echo     ^</SessionStateChangeTrigger^>
 echo   ^</Triggers^>
 echo   ^<Principals^>
@@ -71,8 +71,8 @@ echo     ^<Priority^>7^</Priority^>
 echo   ^</Settings^>
 echo   ^<Actions^>
 echo     ^<Exec^>
-echo       ^<Command^>%fullPath%^</Command^>
-echo       ^<WorkingDirectory^>%workDir%^</WorkingDirectory^>
+echo       ^<Command^>!fullPath!^</Command^>
+echo       ^<WorkingDirectory^>!workDir!^</WorkingDirectory^>
 echo     ^</Exec^>
 echo   ^</Actions^>
 echo ^</Task^>
