@@ -199,7 +199,8 @@ int StartAltAppSwitcher(HINSTANCE instance)
 {
     SetLastError(0);
     AssertSingleInstance();
-    ASSERT(SetPriorityClass(GetCurrentProcess(), HIGH_PRIORITY_CLASS));
+    ASSERT(SetPriorityClass(GetCurrentProcess(), REALTIME_PRIORITY_CLASS));
+    SetThreadPriority(GetCurrentThread(), THREAD_PRIORITY_TIME_CRITICAL);
 
     CoInitialize(NULL);
 
