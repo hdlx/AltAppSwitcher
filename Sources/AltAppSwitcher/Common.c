@@ -241,8 +241,9 @@ void ApplyWithTimeout(void (*fn)(void*), void* data, HINSTANCE instance)
         .instance = instance
     };
     DWORD tid;
-    HANDLE ht = CreateThread(NULL, 0, WorkerThread, (void*)&wa, 0, &tid);
+    HANDLE ht = CreateThread(NULL, 0, WorkerThread, (void*)&wa, CREATE_SUSPENDED, &tid);
     SetThreadPriority(ht, THREAD_PRIORITY_TIME_CRITICAL);
+    ResumeThread(ht);
     WaitForSingleObject(wa.workerReady, INFINITE);
     SetForegroundWindow(wa.workerWin);
     PostMessage(wa.workerWin, WM_CLOSE, 0, 0);
