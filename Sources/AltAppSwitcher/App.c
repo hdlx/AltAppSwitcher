@@ -149,7 +149,7 @@ static LRESULT KbProc(int nCode, WPARAM wParam, LPARAM lParam)
 
         // Init
         if (prevMode == ModeNone && isAppHold && nextApp) {
-            HANDLE ht = CreateThread(NULL, 0, ThreadFnRestoreKey, (LPVOID)(UINT_PTR)KeyConfig->WinHold, CREATE_SUSPENDED, NULL);
+            HANDLE ht = CreateThread(NULL, 0, ThreadFnRestoreKey, (LPVOID)(UINT_PTR)KeyConfig->AppHold, CREATE_SUSPENDED, NULL);
             SetThreadPriority(ht, THREAD_PRIORITY_TIME_CRITICAL);
             ResumeThread(ht);
             mode = ModeApp;
