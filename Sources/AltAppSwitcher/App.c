@@ -206,6 +206,12 @@ static void AssertSingleInstance()
     }
 }
 
+static void ClearInitMsgs()
+{
+    MSG msg = { };
+    while (PeekMessage(&msg, NULL, MSG_INIT_APP, MSG_INIT_WIN, PM_REMOVE) > 0) { };
+}
+
 int StartAltAppSwitcher(HINSTANCE instance)
 {
     SetLastError(0);
@@ -289,7 +295,7 @@ int StartAltAppSwitcher(HINSTANCE instance)
     while (GetMessage(&msg, NULL, 0, 0) > 0) {
         switch (msg.message) {
         case MSG_INIT_APP: {
-            while (PeekMessage(&msg, NULL, 0, 0, PM_REMOVE) > 0) { };
+            ClearInitMsgs();
             RestoreKey(appData.Config.Key.WinHold);
             if (IsWindow(appData.win_mode_window)) {
                 WinModeDestroyWindow(appData.win_mode_window);
@@ -303,7 +309,7 @@ int StartAltAppSwitcher(HINSTANCE instance)
             break;
         }
         case MSG_INIT_WIN: {
-            while (PeekMessage(&msg, NULL, 0, 0, PM_REMOVE) > 0) { };
+            ClearInitMsgs();
             RestoreKey(appData.Config.Key.AppHold);
             if (IsWindow(appData.win_mode_window)) {
                 WinModeDestroyWindow(appData.win_mode_window);
