@@ -102,6 +102,13 @@ enum Mode {
     ModeWin
 };
 
+static DWORD ThreadFnRestoreKey(LPVOID param)
+{
+    WORD keyCode = (WORD)(UINT_PTR)param;
+    RestoreKey(keyCode);
+    return 0;
+}
+
 static LRESULT KbProc(int nCode, WPARAM wParam, LPARAM lParam)
 {
     const KBDLLHOOKSTRUCT kbStrut = *(KBDLLHOOKSTRUCT*)lParam;
@@ -142,13 +149,17 @@ static LRESULT KbProc(int nCode, WPARAM wParam, LPARAM lParam)
 
         // Init
         if (prevMode == ModeNone && isAppHold && nextApp) {
+            HANDLE ht = CreateThread(NULL, 0, ThreadFnRestoreKey, (LPVOID)(UINT_PTR)KeyConfig->AppHold, CREATE_SUSPENDED, NULL);
+            SetThreadPriority(ht, THREAD_PRIORITY_TIME_CRITICAL);
+            ResumeThread(ht);
             mode = ModeApp;
-            PostThreadMessage(MainThread, MSG_RESTORE_KEY, KeyConfig->AppHold, 0);
             PostThreadMessage(MainThread, MSG_INIT_APP, 0, 0);
             bypassMsg = true;
         } else if (prevMode == ModeNone && isWinHold && nextWin) {
+            HANDLE ht = CreateThread(NULL, 0, ThreadFnRestoreKey, (LPVOID)(UINT_PTR)KeyConfig->WinHold, CREATE_SUSPENDED, NULL);
+            SetThreadPriority(ht, THREAD_PRIORITY_TIME_CRITICAL);
+            ResumeThread(ht);
             mode = ModeWin;
-            PostThreadMessage(MainThread, MSG_RESTORE_KEY, KeyConfig->WinHold, 0);
             PostThreadMessage(MainThread, MSG_INIT_WIN, 0, 0);
             bypassMsg = true;
         }
@@ -193,6 +204,12 @@ static void AssertSingleInstance()
         CloseHandle(hMutex);
         ExitProcess(1);
     }
+}
+
+static void ClearInitMsgs()
+{
+    MSG msg = { };
+    while (PeekMessage(&msg, NULL, MSG_INIT_APP, MSG_INIT_WIN, PM_REMOVE) > 0) { };
 }
 
 int StartAltAppSwitcher(HINSTANCE instance)
@@ -278,6 +295,8 @@ int StartAltAppSwitcher(HINSTANCE instance)
     while (GetMessage(&msg, NULL, 0, 0) > 0) {
         switch (msg.message) {
         case MSG_INIT_APP: {
+            ClearInitMsgs();
+            RestoreKey(appData.Config.Key.WinHold);
             if (IsWindow(appData.win_mode_window)) {
                 WinModeDestroyWindow(appData.win_mode_window);
                 appData.win_mode_window = NULL;
@@ -290,6 +309,8 @@ int StartAltAppSwitcher(HINSTANCE instance)
             break;
         }
         case MSG_INIT_WIN: {
+            ClearInitMsgs();
+            RestoreKey(appData.Config.Key.AppHold);
             if (IsWindow(appData.win_mode_window)) {
                 WinModeDestroyWindow(appData.win_mode_window);
                 appData.win_mode_window = NULL;
@@ -321,7 +342,7 @@ int StartAltAppSwitcher(HINSTANCE instance)
             break;
         }
         case MSG_RESTORE_KEY: {
-            RestoreKey(msg.wParam);
+            ASSERT(false);
             break;
         }
         default:
