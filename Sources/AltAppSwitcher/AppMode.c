@@ -1748,7 +1748,7 @@ static void Draw(struct WindowData* windowData, RECT clientRect)
     }
 
     // Close button
-    {
+    if (windowData->StaticData->Config->Mouse) {
         const uint32_t mouseSelIdx = (uint32_t)windowData->MouseSelection;
         float r0[4];
         CloseButtonRect(r0, &windowData->Metrics, mouseSelIdx);
