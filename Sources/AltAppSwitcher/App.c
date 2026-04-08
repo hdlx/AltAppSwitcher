@@ -212,6 +212,15 @@ static void ClearInitMsgs()
     while (PeekMessage(&msg, NULL, MSG_INIT_APP, MSG_INIT_WIN, PM_REMOVE) > 0) { };
 }
 
+void PatchKeyCode(unsigned int* keyCode)
+{
+    static HKL kbLayout = 0;
+    if (!kbLayout)
+        LoadKeyboardLayoutA("00000409", KLF_NOTELLSHELL); // Us layout
+    int scanCode = MapVirtualKeyEx(*keyCode, MAPVK_VK_TO_VSC_EX, kbLayout);
+    *keyCode = MapVirtualKeyEx(scanCode, MAPVK_VSC_TO_VK_EX, GetKeyboardLayout(0));
+}
+
 int StartAltAppSwitcher(HINSTANCE instance)
 {
     SetLastError(0);
@@ -230,15 +239,13 @@ int StartAltAppSwitcher(HINSTANCE instance)
         // Init. and loads config
         LoadConfig(&appData.Config);
         // Patch only for runtime use. Do not patch if used for serialization.
-#define PATCH_TILDE(key) (key) = (key) == VK_OEM_3 ? MapVirtualKey(41, MAPVK_VSC_TO_VK) : (key);
-        PATCH_TILDE(appData.Config.Key.AppHold);
-        PATCH_TILDE(appData.Config.Key.AppSwitch);
-        PATCH_TILDE(appData.Config.Key.WinHold);
-        PATCH_TILDE(appData.Config.Key.WinSwitch);
-        PATCH_TILDE(appData.Config.Key.Invert);
-        PATCH_TILDE(appData.Config.Key.PrevApp);
-        PATCH_TILDE(appData.Config.Key.AppClose);
-#undef PATCH_TILDE
+        PatchKeyCode(&appData.Config.Key.AppHold);
+        PatchKeyCode(&appData.Config.Key.AppSwitch);
+        PatchKeyCode(&appData.Config.Key.WinHold);
+        PatchKeyCode(&appData.Config.Key.WinSwitch);
+        PatchKeyCode(&appData.Config.Key.Invert);
+        PatchKeyCode(&appData.Config.Key.PrevApp);
+        PatchKeyCode(&appData.Config.Key.AppClose);
 
         appData.Elevated = false;
         {
