@@ -431,28 +431,10 @@ void WinModeDeinit()
 
 HWND WinModeCreateWindow()
 {
-    /*
-    HWND hwnd = CreateWindowEx(
-        0, // Optional window styles (WS_EX_)
-        MAIN_CLASS_NAME, // Window class
-        "", // Window text
-        WS_BORDER | WS_POPUP | WS_VISIBLE, // Window style
-        // Pos and size
-        0,
-        0,
-        512,
-        512,
-        NULL, // Parent window
-        NULL, // Menu
-        StaticData.Instance, // Instance handle
-        &StaticData // Additional application data
-    );
-    */
     HWND fgwin = GetForegroundWindow();
     if (!fgwin)
         return NULL;
-    DWORD fgwinthread = GetWindowThreadProcessId(fgwin, NULL);
-    AttachThreadInput(GetCurrentThreadId(), fgwinthread, TRUE);
+    DWORD fgwinthread = TryAttachToForeground();
     struct MainWindowArg arg = {
         .StaticData = &StaticData,
         .ForegroundWindow = fgwin
@@ -461,8 +443,8 @@ HWND WinModeCreateWindow()
         0, 0, 0, 0, HWND_MESSAGE, NULL, StaticData.Instance, &arg);
     ASSERT(hwnd);
     SetForegroundWindow(hwnd);
-    AttachThreadInput(GetCurrentThreadId(), fgwinthread, FALSE);
-
+    if (fgwinthread) // Detach
+        AttachThreadInput(GetCurrentThreadId(), fgwinthread, FALSE);
     return hwnd;
 }
 

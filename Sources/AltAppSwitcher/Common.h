@@ -7,3 +7,4 @@ int Modulo(int a, int b);
 void CommonInit(HINSTANCE instance);
 void CommonDeinit(HINSTANCE instance);
 void ApplyWithTimeout(void (*fn)(void*), void* data, HINSTANCE instance);
+DWORD TryAttachToForeground();

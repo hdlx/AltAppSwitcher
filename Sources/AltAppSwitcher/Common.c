@@ -252,3 +252,29 @@ void ApplyWithTimeout(void (*fn)(void*), void* data, HINSTANCE instance)
     CloseHandle(ht);
     CloseHandle(wa.workerReady);
 }
+
+DWORD TryAttachToForeground()
+{
+    HWND fgWin = GetForegroundWindow();
+    LRESULT res = SendMessageTimeout(
+        fgWin,
+        WM_NULL,
+        0,
+        0,
+        SMTO_ABORTIFHUNG,
+        50,
+        NULL);
+    if (res == 0) // Timeout, consider fg window is hung
+        return 0;
+    if (((SHORT)GetAsyncKeyState(VK_LBUTTON) & 0x8000)) // Maybe drag, do not attach
+        return 0;
+    DWORD fgWinThread = GetWindowThreadProcessId(fgWin, NULL);
+    DWORD curThread = GetCurrentThreadId();
+    if (!fgWinThread || fgWinThread == curThread)
+        return 0;
+    WINBOOL r = AttachThreadInput(GetCurrentThreadId(), fgWinThread, TRUE);
+    VERIFY(r);
+    if (!r)
+        return 0;
+    return fgWinThread;
+}
