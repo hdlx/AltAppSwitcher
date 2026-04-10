@@ -2069,6 +2069,8 @@ static LRESULT CALLBACK MainWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPAR
     if (ProcessKeys(&windowData, uMsg, wParam, lParam) == 0)
         return 0;
 
+    static bool firstMouseMove = true;
+
     switch (uMsg) {
     case WM_MOUSEMOVE: {
         ASSERT(windowData.StaticData);
@@ -2077,6 +2079,10 @@ static LRESULT CALLBACK MainWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPAR
         SetCursor(LoadCursor(NULL, IDC_ARROW));
         if (!windowData.StaticData->Config->Mouse)
             return 0;
+        if (windowData.StaticData->Config->MouseKbCommonSel && firstMouseMove) {
+            firstMouseMove = false;
+            return 0;
+        }
         const int iconContainerSize = (int)windowData.Metrics.Container;
         const int pad = (int)windowData.Metrics.Pad;
         const int x = GET_X_LPARAM(lParam);
@@ -2092,6 +2098,7 @@ static LRESULT CALLBACK MainWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPAR
         return 0;
     }
     case WM_CREATE: {
+        firstMouseMove = true;
         windowData = (struct WindowData) { };
         windowData.StaticData = (struct StaticData*)((CREATESTRUCTA*)lParam)->lpCreateParams;
         windowData.MainWin = hwnd;
