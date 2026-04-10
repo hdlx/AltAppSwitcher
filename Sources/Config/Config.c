@@ -148,15 +148,6 @@ void DefaultConfig(Config* config)
     config->DebugDisableIconFocus = false;
 }
 
-static unsigned int USKeyToScanCode(unsigned int keyCode)
-{
-    static HKL kbLayout = 0;
-    if (!kbLayout)
-        kbLayout = LoadKeyboardLayoutA("00000409", KLF_NOTELLSHELL); // Us layout
-    int scanCode = MapVirtualKeyEx(keyCode, MAPVK_VK_TO_VSC_EX, kbLayout);
-    return scanCode;
-}
-
 void LoadConfig(Config* config)
 {
     DefaultConfig(config);
@@ -223,15 +214,6 @@ void LoadConfig(Config* config)
 #undef GET_ENUM
 #undef GET_BOOL
 #undef GET_FLOAT
-
-    // Patch only for runtime use.
-    config->KeyScanCodes.AppHold = USKeyToScanCode(config->Key.AppHold);
-    config->KeyScanCodes.AppSwitch = USKeyToScanCode(config->Key.AppSwitch);
-    config->KeyScanCodes.WinHold = USKeyToScanCode(config->Key.WinHold);
-    config->KeyScanCodes.WinSwitch = USKeyToScanCode(config->Key.WinSwitch);
-    config->KeyScanCodes.Invert = USKeyToScanCode(config->Key.Invert);
-    config->KeyScanCodes.PrevApp = USKeyToScanCode(config->Key.PrevApp);
-    config->KeyScanCodes.AppClose = USKeyToScanCode(config->Key.AppClose);
 }
 
 static void WriteEnum(FILE* file, const char* entry,

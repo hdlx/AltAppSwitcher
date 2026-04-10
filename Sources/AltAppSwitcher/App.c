@@ -121,7 +121,7 @@ static LRESULT KbProc(int nCode, WPARAM wParam, LPARAM lParam)
     const bool winHoldKey = kbStrut.scanCode == Cfg->KeyScanCodes.WinHold;
     const bool nextWinKey = kbStrut.scanCode == Cfg->KeyScanCodes.WinSwitch;
     const bool isWatchedKey = appHoldKey || nextAppKey || prevAppKey || winHoldKey || nextWinKey; // NOLINT
-    if (!isWatchedKey)
+    if (! isWatchedKey)
         return CallNextHookEx(NULL, nCode, wParam, lParam);
 
     static enum Mode mode = ModeNone;
@@ -221,6 +221,15 @@ static void ClearInitMsgs()
 //     *keyCode = MapVirtualKeyEx(scanCode, MAPVK_VSC_TO_VK_EX, GetKeyboardLayout(0));
 // }
 
+static unsigned int USKeyToScanCode(unsigned int keyCode)
+{
+    static HKL kbLayout = 0;
+    if (!kbLayout)
+        kbLayout = LoadKeyboardLayoutA("00000409", KLF_NOTELLSHELL); // Us layout
+    int scanCode = MapVirtualKeyEx(keyCode, MAPVK_VK_TO_VSC_EX, kbLayout);
+    return scanCode;
+}
+
 int StartAltAppSwitcher(HINSTANCE instance)
 {
     SetLastError(0);
@@ -237,6 +246,14 @@ int StartAltAppSwitcher(HINSTANCE instance)
         MainThread = GetCurrentThreadId();
         // Init. and loads config
         LoadConfig(&appData.Config);
+        // Patch only for runtime use.
+        appData.Config.KeyScanCodes.AppHold = USKeyToScanCode(appData.Config.Key.AppHold);
+        appData.Config.KeyScanCodes.AppSwitch = USKeyToScanCode(appData.Config.Key.AppSwitch);
+        appData.Config.KeyScanCodes.WinHold = USKeyToScanCode(appData.Config.Key.WinHold);
+        appData.Config.KeyScanCodes.WinSwitch = USKeyToScanCode(appData.Config.Key.WinSwitch);
+        appData.Config.KeyScanCodes.Invert = USKeyToScanCode(appData.Config.Key.Invert);
+        appData.Config.KeyScanCodes.PrevApp = USKeyToScanCode(appData.Config.Key.PrevApp);
+        appData.Config.KeyScanCodes.AppClose = USKeyToScanCode(appData.Config.Key.AppClose);
         Cfg = &appData.Config;
 
         appData.Elevated = false;
