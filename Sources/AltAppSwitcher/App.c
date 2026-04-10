@@ -121,7 +121,7 @@ static LRESULT KbProc(int nCode, WPARAM wParam, LPARAM lParam)
     const bool winHoldKey = kbStrut.scanCode == Cfg->KeyScanCodes.WinHold;
     const bool nextWinKey = kbStrut.scanCode == Cfg->KeyScanCodes.WinSwitch;
     const bool isWatchedKey = appHoldKey || nextAppKey || prevAppKey || winHoldKey || nextWinKey; // NOLINT
-    if (! isWatchedKey)
+    if (!isWatchedKey)
         return CallNextHookEx(NULL, nCode, wParam, lParam);
 
     static enum Mode mode = ModeNone;
