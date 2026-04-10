@@ -42,15 +42,15 @@ static void SetupGUI(GUIData* gui, void* userData)
     CreateText("Graphic options:", "", gui);
 
     GridLayout(2, gui);
-    CreateText("Theme:", "", gui);
-    CreateComboBox("Color scheme. \"Auto\" to match system's.", &cfg->ThemeMode, themeES, gui);
-    CreateText("Scale (\%):", "", gui);
-    CreatePercentField("Scale controls icon size, expressed as percentage, 100 being Windows default icon size.",
+    CreateText("Theme:", "Color scheme. \"Auto\" to match system's.", gui);
+    CreateComboBox("", &cfg->ThemeMode, themeES, gui);
+    CreateText("Scale (\%):", "Scale controls icon size, expressed as percentage, 100 being Windows default icon size.", gui);
+    CreatePercentField("",
         &cfg->Scale, gui);
     CreateText("Display app name:", "", gui);
     CreateComboBox("Display app name.", &cfg->DisplayName, displayNameES, gui);
-    CreateText("Multiple monitor:", "", gui);
-    CreateComboBox("Multiple monitor display mode.", &cfg->MultipleMonitorMode, multipleMonitorModeES, gui);
+    CreateText("Multiple monitor:", "Multiple monitor display mode.", gui);
+    CreateComboBox("", &cfg->MultipleMonitorMode, multipleMonitorModeES, gui);
     CreateText("Restore minimized windows:", "", gui);
     CreateBoolControl("", &cfg->RestoreMinimizedWindows, gui);
 
@@ -58,15 +58,17 @@ static void SetupGUI(GUIData* gui, void* userData)
     CreateText("Other:", "", gui);
 
     GridLayout(2, gui);
-    CreateText("Mouse:", "", gui);
-    CreateBoolControl("Allow selecting entry by clicking on the UI.", &cfg->Mouse, gui);
+    CreateText("Mouse:", "Allow selecting entry by clicking on the UI.", gui);
+    CreateBoolControl("", &cfg->Mouse, gui);
+    CreateText("Single selection tile:", "Mouse and keyboard use the same selection tile (MacOS-style)", gui);
+    CreateBoolControl("", &cfg->MouseKbCommonSel, gui);
     CreateText("Check for updates:", "", gui);
     CreateBoolControl("", &cfg->CheckForUpdates, gui);
-    CreateText("App switcher mode:", "", gui);
-    CreateComboBox("App: MacOS-like, one entry per application.\nWindow: Windows-like, one entry per window (each window is considered an independent application)",
+    CreateText("App switcher mode:", "App: MacOS-like, one entry per application.\nWindow: Windows-like, one entry per window (each window is considered an independent application)", gui);
+    CreateComboBox("",
         &cfg->AppSwitcherMode, appSwitcherModeES, gui);
-    CreateText("App filter mode:", "", gui);
-    CreateComboBox("All: show apps from all monitors.\nmouse monitor: show only apps from the monitor where mouse cursor is located.",
+    CreateText("App filter mode:", "All: show apps from all monitors.\nmouse monitor: show only apps from the monitor where mouse cursor is located.", gui);
+    CreateComboBox("",
         &cfg->AppFilterMode, appFilterModeES, gui);
     CreateText("Desktop filter:", "", gui);
     CreateComboBox("",

@@ -47,6 +47,7 @@ typedef enum DesktopFilter {
 typedef struct Config {
     struct KeyConfig Key;
     bool Mouse;
+    bool MouseKbCommonSel;
     bool CheckForUpdates;
     ThemeMode ThemeMode;
     DisplayName DisplayName;

@@ -1821,6 +1821,8 @@ static void MoveSelection(struct WindowData* windowData, int x)
     ASSERT(windowData->StaticData);
     ASSERT(windowData->StaticData->Config);
     windowData->Selection = Modulo(windowData->Selection + x, (int)windowData->WinGroups.Size);
+    if (windowData->StaticData->Config->MouseKbCommonSel)
+        windowData->MouseSelection = windowData->Selection;
     if (!windowData->StaticData->Config->DebugDisableIconFocus)
         SetFocus(windowData->FocusWindows[windowData->Selection]);
     InvalidateRect(windowData->MainWin, 0, FALSE);
@@ -1970,6 +1972,8 @@ static void Init(struct WindowData* windowData)
     const bool invert = GetAsyncKeyState((SHORT)windowData->StaticData->Config->Key.Invert) & 0x8000;
     windowData->Selection = Modulo(windowData->Selection + (invert ? -1 : 1), (int)windowData->WinGroups.Size);
     windowData->MouseSelection = 0;
+    if (windowData->StaticData->Config->MouseKbCommonSel)
+        windowData->Selection = windowData->MouseSelection;
 
     if (windowData->WinGroups.Size == 0)
         return;
@@ -2081,6 +2085,8 @@ static LRESULT CALLBACK MainWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPAR
         const int x = GET_X_LPARAM(lParam);
         const int y = GET_Y_LPARAM(lParam);
         windowData.MouseSelection = min(max(0, (x - pad) / iconContainerSize), (int)windowData.WinGroups.Size - 1);
+        if (windowData.StaticData->Config->MouseKbCommonSel)
+            windowData.Selection = windowData.MouseSelection;
         float r[4];
         CloseButtonRect(r, &windowData.Metrics, windowData.MouseSelection);
         windowData.CloseHover = x < (int)r[2] && x > (int)r[0] && y > (int)r[1] && y < (int)r[3];

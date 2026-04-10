@@ -135,6 +135,7 @@ void DefaultConfig(Config* config)
     config->Key.PrevApp = VK_OEM_3;
     config->Key.AppClose = VK_Q;
     config->Mouse = true;
+    config->MouseKbCommonSel = false;
     config->CheckForUpdates = true;
     config->ThemeMode = ThemeModeAuto;
     config->AppSwitcherMode = AppSwitcherModeApp;
@@ -214,6 +215,7 @@ void LoadConfig(Config* config)
     GET_BOOL("debug disable icon focus", config->DebugDisableIconFocus);
 
     GET_BOOL("allow mouse", config->Mouse);
+    GET_BOOL("mouse keyboard common selection", config->MouseKbCommonSel);
     GET_BOOL("check for updates", config->CheckForUpdates);
 
     GET_FLOAT("scale", config->Scale);
@@ -292,6 +294,7 @@ void WriteConfig(const Config* config)
     WRITE_BOOL("debug disable icon focus", config->DebugDisableIconFocus);
 
     WRITE_BOOL("allow mouse", config->Mouse);
+    WRITE_BOOL("mouse keyboard common selection", config->MouseKbCommonSel);
     WRITE_BOOL("check for updates", config->CheckForUpdates);
 
     WRITE_FLOAT("scale", config->Scale);
