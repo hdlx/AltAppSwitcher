@@ -39,7 +39,7 @@ struct AppData {
     IVirtualDesktopManager* VDM;
 };
 
-static struct KeyConfig KeyConfigScanCodes;
+static struct Config* Cfg;
 static DWORD MainThread;
 
 static void RestoreKey(WORD keyCode)
@@ -59,7 +59,7 @@ static void RestoreKey(WORD keyCode)
         // Needed ?
         INPUT input = { };
         input.type = INPUT_KEYBOARD;
-        input.ki.wVk = KeyConfigScanCodes.Invert;
+        input.ki.wVk = Cfg->KeyScanCodes.Invert;
         input.ki.dwFlags = KEYEVENTF_KEYUP;
         const UINT uSent = SendInput(1, &input, sizeof(INPUT));
         ASSERT(uSent == 1);
@@ -115,11 +115,11 @@ static LRESULT KbProc(int nCode, WPARAM wParam, LPARAM lParam)
     if (kbStrut.flags & LLKHF_INJECTED)
         return CallNextHookEx(NULL, nCode, wParam, lParam);
 
-    const bool appHoldKey = kbStrut.scanCode == KeyConfigScanCodes.AppHold;
-    const bool nextAppKey = kbStrut.scanCode == KeyConfigScanCodes.AppSwitch;
-    const bool prevAppKey = kbStrut.scanCode == KeyConfigScanCodes.PrevApp;
-    const bool winHoldKey = kbStrut.scanCode == KeyConfigScanCodes.WinHold;
-    const bool nextWinKey = kbStrut.scanCode == KeyConfigScanCodes.WinSwitch;
+    const bool appHoldKey = kbStrut.scanCode == Cfg->KeyScanCodes.AppHold;
+    const bool nextAppKey = kbStrut.scanCode == Cfg->KeyScanCodes.AppSwitch;
+    const bool prevAppKey = kbStrut.scanCode == Cfg->KeyScanCodes.PrevApp;
+    const bool winHoldKey = kbStrut.scanCode == Cfg->KeyScanCodes.WinHold;
+    const bool nextWinKey = kbStrut.scanCode == Cfg->KeyScanCodes.WinSwitch;
     const bool isWatchedKey = appHoldKey || nextAppKey || prevAppKey || winHoldKey || nextWinKey; // NOLINT
     if (!isWatchedKey)
         return CallNextHookEx(NULL, nCode, wParam, lParam);
@@ -136,8 +136,8 @@ static LRESULT KbProc(int nCode, WPARAM wParam, LPARAM lParam)
         const bool appHoldRelease = appHoldKey && rel;
         const bool nextApp = nextAppKey && !rel;
         const bool nextWin = nextWinKey && !rel;
-        const bool isWinHold = GetAsyncKeyState(MapVirtualKeyEx(KeyConfigScanCodes.WinHold, MAPVK_VSC_TO_VK_EX, GetKeyboardLayout(0))) & 0x8000;
-        const bool isAppHold = GetAsyncKeyState(MapVirtualKeyEx(KeyConfigScanCodes.AppHold, MAPVK_VSC_TO_VK_EX, GetKeyboardLayout(0))) & 0x8000;
+        const bool isWinHold = GetAsyncKeyState(MapVirtualKeyEx(Cfg->KeyScanCodes.WinHold, MAPVK_VSC_TO_VK_EX, GetKeyboardLayout(0))) & 0x8000;
+        const bool isAppHold = GetAsyncKeyState(MapVirtualKeyEx(Cfg->KeyScanCodes.AppHold, MAPVK_VSC_TO_VK_EX, GetKeyboardLayout(0))) & 0x8000;
 
         // Denit.
         if ((prevMode == ModeApp && appHoldRelease)
@@ -149,14 +149,14 @@ static LRESULT KbProc(int nCode, WPARAM wParam, LPARAM lParam)
 
         // Init
         if (prevMode == ModeNone && isAppHold && nextApp) {
-            HANDLE ht = CreateThread(NULL, 0, ThreadFnRestoreKey, (LPVOID)(UINT_PTR)KeyConfigScanCodes.AppHold, CREATE_SUSPENDED, NULL);
+            HANDLE ht = CreateThread(NULL, 0, ThreadFnRestoreKey, (LPVOID)(UINT_PTR)Cfg->KeyScanCodes.AppHold, CREATE_SUSPENDED, NULL);
             SetThreadPriority(ht, THREAD_PRIORITY_TIME_CRITICAL);
             ResumeThread(ht);
             mode = ModeApp;
             PostThreadMessage(MainThread, MSG_INIT_APP, 0, 0);
             bypassMsg = true;
         } else if (prevMode == ModeNone && isWinHold && nextWin) {
-            HANDLE ht = CreateThread(NULL, 0, ThreadFnRestoreKey, (LPVOID)(UINT_PTR)KeyConfigScanCodes.WinHold, CREATE_SUSPENDED, NULL);
+            HANDLE ht = CreateThread(NULL, 0, ThreadFnRestoreKey, (LPVOID)(UINT_PTR)Cfg->KeyScanCodes.WinHold, CREATE_SUSPENDED, NULL);
             SetThreadPriority(ht, THREAD_PRIORITY_TIME_CRITICAL);
             ResumeThread(ht);
             mode = ModeWin;
@@ -212,23 +212,14 @@ static void ClearInitMsgs()
     while (PeekMessage(&msg, NULL, MSG_INIT_APP, MSG_INIT_WIN, PM_REMOVE) > 0) { };
 }
 
-void PatchKeyCode(unsigned int* keyCode)
-{
-    static HKL kbLayout = 0;
-    if (!kbLayout)
-        LoadKeyboardLayoutA("00000409", KLF_NOTELLSHELL); // Us layout
-    int scanCode = MapVirtualKeyEx(*keyCode, MAPVK_VK_TO_VSC_EX, kbLayout);
-    *keyCode = MapVirtualKeyEx(scanCode, MAPVK_VSC_TO_VK_EX, GetKeyboardLayout(0));
-}
-
-unsigned int USKeyToScanCode(unsigned int keyCode)
-{
-    static HKL kbLayout = 0;
-    if (!kbLayout)
-        LoadKeyboardLayoutA("00000409", KLF_NOTELLSHELL); // Us layout
-    int scanCode = MapVirtualKeyEx(keyCode, MAPVK_VK_TO_VSC_EX, kbLayout);
-    return scanCode;
-}
+// static void PatchKeyCode(unsigned int* keyCode)
+// {
+//     static HKL kbLayout = 0;
+//     if (!kbLayout)
+//         LoadKeyboardLayoutA("00000409", KLF_NOTELLSHELL); // Us layout
+//     int scanCode = MapVirtualKeyEx(*keyCode, MAPVK_VK_TO_VSC_EX, kbLayout);
+//     *keyCode = MapVirtualKeyEx(scanCode, MAPVK_VSC_TO_VK_EX, GetKeyboardLayout(0));
+// }
 
 int StartAltAppSwitcher(HINSTANCE instance)
 {
@@ -246,14 +237,7 @@ int StartAltAppSwitcher(HINSTANCE instance)
         MainThread = GetCurrentThreadId();
         // Init. and loads config
         LoadConfig(&appData.Config);
-        // Patch only for runtime use. Do not patch if used for serialization.
-        KeyConfigScanCodes.AppHold = USKeyToScanCode(appData.Config.Key.AppHold);
-        KeyConfigScanCodes.AppSwitch = USKeyToScanCode(appData.Config.Key.AppSwitch);
-        KeyConfigScanCodes.WinHold = USKeyToScanCode(appData.Config.Key.WinHold);
-        KeyConfigScanCodes.WinSwitch = USKeyToScanCode(appData.Config.Key.WinSwitch);
-        KeyConfigScanCodes.Invert = USKeyToScanCode(appData.Config.Key.Invert);
-        KeyConfigScanCodes.PrevApp = USKeyToScanCode(appData.Config.Key.PrevApp);
-        KeyConfigScanCodes.AppClose = USKeyToScanCode(appData.Config.Key.AppClose);
+        Cfg = &appData.Config;
 
         appData.Elevated = false;
         {

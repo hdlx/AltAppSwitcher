@@ -107,6 +107,7 @@ struct StaticData {
     struct UWPIconMap UWPIconMap;
     bool Elevated;
     const struct Config* Config;
+    const struct KeyConfig* KeyConfigScanCodes;
     HMODULE Instance;
     ULONG_PTR GdiplusToken;
     IVirtualDesktopManager* VDM;
@@ -1826,33 +1827,35 @@ static void MoveSelection(struct WindowData* windowData, int x)
     UpdateWindow(windowData->MainWin);
 }
 
-static int ProcessKeys(struct WindowData* windowData, UINT uMsg, WPARAM wParam)
+static int ProcessKeys(struct WindowData* windowData, UINT uMsg, WPARAM wParam, LPARAM lParam)
 {
     switch (uMsg) {
     case WM_SYSKEYDOWN:
     case WM_KEYDOWN: {
+        unsigned int vkCode = wParam;
+        unsigned int scanCode = (lParam >> 16) & 0xFF;
         ASSERT(windowData)
         ASSERT(windowData->StaticData)
         ASSERT(windowData->StaticData->Config)
-        if (wParam == VK_ESCAPE) {
+        if (vkCode == VK_ESCAPE) {
             DestroyWin(&windowData->MainWin);
             ClearWinGroupArr(&windowData->WinGroups);
             return 0;
         }
         int x = 0;
         if (
-            wParam == windowData->StaticData->Config->Key.AppSwitch
-            || wParam == 'L'
-            || wParam == 'J'
-            || wParam == VK_RIGHT
-            || wParam == VK_DOWN) {
+            scanCode == windowData->StaticData->Config->KeyScanCodes.AppSwitch
+            || vkCode == 'L'
+            || vkCode == 'J'
+            || vkCode == VK_RIGHT
+            || vkCode == VK_DOWN) {
             x = 1;
         } else if (
-            wParam == windowData->StaticData->Config->Key.PrevApp
-            || wParam == 'H'
-            || wParam == 'K'
-            || wParam == VK_LEFT
-            || wParam == VK_UP) {
+            scanCode == windowData->StaticData->Config->KeyScanCodes.PrevApp
+            || vkCode == 'H'
+            || vkCode == 'K'
+            || vkCode == VK_LEFT
+            || vkCode == VK_UP) {
             x = -1;
         }
         if (x != 0) {
@@ -1877,7 +1880,7 @@ static LRESULT FocusWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lPara
 {
     static struct WindowData* appData = NULL;
 
-    if (ProcessKeys(appData, uMsg, wParam) == 0)
+    if (ProcessKeys(appData, uMsg, wParam, lParam) == 0)
         return 0;
 
     switch (uMsg) {
@@ -2062,7 +2065,7 @@ static LRESULT CALLBACK MainWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPAR
 {
     static struct WindowData windowData = { };
 
-    if (ProcessKeys(&windowData, uMsg, wParam) == 0)
+    if (ProcessKeys(&windowData, uMsg, wParam, lParam) == 0)
         return 0;
 
     switch (uMsg) {

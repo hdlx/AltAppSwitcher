@@ -57,6 +57,7 @@ typedef struct Config {
     bool RestoreMinimizedWindows;
     DesktopFilter DesktopFilter;
     bool DebugDisableIconFocus;
+    struct KeyConfig KeyScanCodes;
 } Config;
 
 typedef struct EnumString {
