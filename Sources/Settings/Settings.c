@@ -74,9 +74,6 @@ static void SetupGUI(GUIData* gui, void* userData)
     CreateComboBox("",
         &cfg->DesktopFilter, desktopFilterES, gui);
 
-    CreateText("Debug only: disable icon focus", "", gui);
-    CreateBoolControl("", &cfg->DebugDisableIconFocus, gui);
-
     GridLayout(1, gui);
     CreateButton("Apply", (HMENU)APPLY_BUTTON_ID, gui);
 }

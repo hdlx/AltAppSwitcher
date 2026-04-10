@@ -145,7 +145,6 @@ void DefaultConfig(Config* config)
     config->AppFilterMode = AppFilterModeAll;
     config->RestoreMinimizedWindows = true;
     config->DesktopFilter = DesktopFilterCurrent;
-    config->DebugDisableIconFocus = false;
 }
 
 void LoadConfig(Config* config)
@@ -203,7 +202,6 @@ void LoadConfig(Config* config)
     GET_ENUM("app filter mode", config->AppFilterMode, appFilterModeES);
     GET_ENUM("desktop filter", config->DesktopFilter, desktopFilterES);
     GET_BOOL("restore minimized windows", config->RestoreMinimizedWindows);
-    GET_BOOL("debug disable icon focus", config->DebugDisableIconFocus);
 
     GET_BOOL("allow mouse", config->Mouse);
     GET_BOOL("mouse keyboard common selection", config->MouseKbCommonSel);
@@ -273,7 +271,6 @@ void WriteConfig(const Config* config)
     WRITE_ENUM("app filter mode", config->AppFilterMode, appFilterModeES);
     WRITE_ENUM("desktop filter", config->DesktopFilter, desktopFilterES);
     WRITE_BOOL("restore minimized windows", config->RestoreMinimizedWindows);
-    WRITE_BOOL("debug disable icon focus", config->DebugDisableIconFocus);
 
     WRITE_BOOL("allow mouse", config->Mouse);
     WRITE_BOOL("mouse keyboard common selection", config->MouseKbCommonSel);

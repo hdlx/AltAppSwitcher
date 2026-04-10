@@ -1823,8 +1823,7 @@ static void MoveSelection(struct WindowData* windowData, int x)
     windowData->Selection = Modulo(windowData->Selection + x, (int)windowData->WinGroups.Size);
     if (windowData->StaticData->Config->MouseKbCommonSel)
         windowData->MouseSelection = windowData->Selection;
-    if (!windowData->StaticData->Config->DebugDisableIconFocus)
-        SetFocus(windowData->FocusWindows[windowData->Selection]);
+    SetFocus(windowData->FocusWindows[windowData->Selection]);
     InvalidateRect(windowData->MainWin, 0, FALSE);
     UpdateWindow(windowData->MainWin);
 }
@@ -2027,17 +2026,15 @@ static void Init(struct WindowData* windowData)
 
     SetCapture(windowData->MainWin);
 
-    if (!windowData->StaticData->Config->DebugDisableIconFocus) {
-        for (uint32_t i = 0; i < windowData->WinGroups.Size; i++) {
-            const int iconContainerSize = (int)windowData->Metrics.Container;
-            const int pad = (int)windowData->Metrics.Pad;
-            int x = pad + (int)(i * iconContainerSize);
-            windowData->FocusWindows[i] = CreateWindowEx(0, FOCUS_CLASS_NAME, NULL,
-                WS_CHILD /* | WS_VISIBLE */,
-                x, pad, iconContainerSize, iconContainerSize,
-                windowData->MainWin, NULL, windowData->StaticData->Instance, windowData);
-            windowData->FocusWindowCount++;
-        }
+    for (uint32_t i = 0; i < windowData->WinGroups.Size; i++) {
+        const int iconContainerSize = (int)windowData->Metrics.Container;
+        const int pad = (int)windowData->Metrics.Pad;
+        int x = pad + (int)(i * iconContainerSize);
+        windowData->FocusWindows[i] = CreateWindowEx(0, FOCUS_CLASS_NAME, NULL,
+            WS_CHILD /* | WS_VISIBLE */,
+            x, pad, iconContainerSize, iconContainerSize,
+            windowData->MainWin, NULL, windowData->StaticData->Instance, windowData);
+        windowData->FocusWindowCount++;
     }
 }
 
@@ -2106,11 +2103,8 @@ static LRESULT CALLBACK MainWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPAR
         // UIASetFocus(focusWindows[appData->Selection]);
         ASSERT(windowData.StaticData);
         ASSERT(windowData.StaticData->Config);
-        if (!windowData.StaticData->Config->DebugDisableIconFocus) {
-            SetFocus(windowData.FocusWindows[windowData.Selection]);
-            return 0;
-        }
-        break;
+        SetFocus(windowData.FocusWindows[windowData.Selection]);
+        return 0;
     }
     case MSG_REFRESH: {
         ClearWinGroupArr(&windowData.WinGroups);
