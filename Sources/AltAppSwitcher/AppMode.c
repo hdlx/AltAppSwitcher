@@ -1970,9 +1970,8 @@ static void Init(struct WindowData* windowData)
 
     const bool invert = GetAsyncKeyState((SHORT)windowData->StaticData->Config->Key.Invert) & 0x8000;
     windowData->Selection = Modulo(windowData->Selection + (invert ? -1 : 1), (int)windowData->WinGroups.Size);
-    windowData->MouseSelection = 0;
     if (windowData->StaticData->Config->MouseKbCommonSel)
-        windowData->Selection = windowData->MouseSelection;
+        windowData->MouseSelection = windowData->Selection;
 
     if (windowData->WinGroups.Size == 0)
         return;
