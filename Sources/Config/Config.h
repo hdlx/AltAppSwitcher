@@ -57,7 +57,6 @@ typedef struct Config {
     AppFilterMode AppFilterMode;
     bool RestoreMinimizedWindows;
     DesktopFilter DesktopFilter;
-    bool DebugDisableIconFocus;
     struct KeyConfig KeyScanCodes;
 } Config;
 
