@@ -197,11 +197,13 @@ static HWND GetFirstChild(HWND win)
 }
 #endif
 
+static HANDLE singleInstanceMutex = NULL;
+
 static void AssertSingleInstance()
 {
-    HANDLE hMutex = CreateMutexA(NULL, TRUE, "Global\\AltAppSwitcher{4fb3d3f7-9f35-41ce-b4d2-83c18eac3f54}");
+    singleInstanceMutex = CreateMutexA(NULL, TRUE, "Global\\AltAppSwitcher{4fb3d3f7-9f35-41ce-b4d2-83c18eac3f54}");
     if (GetLastError() == ERROR_ALREADY_EXISTS) {
-        CloseHandle(hMutex);
+        CloseHandle(singleInstanceMutex);
         ExitProcess(1);
     }
 }
@@ -374,6 +376,12 @@ int StartAltAppSwitcher(HINSTANCE instance)
     AppModeDeinit();
     WinModeDeinit();
 
+    if (appData.VDM)
+        IVirtualDesktopManager_Release(appData.VDM);
+    CoUninitialize();
+
+    ReleaseMutex(singleInstanceMutex);
+
     if (restartAAS) {
         STARTUPINFO si = { };
         PROCESS_INFORMATION pi = { };
@@ -384,9 +392,5 @@ int StartAltAppSwitcher(HINSTANCE instance)
         CreateProcess(NULL, currentExe, 0, 0, false, CREATE_NEW_PROCESS_GROUP, 0, 0,
             &si, &pi);
     }
-
-    if (appData.VDM)
-        IVirtualDesktopManager_Release(appData.VDM);
-    CoUninitialize();
     return 0;
 }
