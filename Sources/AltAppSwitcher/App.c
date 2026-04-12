@@ -381,6 +381,7 @@ int StartAltAppSwitcher(HINSTANCE instance)
     CoUninitialize();
 
     ReleaseMutex(singleInstanceMutex);
+    CloseHandle(singleInstanceMutex);
 
     if (restartAAS) {
         STARTUPINFO si = { };
