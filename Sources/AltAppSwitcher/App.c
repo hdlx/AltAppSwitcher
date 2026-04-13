@@ -109,16 +109,6 @@ static DWORD ThreadFnRestoreKey(LPVOID param)
     return 0;
 }
 
-static unsigned int USKeyToLocalKey(unsigned int keyCode)
-{
-    static HKL kbLayout = 0;
-    if (!kbLayout)
-        kbLayout = LoadKeyboardLayoutA("00000409", KLF_NOTELLSHELL); // Us layout
-    int scanCode = MapVirtualKeyEx(keyCode, MAPVK_VK_TO_VSC_EX, kbLayout);
-    int outKeyCode = MapVirtualKeyEx(scanCode, MAPVK_VSC_TO_VK_EX, GetKeyboardLayout(0));
-    return outKeyCode;
-}
-
 static LRESULT KbProc(int nCode, WPARAM wParam, LPARAM lParam)
 {
     const KBDLLHOOKSTRUCT kbStrut = *(KBDLLHOOKSTRUCT*)lParam;
@@ -223,15 +213,6 @@ static void ClearInitMsgs()
     MSG msg = { };
     while (PeekMessage(&msg, NULL, MSG_INIT_APP, MSG_INIT_WIN, PM_REMOVE) > 0) { };
 }
-
-// static void PatchKeyCode(unsigned int* keyCode)
-// {
-//     static HKL kbLayout = 0;
-//     if (!kbLayout)
-//         LoadKeyboardLayoutA("00000409", KLF_NOTELLSHELL); // Us layout
-//     int scanCode = MapVirtualKeyEx(*keyCode, MAPVK_VK_TO_VSC_EX, kbLayout);
-//     *keyCode = MapVirtualKeyEx(scanCode, MAPVK_VSC_TO_VK_EX, GetKeyboardLayout(0));
-// }
 
 int StartAltAppSwitcher(HINSTANCE instance)
 {

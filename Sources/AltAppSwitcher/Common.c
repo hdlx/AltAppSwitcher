@@ -278,3 +278,13 @@ DWORD TryAttachToForeground()
         return 0;
     return fgWinThread;
 }
+
+unsigned int USKeyToLocalKey(unsigned int keyCode)
+{
+    static HKL kbLayout = 0;
+    if (!kbLayout)
+        kbLayout = LoadKeyboardLayoutA("00000409", KLF_NOTELLSHELL); // Us layout
+    int scanCode = MapVirtualKeyEx(keyCode, MAPVK_VK_TO_VSC_EX, kbLayout);
+    int outKeyCode = MapVirtualKeyEx(scanCode, MAPVK_VSC_TO_VK_EX, GetKeyboardLayout(0));
+    return outKeyCode;
+}

@@ -1828,16 +1828,6 @@ static void MoveSelection(struct WindowData* windowData, int x)
     UpdateWindow(windowData->MainWin);
 }
 
-static unsigned int USKeyToLocalKey(unsigned int keyCode)
-{
-    static HKL kbLayout = 0;
-    if (!kbLayout)
-        kbLayout = LoadKeyboardLayoutA("00000409", KLF_NOTELLSHELL); // Us layout
-    int scanCode = MapVirtualKeyEx(keyCode, MAPVK_VK_TO_VSC_EX, kbLayout);
-    int outKeyCode = MapVirtualKeyEx(scanCode, MAPVK_VSC_TO_VK_EX, GetKeyboardLayout(0));
-    return outKeyCode;
-}
-
 static int ProcessKeys(struct WindowData* windowData, UINT uMsg, WPARAM wParam, LPARAM lParam)
 {
     (void)lParam;

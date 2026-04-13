@@ -8,3 +8,4 @@ void CommonInit(HINSTANCE instance);
 void CommonDeinit(HINSTANCE instance);
 void ApplyWithTimeout(void (*fn)(void*), void* data, HINSTANCE instance);
 DWORD TryAttachToForeground();
+unsigned int USKeyToLocalKey(unsigned int keyCode);
