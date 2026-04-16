@@ -677,6 +677,110 @@ static bool GetAppInfoFromLnk(const wchar_t* userModelID, wchar_t* outIconPath, 
     return found;
 }
 
+static void FindLogoInDir(wchar_t parentDir[MAX_PATH], wchar_t* logoNoExt, wchar_t* outIconPath, bool lightTheme, uint32_t* maxSize) {
+    wchar_t parentDirStar[MAX_PATH];
+    wcscpy(parentDirStar, parentDir);
+    wcscat(parentDirStar, L"/*");
+
+    WIN32_FIND_DATAW findData;
+    HANDLE hFind = INVALID_HANDLE_VALUE;
+    hFind = FindFirstFileW(parentDirStar, &findData);
+
+    if (hFind == INVALID_HANDLE_VALUE) {
+        return;
+    }
+
+    bool foundAny = false;
+
+    // https://learn.microsoft.com/en-us/windows/apps/design/style/iconography/app-icon-construction
+    while (FindNextFileW(hFind, &findData) != 0) {
+        const wchar_t* postLogoName = NULL;
+        {
+            const wchar_t* at = wcsstr(findData.cFileName, logoNoExt);
+            if (at == != findData.cFileName)
+                continue;
+            postLogoName = at + wcslen(logoNoExt);
+        }
+
+        uint32_t targetsize = 0;
+        {
+            const wchar_t* at = wcsstr(postLogoName, L"targetsize-");
+            if (at != NULL) {
+                at += (sizeof(L"targetsize-") / sizeof(wchar_t)) - 1;
+                targetsize = wcstol(at, NULL, 10);
+            }
+        }
+
+        const bool lightUnplated = wcsstr(postLogoName, L"altform-lightunplated") != NULL;
+        const bool unplated = wcsstr(postLogoName, L"altform-unplated") != NULL;
+        const bool constrast = wcsstr(postLogoName, L"contrast") != NULL;
+        const bool matchingTheme = !constrast
+            && ((lightTheme && lightUnplated)
+                || (!lightTheme && unplated));
+
+        if (targetsize > *maxSize || !foundAny || (targetsize == *maxSize && matchingTheme)) {
+            *maxSize = targetsize;
+            foundAny = true;
+            wcscpy(outIconPath, parentDir);
+            wcscat(outIconPath, L"/");
+            wcscat(outIconPath, findData.cFileName);
+        }
+    }
+}
+
+static void ScanDirForAppLogoRecursive(wchar_t dir[MAX_PATH], wchar_t* logoPath, uint32_t logoPathDepth, wchar_t* logoName, bool lightTheme, uint32_t* maxSize, wchar_t* outIconPath) {
+    if (logoPathDepth == 0) {
+        FindLogoInDir(dir, logoName, outIconPath, lightTheme, maxSize);
+    }
+
+    wchar_t dirWildcard[MAX_PATH];
+    wcscpy(dirWildcard, dir);
+    wcscat(dirWildcard, L"/*");
+
+    WIN32_FIND_DATAW findData;
+    HANDLE hFind = INVALID_HANDLE_VALUE;
+    hFind = FindFirstFileW(dirWildcard, &findData);
+
+    if (hFind == INVALID_HANDLE_VALUE) {
+        return;
+    }
+
+    while (FindNextFileW(hFind, &findData) != 0) {
+        if (!wcscmp(findData.cFileName, L".") || !wcscmp(findData.cFileName, L".."))
+            continue;
+
+        if (findData.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) {
+            wchar_t childDir[MAX_PATH];
+            wcscpy(childDir, dir);
+            wcscat(childDir, L"/");
+            wcscat(childDir, findData.cFileName);
+
+            wchar_t* nextLogoPath = logoPath;
+            uint32_t nextLogoPathDepth = logoPathDepth;
+            if (logoPathDepth && !wcscmp(findData.cFileName, logoPath)) {
+                nextLogoPath = logoPath + wcslen(logoPath) + 1;
+                nextLogoPathDepth--;
+            }
+
+            ScanDirForAppLogoRecursive(childDir, nextLogoPath, nextLogoPathDepth, logoName, lightTheme, maxSize, outIconPath);
+        }
+    }
+}
+
+static void FindLogoFromProp(wchar_t packagePath[MAX_PATH], wchar_t logoPath[MAX_PATH], wchar_t* logoName, bool lightTheme, wchar_t* outIconPath) {
+    uint32_t logoPathDepth = 1;
+    for (wchar_t* c = logoPath; *c; c++) {
+        if (*c == '/') {
+            logoPathDepth++;
+            *c = '\0';
+            c++;
+        }
+    }
+
+    uint32_t maxSize = 0;
+    ScanDirForAppLogoRecursive(packagePath, logoPath, logoPathDepth, logoName, lightTheme, &maxSize, outIconPath);
+}
+
 // https://github.com/microsoft/Windows-classic-samples/blob/main/Samples/AppxPackingDescribeAppx/cpp/DescribeAppx.cpp
 static void GetAppInfoFromManifest(HANDLE process, const wchar_t* userModelID, wchar_t* outIconPath, wchar_t* outAppName, bool lightTheme)
 {
@@ -780,74 +884,15 @@ static void GetAppInfoFromManifest(HANDLE process, const wchar_t* userModelID, w
         } else
             wcscpy(outAppName, displayName);
     }
-    wchar_t logoPath[MAX_PATH];
-    wcscpy(logoPath, packagePath);
-    wcscat(logoPath, L"/");
-    wcscat(logoPath, logoProp);
-
-    wchar_t parentDir[MAX_PATH];
-    wcscpy(parentDir, logoPath);
-    *wcsrchr(parentDir, L'/') = L'\0';
-
-    wchar_t parentDirStar[MAX_PATH];
-    wcscpy(parentDirStar, parentDir);
-    wcscat(parentDirStar, L"/*");
 
     wchar_t logoNoExt[MAX_PATH];
     wchar_t* atLastSlash = wcsrchr(logoProp, L'/');
     wcscpy(logoNoExt, atLastSlash ? atLastSlash + 1 : logoProp);
     wcsrchr(logoNoExt, L'.')[0] = L'\0';
 
-    wchar_t ext[16];
-    wcscpy(ext, wcsrchr(logoProp, L'.'));
+    *atLastSlash = '\0';
 
-    WIN32_FIND_DATAW findData;
-    HANDLE hFind = INVALID_HANDLE_VALUE;
-    hFind = FindFirstFileW(parentDirStar, &findData);
-
-    if (hFind == INVALID_HANDLE_VALUE) {
-        CoUninitialize();
-        return;
-    }
-
-    uint32_t maxSize = 0;
-    bool foundAny = false;
-
-    // https://learn.microsoft.com/en-us/windows/apps/design/style/iconography/app-icon-construction
-    while (FindNextFileW(hFind, &findData) != 0) {
-        const wchar_t* postLogoName = NULL;
-        {
-            const wchar_t* at = wcsstr(findData.cFileName, logoNoExt);
-            if (at != findData.cFileName) // "StartsWith" rather than "Contains" (contains is incorrect why latest outlook)
-                continue;
-            postLogoName = at + wcslen(logoNoExt);
-        }
-
-        uint32_t targetsize = 0;
-        {
-            const wchar_t* at = wcsstr(postLogoName, L"targetsize-");
-            if (at != NULL) {
-                at += (sizeof(L"targetsize-") / sizeof(wchar_t)) - 1;
-                targetsize = wcstol(at, NULL, 10);
-            }
-        }
-
-        const bool lightUnplated = wcsstr(postLogoName, L"altform-lightunplated") != NULL;
-        const bool unplated = wcsstr(postLogoName, L"altform-unplated") != NULL;
-        const bool constrast = wcsstr(postLogoName, L"contrast") != NULL;
-        const bool matchingTheme = !constrast
-            && ((lightTheme && lightUnplated)
-                || (!lightTheme && unplated));
-
-        if (targetsize > maxSize || !foundAny || (targetsize == maxSize && matchingTheme)) {
-            maxSize = targetsize;
-            foundAny = true;
-            wcscpy(outIconPath, parentDir);
-            wcscat(outIconPath, L"/");
-            wcscat(outIconPath, findData.cFileName);
-        }
-    }
-
+    FindLogoFromProp(packagePath, logoProp, logoNoExt, lightTheme, outIconPath);
     CoUninitialize();
 }
 
@@ -1069,8 +1114,8 @@ static BOOL IsRunWindow(HWND hwnd)
 void GetAppInfos(DWORD PID, struct StaticData* staticData, const wchar_t* aumid, GpBitmap** outIcon, wchar_t* outAppName)
 {
     bool found = GetAppInfoFromMap(&staticData->UWPIconMap, aumid, outIcon, outAppName);
-    if (!found) {
-        static wchar_t iconPath[MAX_PATH] = { };
+    if (!   found) {
+        static wchar_t iconPath[MAX_PATH] = {};
         int iconIdx = 0;
         iconPath[0] = L'\0';
         found = GetAppInfoFromLnk(aumid, iconPath, outAppName, &iconIdx);
