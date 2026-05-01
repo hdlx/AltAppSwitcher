@@ -262,7 +262,7 @@ DWORD TryAttachToForeground()
         0,
         0,
         SMTO_ABORTIFHUNG,
-        50,
+        100,
         NULL);
     if (res == 0) // Timeout, consider fg window is hung
         return 0;
