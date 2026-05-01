@@ -22,6 +22,32 @@ static void GetErrStr(DWORD err, char* str, uint32_t strSize)
     LocalFree(msg);
 }
 
+void AASMsg(const char* file, uint32_t line, const char* msg, ...)
+{
+    va_list vaargs;
+    va_start(vaargs, msg);
+
+    char logFile[MAX_PATH] = { };
+    LogPath(logFile);
+
+    time_t mytime = time(NULL);
+    char* timeStr = ctime(&mytime); // NOLINT
+    timeStr[strlen(timeStr) - 1] = '\0';
+
+    FILE* f = fopen(logFile, "ab");
+    if (f != NULL) {
+        int r = fprintf_s(f, "%s - %s - l. %u:\n", timeStr, file, line);
+        ASSERT(r > 0);
+        r = vfprintf_s(f, msg, vaargs);
+        ASSERT(r > 0);
+        r = fprintf_s(f, "\n\n");
+        ASSERT(r > 0);
+        r = fclose(f);
+        ASSERT(r == 0);
+    }
+    va_end(vaargs);
+}
+
 void ASSError(const char* file, uint32_t line, const char* assertStr, ...)
 {
     va_list vaargs;

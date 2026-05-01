@@ -44,6 +44,7 @@ static DWORD MainThread;
 
 static void RestoreKey(WORD keyCode)
 {
+    AAS_MSG("RestoreKey");
     {
         INPUT input = { };
         input.type = INPUT_KEYBOARD;
@@ -216,11 +217,13 @@ static void ClearInitMsgs()
 
 int StartAltAppSwitcher(HINSTANCE instance)
 {
+    AAS_MSG("Starting AAS instance %u", instance);
     SetLastError(0);
     AssertSingleInstance();
     ASSERT(SetPriorityClass(GetCurrentProcess(), REALTIME_PRIORITY_CLASS));
     SetThreadPriority(GetCurrentThread(), THREAD_PRIORITY_TIME_CRITICAL);
 
+    AAS_MSG("CoInitialize()");
     CoInitialize(NULL);
 
     static struct AppData appData = { };
@@ -230,6 +233,7 @@ int StartAltAppSwitcher(HINSTANCE instance)
         MainThread = GetCurrentThreadId();
         // Init. and loads config
         LoadConfig(&appData.Config);
+        AAS_MSG("LoadConfig()");
         Cfg = &appData.Config;
 
         appData.Elevated = false;
@@ -242,6 +246,7 @@ int StartAltAppSwitcher(HINSTANCE instance)
             appData.Elevated = elTok.TokenIsElevated;
             CloseHandle(tok);
         }
+        AAS_MSG("Get elevation()");
 
         char updater[MAX_PATH] = { };
         UpdaterPath(updater);
@@ -251,19 +256,24 @@ int StartAltAppSwitcher(HINSTANCE instance)
             CreateProcess(NULL, updater, 0, 0, false, CREATE_NEW_PROCESS_GROUP, 0, 0,
                 &si, &pi);
         }
+        AAS_MSG("Check for update");
 
         CoCreateInstance(&CLSID_VirtualDesktopManager, NULL, CLSCTX_ALL, &IID_IVirtualDesktopManager, (void**)&appData.VDM);
     }
 
     CommonInit(instance);
+    AAS_MSG("CommonInit");
     AppModeInit(instance, &appData.Config, appData.VDM);
+    AAS_MSG("AppModeInit");
     WinModeInit(instance, &appData.Config, appData.VDM);
+    AAS_MSG("WinModeInit");
 
     HANDLE threadKbHook = CreateThread(NULL, 0, KbHookCb, (void*)&appData, CREATE_SUSPENDED, NULL);
     (void)threadKbHook;
     SetThreadPriority(threadKbHook, THREAD_PRIORITY_TIME_CRITICAL);
     ResumeThread(threadKbHook);
     AllowSetForegroundWindow(GetCurrentProcessId());
+    AAS_MSG("AllowSetForegroundWindow GetCurrentProcessId");
 
     HANDLE token;
     OpenProcessToken(
@@ -287,6 +297,7 @@ int StartAltAppSwitcher(HINSTANCE instance)
     while (GetMessage(&msg, NULL, 0, 0) > 0) {
         switch (msg.message) {
         case MSG_INIT_APP: {
+            AAS_MSG("MSG_INIT_APP");
             ClearInitMsgs();
             RestoreKey(appData.Config.Key.WinHold);
             if (IsWindow(appData.win_mode_window)) {
@@ -301,6 +312,7 @@ int StartAltAppSwitcher(HINSTANCE instance)
             break;
         }
         case MSG_INIT_WIN: {
+            AAS_MSG("MSG_INIT_WIN");
             ClearInitMsgs();
             RestoreKey(appData.Config.Key.AppHold);
             if (IsWindow(appData.win_mode_window)) {

@@ -1376,6 +1376,7 @@ void AppModeDeinit()
 
 HWND AppModeCreateWindow()
 {
+    AAS_MSG("AppModeCreateWindow");
     DWORD curThread = GetCurrentThreadId();
     DWORD fgwinthread = TryAttachToForeground();
     HWND hwnd = CreateWindowEx(
@@ -1399,6 +1400,7 @@ HWND AppModeCreateWindow()
         WINBOOL r = AttachThreadInput(GetCurrentThreadId(), fgwinthread, FALSE);
         VERIFY(r);
     }
+    AAS_MSG("AppModeCreateWindow End");
     return hwnd;
 }
 

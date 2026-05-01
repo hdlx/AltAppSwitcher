@@ -19,4 +19,11 @@
     if (!(arg)) {                                       \
         ASSError(__FILE__, __LINE__, str, __VA_ARGS__); \
     }
+
+#if 0 
+#define AAS_MSG(str, ...) AASMsg(__FILE__, __LINE__, str, ##__VA_ARGS__)
+#else
+#define AAS_MSG(str, ...)
+#endif
 void ASSError(const char* file, unsigned int line, const char* assertStr, ...);
+void AASMsg(const char* file, unsigned int line, const char* msg, ...);
