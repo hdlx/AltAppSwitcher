@@ -1065,6 +1065,74 @@ static BOOL IsRunWindow(HWND hwnd)
 
     return true;
 }
+/*
+static void GetIconFromAUMID(const wchar_t* aumid)
+{
+    IShellItem* appsFolder = NULL;
+    {
+        HRESULT res = SHCreateItemInKnownFolder(
+            &FOLDERID_AppsFolder,
+            0,
+            NULL,
+            &IID_IShellItem, (void**)&appsFolder);
+        ASSERT(SUCCEEDED(res));
+    }
+    IEnumShellItems* enumItems = NULL;
+    {
+        HRESULT res = IShellItem_BindToHandler(appsFolder, NULL, &BHID_EnumItems, &IID_IEnumShellItems, (void**)&enumItems);
+        ASSERT(SUCCEEDED(res));
+    }
+#if 0
+    {
+        HRESULT res = SHCreateShellItemArrayFromShellItem(
+            appsFolder,
+            &IID_IEnumShellItems,
+            (void**)&enumItems);
+        ASSERT(SUCCEEDED(res));
+    }
+#endif
+
+    IShellItem* item = NULL;
+    while (IEnumShellItems_Next(enumItems, 1, &item, NULL) == S_OK) {
+        PWSTR name = NULL;
+        IShellItem_GetDisplayName(item, SIGDN_PARENTRELATIVEEDITING, &name);
+        bool found = false;
+
+        IPropertyStore* pStore = NULL;
+        {
+            HRESULT res = IShellItem_BindToHandler(item, NULL, &BHID_PropertyStore, &IID_IPropertyStore, (void**)&pStore);
+            ASSERT(SUCCEEDED(res));
+        }
+
+        PROPVARIANT pv = { };
+        PropVariantInit(&pv);
+        HRESULT res = IPropertyStore_GetValue(pStore, &PKEY_AppUserModel_ID, &pv);
+        IPropertyStore_Release(pStore);
+
+        if (SUCCEEDED(res)) {
+            if (pv.vt == VT_LPWSTR) {
+                found = !wcscmp(aumid, pv.pwszVal);
+            }
+            if (pv.vt == VT_LPSTR) {
+                static wchar_t aswcs[256] = { };
+                CharToWChar(aswcs, pv.pcVal);
+                found = !wcscmp(aumid, aswcs);
+            }
+        }
+        if (found) {
+            printf("FOUND!\n");
+            wprintf(L"%s\n", name);
+        }
+
+        CoTaskMemFree(name);
+        IShellItem_Release(item);
+        if (found)
+            break;
+        item = NULL;
+    }
+    wprintf(L"\n\n\n\n");
+}
+*/
 
 void GetAppInfos(DWORD PID, struct StaticData* staticData, const wchar_t* aumid, GpBitmap** outIcon, wchar_t* outAppName)
 {
@@ -1105,6 +1173,8 @@ void GetAppInfos(DWORD PID, struct StaticData* staticData, const wchar_t* aumid,
             }
             CloseHandle(process);
         }
+
+        // GetIconFromAUMID(aumid);
 
         // Load bitmap
         if (wcslen(iconPath)) {

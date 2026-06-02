@@ -20,7 +20,7 @@
         ASSError(__FILE__, __LINE__, str, __VA_ARGS__); \
     }
 
-#if 0 
+#if 0
 #define AAS_MSG(str, ...) AASMsg(__FILE__, __LINE__, str, ##__VA_ARGS__)
 #else
 #define AAS_MSG(str, ...)
