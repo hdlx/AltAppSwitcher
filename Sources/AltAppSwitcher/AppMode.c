@@ -1065,8 +1065,24 @@ static BOOL IsRunWindow(HWND hwnd)
 
     return true;
 }
-/*
-static void GetIconFromAUMID(const wchar_t* aumid)
+
+HBITMAP LoadShellItemIcon(IShellItem* pItem)
+{
+    IShellItemImageFactory* factory = NULL;
+    {
+        HRESULT hr = IShellItem_QueryInterface(pItem, &IID_IShellItemImageFactory, (void**)&factory);
+        ASSERT(SUCCEEDED(hr));
+    }
+
+    HBITMAP img = NULL;
+    SIZE size = { 512, 512 };
+    HRESULT hr = IShellItemImageFactory_GetImage(factory, size, SIIGBF_BIGGERSIZEOK | SIIGBF_CROPTOSQUARE | SIIGBF_SCALEUP, &img);
+    (void)hr;
+    IShellItemImageFactory_Release(factory);
+    return img;
+}
+
+IShellItem* GetShellItemFromAUMID(const wchar_t* aumid)
 {
     IShellItem* appsFolder = NULL;
     {
@@ -1077,6 +1093,7 @@ static void GetIconFromAUMID(const wchar_t* aumid)
             &IID_IShellItem, (void**)&appsFolder);
         ASSERT(SUCCEEDED(res));
     }
+
     IEnumShellItems* enumItems = NULL;
     {
         HRESULT res = IShellItem_BindToHandler(appsFolder, NULL, &BHID_EnumItems, &IID_IEnumShellItems, (void**)&enumItems);
@@ -1103,12 +1120,10 @@ static void GetIconFromAUMID(const wchar_t* aumid)
             HRESULT res = IShellItem_BindToHandler(item, NULL, &BHID_PropertyStore, &IID_IPropertyStore, (void**)&pStore);
             ASSERT(SUCCEEDED(res));
         }
-
         PROPVARIANT pv = { };
         PropVariantInit(&pv);
         HRESULT res = IPropertyStore_GetValue(pStore, &PKEY_AppUserModel_ID, &pv);
         IPropertyStore_Release(pStore);
-
         if (SUCCEEDED(res)) {
             if (pv.vt == VT_LPWSTR) {
                 found = !wcscmp(aumid, pv.pwszVal);
@@ -1125,14 +1140,15 @@ static void GetIconFromAUMID(const wchar_t* aumid)
         }
 
         CoTaskMemFree(name);
-        IShellItem_Release(item);
         if (found)
             break;
+        IShellItem_Release(item);
         item = NULL;
     }
-    wprintf(L"\n\n\n\n");
+    IEnumShellItems_Release(enumItems);
+    IShellItem_Release(appsFolder);
+    return item;
 }
-*/
 
 void GetAppInfos(DWORD PID, struct StaticData* staticData, const wchar_t* aumid, GpBitmap** outIcon, wchar_t* outAppName)
 {
@@ -1221,6 +1237,33 @@ void GetAppInfos(DWORD PID, struct StaticData* staticData, const wchar_t* aumid,
 
             DeleteObject(hbm);
             *outIcon = out;
+        }
+
+        // WIP: load from shell api
+        if (false) {
+            IShellItem* si = GetShellItemFromAUMID(aumid);
+            HBITMAP hbm = si ? LoadShellItemIcon(si) : NULL;
+            if (hbm) {
+                // Creates a gdi bitmap from the win base api bitmap
+                GpBitmap* out;
+                {
+                    BITMAP bm = { };
+                    GetObject(hbm, sizeof(BITMAP), &bm);
+                    const uint32_t iconSize = bm.bmWidth;
+                    GdipCreateBitmapFromScan0((int)iconSize, (int)iconSize, (int)(4 * iconSize), PixelFormat32bppARGB, NULL, &out);
+                    GpRect r = { 0, 0, (int)iconSize, (int)iconSize };
+                    BitmapData dstData = { };
+                    GdipBitmapLockBits(out, &r, 0, PixelFormat32bppARGB, &dstData);
+                    GetBitmapBits(hbm, (LONG)(sizeof(uint32_t) * iconSize * iconSize), dstData.Scan0);
+                    GdipBitmapUnlockBits(out, &dstData);
+                }
+                DeleteObject(hbm);
+                if (*outIcon)
+                    GdipDisposeImage(*outIcon);
+                *outIcon = out;
+            }
+            if (si)
+                IShellItem_Release(si);
         }
 
         StoreAppInfoToMap(&staticData->UWPIconMap, aumid, *outIcon, outAppName);
