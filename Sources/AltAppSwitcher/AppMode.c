@@ -1248,7 +1248,7 @@ void GetAppInfos(DWORD PID, struct StaticData* staticData, const wchar_t* aumid,
         outAppName[0] = L'\0';
         GetAppName(exePath, outAppName);
         *outIcon = LoadBitmapFromFile(iconPath, 0);
-        found = *outIcon != NULL && wcslen(outAppName) > 0;
+        // found = *outIcon != NULL && wcslen(outAppName) > 0;
     }
 
     // Default icon
