@@ -655,25 +655,48 @@ static bool FindLnk(wchar_t* dirpath, const wchar_t* userModelID, wchar_t* outNa
     return found;
 }
 
-static bool GetAppInfoFromLnk(const wchar_t* userModelID, wchar_t* outIconPath, wchar_t* outAppName, int* outIconIdx)
+static GpBitmap* GetIconFromBinary(const wchar_t* binPath, int iconIdx);
+
+static GpBitmap* LoadBitmapFromFile(const wchar_t* path, int iconIdx)
+{
+    if (wcslen(path) == 0)
+        return NULL;
+    static wchar_t pathExpanded[MAX_PATH] = { };
+    ExpandEnvironmentStringsW(path, pathExpanded, MAX_PATH - 1);
+    if (EndsWithW(pathExpanded, L".exe") || EndsWithW(pathExpanded, L".EXE"))
+        return GetIconFromBinary(pathExpanded, iconIdx);
+    GpBitmap* out = NULL;
+    GdipLoadImageFromFile(pathExpanded, &out);
+    if (out != NULL)
+        return out;
+    // Icon path can be a binary without .exe extension (p4v)
+    return GetIconFromBinary(pathExpanded, iconIdx);
+}
+
+static bool GetAppInfoFromLnk(const wchar_t* userModelID, GpBitmap** outIcon, wchar_t* outAppName)
 {
     CoInitializeEx(NULL, COINIT_APARTMENTTHREADED);
     static wchar_t* startMenu;
     static wchar_t workPath[512] = { };
+    static wchar_t iconPath[512] = { };
+    int iconIdx = 0;
     bool found = false;
     {
         SHGetKnownFolderPath(&FOLDERID_StartMenu, 0, 0, &startMenu);
         workPath[0] = L'\0';
         wcscpy(workPath, startMenu);
-        found = FindLnk(workPath, userModelID, outAppName, outIconPath, outIconIdx);
+        found = FindLnk(workPath, userModelID, outAppName, iconPath, &iconIdx);
     }
     if (!found) {
         SHGetKnownFolderPath(&FOLDERID_CommonStartMenu, 0, 0, &startMenu);
         workPath[0] = L'\0';
         wcscpy(workPath, startMenu);
-        found = FindLnk(workPath, userModelID, outAppName, outIconPath, outIconIdx);
+        found = FindLnk(workPath, userModelID, outAppName, iconPath, &iconIdx);
     }
     CoUninitialize();
+    if (found) {
+        *outIcon = LoadBitmapFromFile(iconPath, iconIdx);
+    }
     return found;
 }
 
@@ -684,7 +707,10 @@ static void GetAppInfoFromManifest(HANDLE process, const wchar_t* userModelID, w
 
     PACKAGE_ID pid[32];
     uint32_t pidSize = sizeof(pid);
-    GetPackageId(process, &pidSize, (BYTE*)pid);
+    LONG r = GetPackageId(process, &pidSize, (BYTE*)pid);
+    ASSERT(r == APPMODEL_ERROR_NO_PACKAGE || r == ERROR_SUCCESS);
+    if (r == APPMODEL_ERROR_NO_PACKAGE)
+        return;
     static wchar_t packagePath[MAX_PATH];
     uint32_t packagePathLength = MAX_PATH;
     GetPackagePath(pid, 0, &packagePathLength, packagePath);
@@ -1111,10 +1137,7 @@ IShellItem* GetShellItemFromAUMID(const wchar_t* aumid)
 
     IShellItem* item = NULL;
     while (IEnumShellItems_Next(enumItems, 1, &item, NULL) == S_OK) {
-        PWSTR name = NULL;
-        IShellItem_GetDisplayName(item, SIGDN_PARENTRELATIVEEDITING, &name);
         bool found = false;
-
         IPropertyStore* pStore = NULL;
         {
             HRESULT res = IShellItem_BindToHandler(item, NULL, &BHID_PropertyStore, &IID_IPropertyStore, (void**)&pStore);
@@ -1134,12 +1157,10 @@ IShellItem* GetShellItemFromAUMID(const wchar_t* aumid)
                 found = !wcscmp(aumid, aswcs);
             }
         }
-        if (found) {
-            printf("FOUND!\n");
-            wprintf(L"%s\n", name);
-        }
-
-        CoTaskMemFree(name);
+        // if (found) {
+        //     printf("FOUND!\n");
+        //     wprintf(L"%s\n", name);
+        // }
         if (found)
             break;
         IShellItem_Release(item);
@@ -1150,124 +1171,108 @@ IShellItem* GetShellItemFromAUMID(const wchar_t* aumid)
     return item;
 }
 
+static GpBitmap* BitmapToGpBitmap(HBITMAP hbm)
+{
+    // Creates a gdi bitmap from the win base api bitmap
+    GpBitmap* out;
+    {
+        BITMAP bm = { };
+        GetObject(hbm, sizeof(BITMAP), &bm);
+        const uint32_t iconSize = bm.bmWidth;
+        GdipCreateBitmapFromScan0((int)iconSize, (int)iconSize, (int)(4 * iconSize), PixelFormat32bppARGB, NULL, &out);
+        GpRect r = { 0, 0, (int)iconSize, (int)iconSize };
+        BitmapData dstData = { };
+        GdipBitmapLockBits(out, &r, 0, PixelFormat32bppARGB, &dstData);
+        GetBitmapBits(hbm, (LONG)(sizeof(uint32_t) * iconSize * iconSize), dstData.Scan0);
+        GdipBitmapUnlockBits(out, &dstData);
+    }
+    return out;
+}
+
 void GetAppInfos(DWORD PID, struct StaticData* staticData, const wchar_t* aumid, GpBitmap** outIcon, wchar_t* outAppName)
 {
+    ASSERT(*outIcon == NULL);
+    ASSERT(outAppName[0] == L'\0');
     bool found = GetAppInfoFromMap(&staticData->UWPIconMap, aumid, outIcon, outAppName);
+    if (found)
+        return;
+
+    // From link
+    found = GetAppInfoFromLnk(aumid, outIcon, outAppName);
+
+    // From manifest
     if (!found) {
-        static wchar_t iconPath[MAX_PATH] = { };
-        int iconIdx = 0;
+        const HANDLE process = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, FALSE, PID);
+        static wchar_t iconPath[512] = { };
         iconPath[0] = L'\0';
-        found = GetAppInfoFromLnk(aumid, iconPath, outAppName, &iconIdx);
+        GetAppInfoFromManifest(process, aumid, iconPath, outAppName, staticData->GraphicsResources.LightTheme);
+        CloseHandle(process);
+        *outIcon = LoadBitmapFromFile(iconPath, 0);
+        found = *outIcon != NULL && wcslen(outAppName) > 0;
+    }
 
-        if (!found) {
-            const HANDLE process = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, FALSE, PID);
-            BOOL isUWP = false;
-            {
-                /*
-                static wchar_t userModelID[256];
-                userModelID[0] = L'\0';
-                uint32_t userModelIDLength = 256;
-                GetApplicationUserModelId(process, &userModelIDLength, userModelID);
-                isUWP = userModelID[0] != L'\0';
-                */
-                UINT32 length = 0;
-                LONG rc = GetPackageFullName(process, &length, 0);
-                if (rc == ERROR_INSUFFICIENT_BUFFER)
-                    isUWP = true;
-            }
-            if (!isUWP) {
-                static wchar_t exePath[512] = { };
-                GetModuleFileNameExW(process, NULL, exePath, 512);
-                iconPath[0] = L'\0';
-                wcscpy(iconPath, exePath);
-                outAppName[0] = L'\0';
-                GetAppName(exePath, outAppName);
-            } else if (isUWP) {
-                iconPath[0] = L'\0';
-                outAppName[0] = L'\0';
-                GetAppInfoFromManifest(process, aumid, iconPath, outAppName, staticData->GraphicsResources.LightTheme);
-            }
-            CloseHandle(process);
-        }
-
-        // GetIconFromAUMID(aumid);
-
-        // Load bitmap
-        if (wcslen(iconPath)) {
-            static wchar_t iconPathExpanded[MAX_PATH] = { };
-            ExpandEnvironmentStringsW(iconPath, iconPathExpanded, MAX_PATH - 1);
-            if (EndsWithW(iconPathExpanded, L".exe") || EndsWithW(iconPathExpanded, L".EXE"))
-                *outIcon = GetIconFromBinary(iconPathExpanded, iconIdx);
-            else {
-                GdipLoadImageFromFile(iconPath, outIcon);
-                if (!*outIcon) {
-                    // Icon path can be a binary without .exe extension (p4v)
-                    *outIcon = GetIconFromBinary(iconPathExpanded, iconIdx);
-                }
-            }
-        }
-
-        // Default icon
-        if (*outIcon == NULL) {
-            // Loads a bitmap from icon resource (bitmap must be freed later)
-            HBITMAP hbm = NULL;
-            {
-                HICON hi = NULL;
-                (void)hi;
-                LoadIconWithScaleDown(NULL, (PCWSTR)IDI_APPLICATION, 256, 256, &hi);
-                ICONINFO iconinfo;
-                GetIconInfo(hi, &iconinfo);
-                hbm = iconinfo.hbmColor;
-                DestroyIcon(hi);
-            }
-
+    // From shellapi
+    if (!found) {
+        IShellItem* si = GetShellItemFromAUMID(aumid);
+        HBITMAP hbm = si ? LoadShellItemIcon(si) : NULL;
+        if (hbm) {
             // Creates a gdi bitmap from the win base api bitmap
-            GpBitmap* out;
-            {
-                BITMAP bm = { };
-                GetObject(hbm, sizeof(BITMAP), &bm);
-                const uint32_t iconSize = bm.bmWidth;
-                GdipCreateBitmapFromScan0((int)iconSize, (int)iconSize, (int)(4 * iconSize), PixelFormat32bppARGB, NULL, &out);
-                GpRect r = { 0, 0, (int)iconSize, (int)iconSize };
-                BitmapData dstData = { };
-                GdipBitmapLockBits(out, &r, 0, PixelFormat32bppARGB, &dstData);
-                GetBitmapBits(hbm, (LONG)(sizeof(uint32_t) * iconSize * iconSize), dstData.Scan0);
-                GdipBitmapUnlockBits(out, &dstData);
-            }
-
+            GpBitmap* out = BitmapToGpBitmap(hbm);
             DeleteObject(hbm);
+            if (*outIcon)
+                GdipDisposeImage(*outIcon);
             *outIcon = out;
         }
-
-        // WIP: load from shell api
-        if (false) {
-            IShellItem* si = GetShellItemFromAUMID(aumid);
-            HBITMAP hbm = si ? LoadShellItemIcon(si) : NULL;
-            if (hbm) {
-                // Creates a gdi bitmap from the win base api bitmap
-                GpBitmap* out;
-                {
-                    BITMAP bm = { };
-                    GetObject(hbm, sizeof(BITMAP), &bm);
-                    const uint32_t iconSize = bm.bmWidth;
-                    GdipCreateBitmapFromScan0((int)iconSize, (int)iconSize, (int)(4 * iconSize), PixelFormat32bppARGB, NULL, &out);
-                    GpRect r = { 0, 0, (int)iconSize, (int)iconSize };
-                    BitmapData dstData = { };
-                    GdipBitmapLockBits(out, &r, 0, PixelFormat32bppARGB, &dstData);
-                    GetBitmapBits(hbm, (LONG)(sizeof(uint32_t) * iconSize * iconSize), dstData.Scan0);
-                    GdipBitmapUnlockBits(out, &dstData);
-                }
-                DeleteObject(hbm);
-                if (*outIcon)
-                    GdipDisposeImage(*outIcon);
-                *outIcon = out;
+        if (si) {
+            wchar_t* pszName = NULL;
+            IShellItem_GetDisplayName(si, SIGDN_NORMALDISPLAY, &pszName);
+            if (pszName) {
+                wcscpy(outAppName, pszName);
+                CoTaskMemFree(pszName);
             }
-            if (si)
-                IShellItem_Release(si);
+        }
+        if (si)
+            IShellItem_Release(si);
+        found = *outIcon != NULL && wcslen(outAppName) > 0;
+    }
+
+    // From exe
+    if (!found) {
+        const HANDLE process = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, FALSE, PID);
+        static wchar_t exePath[512] = { };
+        GetModuleFileNameExW(process, NULL, exePath, 512);
+        CloseHandle(process);
+        static wchar_t iconPath[512] = { };
+        iconPath[0] = L'\0';
+        wcscpy(iconPath, exePath);
+        outAppName[0] = L'\0';
+        GetAppName(exePath, outAppName);
+        *outIcon = LoadBitmapFromFile(iconPath, 0);
+        found = *outIcon != NULL && wcslen(outAppName) > 0;
+    }
+
+    // Default icon
+    if (*outIcon == NULL) {
+        // Loads a bitmap from icon resource (bitmap must be freed later)
+        HBITMAP hbm = NULL;
+        {
+            HICON hi = NULL;
+            (void)hi;
+            LoadIconWithScaleDown(NULL, (PCWSTR)IDI_APPLICATION, 256, 256, &hi);
+            ICONINFO iconinfo;
+            GetIconInfo(hi, &iconinfo);
+            hbm = iconinfo.hbmColor;
+            DestroyIcon(hi);
         }
 
-        StoreAppInfoToMap(&staticData->UWPIconMap, aumid, *outIcon, outAppName);
+        // Creates a gdi bitmap from the win base api bitmap
+        GpBitmap* out = BitmapToGpBitmap(hbm);
+
+        DeleteObject(hbm);
+        *outIcon = out;
     }
+
+    StoreAppInfoToMap(&staticData->UWPIconMap, aumid, *outIcon, outAppName);
 }
 
 static BOOL WarmCache(HWND hwnd, LPARAM lParam)
@@ -1285,6 +1290,7 @@ static BOOL WarmCache(HWND hwnd, LPARAM lParam)
     }
     GpBitmap* appIcon = NULL;
     static wchar_t appName[MAX_PATH];
+    appName[0] = L'\0';
     GetAppInfos(PID, staticData, AUMID, &appIcon, appName);
     return true;
 }
