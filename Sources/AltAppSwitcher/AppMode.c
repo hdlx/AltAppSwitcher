@@ -708,7 +708,7 @@ static void GetAppInfoFromManifest(HANDLE process, const wchar_t* userModelID, w
     PACKAGE_ID pid[32];
     uint32_t pidSize = sizeof(pid);
     LONG r = GetPackageId(process, &pidSize, (BYTE*)pid);
-    if (r == ERROR_SUCCESS)
+    if (r != ERROR_SUCCESS)
         return;
     static wchar_t packagePath[MAX_PATH];
     uint32_t packagePathLength = MAX_PATH;
