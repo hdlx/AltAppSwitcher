@@ -44,6 +44,12 @@ typedef enum DesktopFilter {
     DesktopFilterAll,
 } DesktopFilter;
 
+typedef enum AspectRatio {
+    AR_Inf,
+    AR_1_1,
+    AR_16_9,
+} AspectRatio;
+
 typedef struct Config {
     struct KeyConfig Key;
     bool Mouse;
@@ -57,6 +63,7 @@ typedef struct Config {
     AppFilterMode AppFilterMode;
     bool RestoreMinimizedWindows;
     DesktopFilter DesktopFilter;
+    AspectRatio AspectRatio;
 } Config;
 
 typedef struct EnumString {
@@ -71,6 +78,7 @@ extern const EnumString displayNameES[4];
 extern const EnumString multipleMonitorModeES[3];
 extern const EnumString appFilterModeES[3];
 extern const EnumString desktopFilterES[3];
+extern const EnumString aspectRatioES[4];
 
 void LoadConfig(Config* config);
 void WriteConfig(const Config* config);

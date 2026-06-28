@@ -23,6 +23,7 @@
 #include <PropKey.h>
 #include <Shobjidl.h>
 #include <shlobj.h>
+#include <math.h>
 #include "AppxPackaging.h"
 #undef COBJMACROS
 #include "Config/Config.h"
@@ -75,6 +76,7 @@ typedef struct Metrics {
     uint32_t WinPosY;
     uint32_t WinX;
     uint32_t WinY;
+    uint32_t ColCount;
     float Container;
     float Icon;
     float Pad;
@@ -1375,13 +1377,13 @@ static BOOL FillWinGroups(HWND hwnd, LPARAM lParam)
     return true;
 }
 
-static void ComputeMetrics(uint32_t iconCount, float scale, Metrics* metrics, bool monitorModeMouse)
+static void ComputeMetrics(uint32_t iconCount, Metrics* metrics, const struct Config* cfg)
 {
     int monitorOffset[2] = { 0, 0 };
     int monitorSize[2] = { 0, 0 };
 
     POINT mousePos = { 0, 0 };
-    if (monitorModeMouse)
+    if (cfg->MultipleMonitorMode == MultipleMonitorModeMouse)
         GetCursorPos(&mousePos);
     HMONITOR monitor = MonitorFromPoint(mousePos, MONITOR_DEFAULTTOPRIMARY);
     MONITORINFO info;
@@ -1392,18 +1394,29 @@ static void ComputeMetrics(uint32_t iconCount, float scale, Metrics* metrics, bo
     monitorSize[0] = info.rcMonitor.right - info.rcMonitor.left;
     monitorSize[1] = info.rcMonitor.bottom - info.rcMonitor.top;
 
-    scale = max(scale, 0.5f);
+    float ar = (float)iconCount;
+    if (cfg->AspectRatio == AR_1_1)
+        ar = 1.0f;
+    if (cfg->AspectRatio == AR_16_9)
+        ar = 16.0f / 9.0f;
+
+    float dimXf = (float)sqrt(((float)iconCount) * ar);
+    uint32_t dimX = ((uint32_t)dimXf) + (ar >= 1.0f ? 1u : 0u);
+    dimX = min(max(dimX, 1), iconCount);
+    uint32_t dimY = (iconCount / dimX) + (iconCount % dimX > 0 ? 1 : 0);
+    float scale = max(cfg->Scale, 0.5f);
     const int centerY = monitorSize[1] / 2;
     const int centerX = monitorSize[0] / 2;
     const int screenWidth = monitorSize[0];
     const float containerRatio = 1.25f;
     float iconSize = (float)GetSystemMetrics(SM_CXICON) * scale;
     const float padRatio = max(0.25 * iconSize, 16.0f) / iconSize; // Keep room for app name
-    const int sizeX = min(iconSize * ((int)iconCount * containerRatio + 2.0f * padRatio), screenWidth * 0.9);
-    iconSize = ((float)sizeX / ((((float)iconCount * containerRatio) + (2.0f * padRatio))));
+    const int sizeX = min(iconSize * ((int)dimX * containerRatio + 2.0f * padRatio), screenWidth * 0.9);
+    iconSize = ((float)sizeX / ((((float)dimX * containerRatio) + (2.0f * padRatio))));
     const uint32_t halfSizeX = sizeX / 2;
-    const uint32_t sizeY = (uint32_t)((1.0f * iconSize * containerRatio) + (2.0f * padRatio * iconSize));
+    const uint32_t sizeY = dimY * (uint32_t)((1.0f * iconSize * containerRatio) + (2.0f * padRatio * iconSize));
     const uint32_t halfSizeY = sizeY / 2;
+    metrics->ColCount = dimX;
     metrics->WinPosX = centerX - halfSizeX + monitorOffset[0];
     metrics->WinPosY = centerY - halfSizeY + monitorOffset[1];
     metrics->WinX = sizeX;
@@ -1867,6 +1880,10 @@ static void Draw(struct WindowData* windowData, RECT clientRect)
         }
 
         x += containerSize;
+        if (((i + 1) % windowData->Metrics.ColCount) == 0) {
+            x = pad;
+            y += windowData->Metrics.Container + windowData->Metrics.Pad * 2;
+        }
     }
 
     // Close button
@@ -2098,9 +2115,8 @@ static void Init(struct WindowData* windowData)
         return;
 
     ComputeMetrics(windowData->WinGroups.Size,
-        windowData->StaticData->Config->Scale,
         &windowData->Metrics,
-        windowData->StaticData->Config->MultipleMonitorMode == MultipleMonitorModeMouse);
+        windowData->StaticData->Config);
 
     // Needed for exact client area.
     RECT r = {

@@ -67,6 +67,13 @@ const EnumString desktopFilterES[3] = {
     { "end", 0xFFFFFFFF }
 };
 
+const EnumString aspectRatioES[4] = {
+    { "infinite", AR_Inf },
+    { "1/1", AR_1_1 },
+    { "16/9", AR_16_9 },
+    { "end", 0xFFFFFFFF }
+};
+
 typedef struct StrPair {
     char Key[64];
     char Value[64];
@@ -145,6 +152,7 @@ void DefaultConfig(Config* config)
     config->AppFilterMode = AppFilterModeAll;
     config->RestoreMinimizedWindows = true;
     config->DesktopFilter = DesktopFilterCurrent;
+    config->AspectRatio = 0.0f;
 }
 
 void LoadConfig(Config* config)
@@ -208,6 +216,8 @@ void LoadConfig(Config* config)
     GET_BOOL("check for updates", config->CheckForUpdates);
 
     GET_FLOAT("scale", config->Scale);
+
+    GET_ENUM("aspect ratio", config->AspectRatio, aspectRatioES);
 
 #undef GET_ENUM
 #undef GET_BOOL
@@ -277,6 +287,8 @@ void WriteConfig(const Config* config)
     WRITE_BOOL("check for updates", config->CheckForUpdates);
 
     WRITE_FLOAT("scale", config->Scale);
+
+    WRITE_ENUM("aspect ratio", config->AspectRatio, aspectRatioES);
 
     const int r = fclose(file);
     ASSERT(r == 0);
