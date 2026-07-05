@@ -1394,16 +1394,8 @@ static void ComputeMetrics(uint32_t iconCount, Metrics* metrics, const struct Co
     monitorSize[0] = info.rcMonitor.right - info.rcMonitor.left;
     monitorSize[1] = info.rcMonitor.bottom - info.rcMonitor.top;
 
-    float ar = (float)iconCount;
-    if (cfg->AspectRatio == AR_1_1)
-        ar = 1.0f;
-    if (cfg->AspectRatio == AR_16_9)
-        ar = 16.0f / 9.0f;
-
-    float dimXf = (float)sqrt(((float)iconCount) * ar);
-    uint32_t dimX = ((uint32_t)dimXf) + (ar >= 1.0f ? 1u : 0u);
-    dimX = min(max(dimX, 1), iconCount);
-    uint32_t dimY = (iconCount / dimX) + (iconCount % dimX > 0 ? 1 : 0);
+    uint32_t dimX = 3;
+    uint32_t dimY = (iconCount / dimX);
     float scale = max(cfg->Scale, 0.5f);
     const int centerY = monitorSize[1] / 2;
     const int centerX = monitorSize[0] / 2;
