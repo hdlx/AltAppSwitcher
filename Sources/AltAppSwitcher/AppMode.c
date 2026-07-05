@@ -1377,6 +1377,19 @@ static BOOL FillWinGroups(HWND hwnd, LPARAM lParam)
     return true;
 }
 
+static uint32_t PosToIdx(const Metrics* m, int x, int y, int count)
+{
+    int i = ((x - (int)m->Pad) / (int)m->Container) % (int)m->ColCount;
+    i += ((y - (int)m->Pad) / (int)m->Container) * (int)m->ColCount;
+    return (uint32_t)min(max(0, i), (int)(count - 1));
+}
+
+static void IdxToPos(const Metrics* m, int idx, int* outX, int* outY)
+{
+    *outX = (int)m->Pad + (int)m->Container * (idx % (int)m->ColCount);
+    *outY = (int)m->Pad + (int)m->Container * (idx / (int)m->ColCount);
+}
+
 static void ComputeMetrics(uint32_t iconCount, Metrics* metrics, const struct Config* cfg)
 {
     int monitorOffset[2] = { 0, 0 };
@@ -1395,7 +1408,7 @@ static void ComputeMetrics(uint32_t iconCount, Metrics* metrics, const struct Co
     monitorSize[1] = info.rcMonitor.bottom - info.rcMonitor.top;
 
     uint32_t dimX = 3;
-    uint32_t dimY = (iconCount / dimX);
+    uint32_t dimY = ((iconCount + dimX - 1) / dimX);
     float scale = max(cfg->Scale, 0.5f);
     const int centerY = monitorSize[1] / 2;
     const int centerX = monitorSize[0] / 2;
@@ -1682,9 +1695,12 @@ static void CloseButtonRect(float* outRect, const Metrics* m, uint32_t idx)
 {
     const float w = m->DigitBoxHeight;
     const float p = m->DigitBoxPad;
+    int x;
+    int y;
+    IdxToPos(m, (int)idx, &x, &y);
     RectF r = {
-        m->Pad + (m->Container * (float)(idx + 1)) - w - p,
-        m->Pad + p,
+        (float)x + m->Container - w - p,
+        (float)y + p,
         w,
         w
     };
@@ -1752,12 +1768,18 @@ static void Draw(struct WindowData* windowData, RECT clientRect)
         const uint32_t mouseSelIdx = (uint32_t)windowData->MouseSelection;
 
         {
-            RectF selRect = { pad + (containerSize * (float)mouseSelIdx) + padSelect, pad + padSelect, selectSize, selectSize };
+            int tileX = 0;
+            int tileY = 0;
+            IdxToPos(&windowData->Metrics, (int)mouseSelIdx, &tileX, &tileY);
+            RectF selRect = { (float)tileX, (float)tileY, selectSize, selectSize };
             DrawRoundedRect(pGraphics, NULL, pGraphRes->pBrushBgHighlight, &selRect, 10);
         }
 
         {
-            RectF selRect = { pad + (containerSize * (float)selIdx) + padSelect, pad + padSelect, selectSize, selectSize };
+            int tileX = 0;
+            int tileY = 0;
+            IdxToPos(&windowData->Metrics, (int)selIdx, &tileX, &tileY);
+            RectF selRect = { (float)tileX, (float)tileY, selectSize, selectSize };
             COLORREF cr = pGraphRes->TextColor;
             ARGB gdipColor = cr | 0xFF000000;
             GpPen* pPen;
@@ -2211,11 +2233,9 @@ static LRESULT CALLBACK MainWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPAR
             firstMouseMove = false;
             return 0;
         }
-        const int iconContainerSize = (int)windowData.Metrics.Container;
-        const int pad = (int)windowData.Metrics.Pad;
         const int x = GET_X_LPARAM(lParam);
         const int y = GET_Y_LPARAM(lParam);
-        windowData.MouseSelection = min(max(0, (x - pad) / iconContainerSize), (int)windowData.WinGroups.Size - 1);
+        windowData.MouseSelection = (int)PosToIdx(&windowData.Metrics, x, y, (int)windowData.WinGroups.Size);
         if (windowData.StaticData->Config->MouseKbCommonSel)
             windowData.Selection = windowData.MouseSelection;
         float r[4];
