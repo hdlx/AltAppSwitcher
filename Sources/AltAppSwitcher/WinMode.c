@@ -363,15 +363,16 @@ static LRESULT MainWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
         ASSERT(windowData.StaticData);
         ASSERT(windowData.StaticData->Config);
         int x = 0;
+        const unsigned int winSwitch = USKeyToLocalKey(windowData.StaticData->Config->Key.WinSwitch);
         if (
-            wParam == windowData.StaticData->Config->Key.WinSwitch
+            wParam == winSwitch
             || wParam == 'L'
             || wParam == 'J'
             || wParam == VK_RIGHT
             || wParam == VK_DOWN) {
             x = 1;
         } else if (
-            wParam == windowData.StaticData->Config->Key.WinSwitch
+            wParam == winSwitch
             || wParam == 'H'
             || wParam == 'K'
             || wParam == VK_LEFT
