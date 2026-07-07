@@ -1980,7 +1980,7 @@ static int ProcessKeys(struct WindowData* windowData, UINT uMsg, WPARAM wParam, 
             x = -1;
         }
         if (x != 0) {
-            const bool invert = GetAsyncKeyState((SHORT)windowData->StaticData->Config->Key.Invert) & 0x8000;
+            const bool invert = GetAsyncKeyState((SHORT)USKeyToLocalKey(windowData->StaticData->Config->Key.Invert)) & 0x8000;
             MoveSelection(windowData, invert ? -x : x);
             return 0;
         }

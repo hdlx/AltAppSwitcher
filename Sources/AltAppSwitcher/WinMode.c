@@ -363,23 +363,23 @@ static LRESULT MainWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
         ASSERT(windowData.StaticData);
         ASSERT(windowData.StaticData->Config);
         int x = 0;
+        const unsigned int winSwitch = USKeyToLocalKey(windowData.StaticData->Config->Key.WinSwitch);
         if (
-            wParam == windowData.StaticData->Config->Key.WinSwitch
+            wParam == winSwitch
             || wParam == 'L'
             || wParam == 'J'
             || wParam == VK_RIGHT
             || wParam == VK_DOWN) {
             x = 1;
         } else if (
-            wParam == windowData.StaticData->Config->Key.WinSwitch
-            || wParam == 'H'
+            wParam == 'H'
             || wParam == 'K'
             || wParam == VK_LEFT
             || wParam == VK_UP) {
             x = -1;
         }
         if (x != 0) {
-            const bool invert = GetAsyncKeyState((SHORT)windowData.StaticData->Config->Key.Invert) & 0x8000;
+            const bool invert = GetAsyncKeyState((SHORT)USKeyToLocalKey(windowData.StaticData->Config->Key.Invert)) & 0x8000;
             windowData.Selection += invert ? -x : x;
             windowData.Selection = Modulo(windowData.Selection, (int)windowData.CurrentWinGroup.WindowCount);
 #ifdef ASYNC
