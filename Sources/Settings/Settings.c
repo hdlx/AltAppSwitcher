@@ -53,8 +53,9 @@ static void SetupGUI(GUIData* gui, void* userData)
     CreateComboBox("", &cfg->MultipleMonitorMode, multipleMonitorModeES, gui);
     CreateText("Restore minimized windows:", "", gui);
     CreateBoolControl("", &cfg->RestoreMinimizedWindows, gui);
-    CreateText("Aspect ratio:", "", gui);
-    CreateComboBox("", &cfg->AspectRatio, aspectRatioES, gui);
+    CreateText("Icons per row:", "0 for no limit (single row layout)", gui);
+    CreateIntField("",
+        &cfg->IconsPerRow, gui);
 
     GridLayout(1, gui);
     CreateText("Other:", "", gui);

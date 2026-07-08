@@ -67,13 +67,6 @@ const EnumString desktopFilterES[3] = {
     { "end", 0xFFFFFFFF }
 };
 
-const EnumString aspectRatioES[4] = {
-    { "infinite", AR_Inf },
-    { "1/1", AR_1_1 },
-    { "16/9", AR_16_9 },
-    { "end", 0xFFFFFFFF }
-};
-
 typedef struct StrPair {
     char Key[64];
     char Value[64];
@@ -115,6 +108,16 @@ static bool TryGetFloat(const StrPair* keyValues, const char* token, float* floa
     return true;
 }
 
+static bool TryGetInt(const StrPair* keyValues, const char* token, int* intToSet)
+{
+    unsigned int entry = Find(keyValues, token);
+    if (entry == 0xFFFFFFFF) {
+        return false;
+    }
+    *intToSet = (int)strtol(keyValues[entry].Value, NULL, 10);
+    return true;
+}
+
 static bool TryGetEnum(const StrPair* keyValues, const char* token,
     unsigned int* outValue, const EnumString* enumStrings)
 {
@@ -152,7 +155,7 @@ void DefaultConfig(Config* config)
     config->AppFilterMode = AppFilterModeAll;
     config->RestoreMinimizedWindows = true;
     config->DesktopFilter = DesktopFilterCurrent;
-    config->AspectRatio = 0.0f;
+    config->IconsPerRow = 0;
 }
 
 void LoadConfig(Config* config)
@@ -217,7 +220,7 @@ void LoadConfig(Config* config)
 
     GET_FLOAT("scale", config->Scale);
 
-    GET_ENUM("aspect ratio", config->AspectRatio, aspectRatioES);
+    TryGetInt(keyValues, "icons per row", &config->IconsPerRow);
 
 #undef GET_ENUM
 #undef GET_BOOL
@@ -246,6 +249,12 @@ static void WriteBool(FILE* file, const char* entry, bool value)
 static void WriteFloat(FILE* file, const char* entry, float value)
 {
     size_t a = fprintf_s(file, "%s: %f\n", entry, value);
+    ASSERT(a > 0);
+}
+
+static void WriteInt(FILE* file, const char* entry, int value)
+{
+    size_t a = fprintf_s(file, "%s: %i\n", entry, value);
     ASSERT(a > 0);
 }
 
@@ -288,7 +297,7 @@ void WriteConfig(const Config* config)
 
     WRITE_FLOAT("scale", config->Scale);
 
-    WRITE_ENUM("aspect ratio", config->AspectRatio, aspectRatioES);
+    WriteInt(file, "icons per row", config->IconsPerRow);
 
     const int r = fclose(file);
     ASSERT(r == 0);
