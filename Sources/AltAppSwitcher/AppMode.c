@@ -1894,12 +1894,6 @@ static void Draw(struct WindowData* windowData, RECT clientRect)
                 GdipDrawString(pGraphics, name, count, fontName, &r, pGraphRes->pFormat, pGraphRes->pBrushText);
             }
         }
-
-        x += containerSize;
-        if (((i + 1) % windowData->Metrics.ColCount) == 0) {
-            x = pad;
-            y += windowData->Metrics.Container + windowData->Metrics.Pad * 2;
-        }
     }
 
     // Close button
