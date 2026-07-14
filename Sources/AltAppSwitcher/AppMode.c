@@ -1406,7 +1406,7 @@ static void ComputeMetrics(uint32_t iconCount, Metrics* metrics, const struct Co
     monitorSize[0] = info.rcMonitor.right - info.rcMonitor.left;
     monitorSize[1] = info.rcMonitor.bottom - info.rcMonitor.top;
 
-    uint32_t dimX = cfg->IconsPerRow > 0 ? cfg->IconsPerRow : iconCount;
+    uint32_t dimX = (cfg->IconsPerRow > 0) && ((int)iconCount > cfg->IconsPerRow) ? cfg->IconsPerRow : iconCount;
     uint32_t dimY = ((iconCount + dimX - 1) / dimX);
     float scale = max(cfg->Scale, 0.5f);
     const int centerY = monitorSize[1] / 2;
@@ -1827,9 +1827,9 @@ static void Draw(struct WindowData* windowData, RECT clientRect)
             const float w = windowData->Metrics.DigitBoxHeight;
             const float h = windowData->Metrics.DigitBoxHeight;
             const float p = windowData->Metrics.DigitBoxPad;
-            const bool closeButton = windowData->StaticData->Config->Mouse && i == (uint32_t)windowData->MouseSelection;
+            // const bool closeButton = windowData->StaticData->Config->Mouse && i == (uint32_t)windowData->MouseSelection;
             RectF r = {
-                (x + padSelect + selectSize - p - w - (closeButton ? p + w : 0)),
+                (x + padSelect + p), // (x + padSelect + selectSize - p - w - (closeButton ? p + w : 0)),
                 (y + padSelect + p),
                 (w),
                 (h)
