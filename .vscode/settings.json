@@ -4,4 +4,5 @@
         "--function-arg-placeholders=0"
     ],
     "clangd.enableCodeCompletion": true,
+    "editor.inlayHints.enabled": "off",
 }
