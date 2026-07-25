@@ -1380,14 +1380,14 @@ static BOOL FillWinGroups(HWND hwnd, LPARAM lParam)
 static uint32_t PosToIdx(const Metrics* m, int x, int y, int count)
 {
     int i = ((x - (int)m->Pad) / (int)m->Container) % (int)m->ColCount;
-    i += ((y - (int)m->Pad) / (int)m->Container) * (int)m->ColCount;
+    i += ((y - (int)m->Pad) / (int)(m->Container + m->AppNameHeight)) * (int)m->ColCount;
     return (uint32_t)min(max(0, i), (int)(count - 1));
 }
 
 static void IdxToPos(const Metrics* m, int idx, int* outX, int* outY)
 {
     *outX = (int)m->Pad + (int)m->Container * (idx % (int)m->ColCount);
-    *outY = (int)m->Pad + (int)m->Container * (idx / (int)m->ColCount);
+    *outY = (int)m->Pad + (int)(m->Container + m->AppNameHeight) * (idx / (int)m->ColCount);
 }
 
 static void ComputeMetrics(uint32_t iconCount, Metrics* metrics, const struct Config* cfg)
@@ -1420,7 +1420,10 @@ static void ComputeMetrics(uint32_t iconCount, Metrics* metrics, const struct Co
     const int sizeX = min(iconSize * ((int)dimX * containerRatio + 2.0f * padRatio), screenWidth * 0.9);
     iconSize = ((float)sizeX / ((((float)dimX * containerRatio) + (2.0f * padRatio))));
     const uint32_t halfSizeX = sizeX / 2;
-    const uint32_t sizeY = dimY * (uint32_t)(1.0f * iconSize * containerRatio) + (uint32_t)(2.0f * padRatio * iconSize);
+    const uint32_t sizeY = 0
+        + dimY * (uint32_t)(iconSize * (containerRatio + appNameHeightRatio)) // tile + name
+        + (uint32_t)(padRatio * iconSize) // top win padding
+        + (uint32_t)((padRatio - appNameHeightRatio) * iconSize); // bottom padding: only if bigger than app name zone
     const uint32_t halfSizeY = sizeY / 2;
     metrics->ColCount = dimX;
     metrics->WinPosX = centerX - halfSizeX + monitorOffset[0];
