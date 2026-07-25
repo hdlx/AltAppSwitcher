@@ -40,10 +40,9 @@ struct AppData {
 };
 
 struct HookData {
-    const struct Config *cfg;
-    const struct KeyConfig *physicalKeys;
+    const struct Config* cfg;
+    const struct KeyConfig* physicalKeys;
 };
-
 
 static struct HookData* HookData;
 static DWORD MainThread;

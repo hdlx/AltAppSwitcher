@@ -1,0 +1,2 @@
+void InitSink();
+void DeinitSink();
