@@ -8,7 +8,8 @@
 			"args": [],
 			"cwd": "${workspaceFolder}/Output/Debug_x86_64/AAS",
 			"preLaunchTask": "Build x86_64 Debug",
-			"console": "integratedTerminal"
+			"console": "integratedTerminal",
+			"expressions": "simple"
 		},
 		{
 			"type": "lldb",

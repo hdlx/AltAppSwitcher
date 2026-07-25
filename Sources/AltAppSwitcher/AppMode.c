@@ -80,6 +80,7 @@ typedef struct Metrics {
     float Container;
     float Icon;
     float Pad;
+    float AppNameHeight;
     float DigitBoxHeight;
     float DigitBoxPad;
     float PathThickness;
@@ -1412,9 +1413,10 @@ static void ComputeMetrics(uint32_t iconCount, Metrics* metrics, const struct Co
     const int centerY = monitorSize[1] / 2;
     const int centerX = monitorSize[0] / 2;
     const int screenWidth = monitorSize[0];
-    const float containerRatio = 1.5f;
+    const float containerRatio = 1.25f;
     float iconSize = (float)GetSystemMetrics(SM_CXICON) * scale;
-    const float padRatio = 0.1f; // max(0.25 * iconSize, 16.0f) / iconSize; // Keep room for app name
+    const float appNameHeightRatio = max(0.25 * iconSize, 16.0f) / iconSize; // Keep room for app name
+    const float padRatio = max(0.25, appNameHeightRatio);
     const int sizeX = min(iconSize * ((int)dimX * containerRatio + 2.0f * padRatio), screenWidth * 0.9);
     iconSize = ((float)sizeX / ((((float)dimX * containerRatio) + (2.0f * padRatio))));
     const uint32_t halfSizeX = sizeX / 2;
@@ -1428,6 +1430,7 @@ static void ComputeMetrics(uint32_t iconCount, Metrics* metrics, const struct Co
     metrics->Icon = iconSize;
     metrics->Container = iconSize * containerRatio;
     metrics->Pad = iconSize * padRatio;
+    metrics->AppNameHeight = iconSize * appNameHeightRatio;
     metrics->DigitBoxHeight = min(max(metrics->Container * 0.15f, 16.0f), metrics->Container * 0.5f); // Min size of 16 for text
     metrics->PathThickness = 2.0f;
     metrics->DigitBoxPad = (0.15f * metrics->DigitBoxHeight) + metrics->PathThickness;
@@ -1738,12 +1741,11 @@ static void Draw(struct WindowData* windowData, RECT clientRect)
     const float containerSize = windowData->Metrics.Container;
     const float iconSize = windowData->Metrics.Icon;
     const float selectSize = containerSize;
-    const float pad = windowData->Metrics.Pad;
     const float padSelect = (containerSize - selectSize) * 0.5f;
     const float padIcon = (containerSize - iconSize) * 0.5f;
     const float digitHeight = windowData->Metrics.DigitBoxHeight * 0.75f;
-    const float nameHeight = 0.7f * ((containerSize - iconSize) * 0.5f);
-    const float namePad = pad * 0.2f;
+    const float nameHeight = windowData->Metrics.AppNameHeight * 0.6f;
+    const float namePad = windowData->Metrics.AppNameHeight * 0.2f;
 
     // Resources
     GpFont* fontName = NULL;
@@ -1827,10 +1829,9 @@ static void Draw(struct WindowData* windowData, RECT clientRect)
             const float w = windowData->Metrics.DigitBoxHeight;
             const float h = windowData->Metrics.DigitBoxHeight;
             const float p = windowData->Metrics.DigitBoxPad;
-            // const bool closeButton = windowData->StaticData->Config->Mouse && i == (uint32_t)windowData->MouseSelection;
             RectF r = {
-                (x + padSelect + p), // (x + padSelect + selectSize - p - w - (closeButton ? p + w : 0)),
-                (y + padSelect + p),
+                (x + padSelect + selectSize - p - w), // (x + padSelect + selectSize - p - w - (closeButton ? p + w : 0)),
+                (y + padSelect + selectSize - p - w),
                 (w),
                 (h)
             };
@@ -1875,7 +1876,7 @@ static void Draw(struct WindowData* windowData, RECT clientRect)
             const float w = containerSize - (2.0f * p);
             RectF r = {
                 (float)(int)(x + p),
-                (float)(int)(y + containerSize - padSelect - p - h),
+                (float)(int)(y + containerSize + p),
                 (float)(int)(w),
                 (float)(int)(h)
             };
