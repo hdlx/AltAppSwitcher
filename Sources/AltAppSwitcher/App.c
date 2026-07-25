@@ -39,11 +39,18 @@ struct AppData {
     IVirtualDesktopManager* VDM;
 };
 
-static struct Config* Cfg;
+struct HookData {
+    const struct Config *cfg;
+    const struct KeyConfig *physicalKeys;
+};
+
+
+static struct HookData* HookData;
 static DWORD MainThread;
 
 static void RestoreKey(WORD keyCode)
 {
+    const struct Config* Cfg = HookData->cfg;
     AAS_MSG("RestoreKey");
     {
         INPUT input = { };
@@ -112,6 +119,8 @@ static DWORD ThreadFnRestoreKey(LPVOID param)
 
 static LRESULT KbProc(int nCode, WPARAM wParam, LPARAM lParam)
 {
+    const struct Config* Cfg = HookData->cfg;
+
     const KBDLLHOOKSTRUCT kbStrut = *(KBDLLHOOKSTRUCT*)lParam;
     if (kbStrut.flags & LLKHF_INJECTED)
         return CallNextHookEx(NULL, nCode, wParam, lParam);
@@ -234,7 +243,8 @@ int StartAltAppSwitcher(HINSTANCE instance)
         // Init. and loads config
         LoadConfig(&appData.Config);
         AAS_MSG("LoadConfig()");
-        Cfg = &appData.Config;
+        static struct HookData hookData = { .cfg = &appData.Config, .physicalKeys = NULL };
+        HookData = &hookData;
 
         appData.Elevated = false;
         {
