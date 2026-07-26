@@ -278,6 +278,8 @@ static void FitParentWindow(const GUIData* gui)
     SetWindowPos(gui->Parent, 0, r.left, r.top, r.right - r.left, r.bottom - r.top, 0);
 }
 
+static const char key_input_class_name[] = "key_input_ctrl";
+
 void ApplyBindings(const GUIData* guiData)
 {
     for (unsigned int i = 0; i < guiData->EBindingCount; i++) {
@@ -316,37 +318,36 @@ void ApplyBindings(const GUIData* guiData)
     }
 }
 
-typedef struct UserData {
+struct gui_window_data {
     void (*SetupGUI)(GUIData*, void*);
     void (*ButtonMessage)(UINT, GUIData*, void*);
     void* Data;
-} UserData;
+};
 
-static LRESULT GUIWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
+static LRESULT gui_win_proc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp)
 {
     static GUIData guiData = { };
-    static UserData* userData = 0;
-    switch (uMsg) {
+    switch (msg) {
     case WM_DESTROY: {
-        free(userData);
         DeleteGUIData(&guiData);
         PostQuitMessage(0);
         return 0;
     }
     case WM_CREATE: {
-        CREATESTRUCT* cs = (CREATESTRUCT*)lParam;
-        userData = (UserData*)cs->lpCreateParams;
+        struct gui_window_data* userData = (struct gui_window_data*)((CREATESTRUCT*)lp)->lpCreateParams;
+        SetWindowLongPtr(hwnd, GWLP_USERDATA, (LONG_PTR)userData);
         InitGUIData(&guiData, hwnd);
         userData->SetupGUI(&guiData, userData->Data);
         FitParentWindow(&guiData);
         return 0;
     }
     case WM_COMMAND: {
+        struct gui_window_data* userData = (struct gui_window_data*)GetWindowLongPtr(hwnd, GWLP_USERDATA);
         ASSERT(userData);
         if (!userData)
             return 0;
-        if (HIWORD(wParam) == BN_CLICKED) {
-            userData->ButtonMessage(LOWORD(wParam), &guiData, userData->Data);
+        if (HIWORD(wp) == BN_CLICKED) {
+            userData->ButtonMessage(LOWORD(wp), &guiData, userData->Data);
         }
         if (guiData.Close)
             PostQuitMessage(0);
@@ -354,13 +355,54 @@ static LRESULT GUIWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
     }
     case WM_CTLCOLOREDIT:
     case WM_CTLCOLORSTATIC: {
-        SetBkMode((HDC)wParam, TRANSPARENT);
+        SetBkMode((HDC)wp, TRANSPARENT);
         return 0; // (LRESULT)guiData.Background;
     }
     default:
         break;
     }
-    return DefWindowProc(hwnd, uMsg, wParam, lParam);
+    return DefWindowProc(hwnd, msg, wp, lp);
+}
+
+static LRESULT key_input_win_proc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp)
+{
+    switch (msg) {
+    case WM_CREATE: {
+        RECT r = { };
+        GetWindowRect(hwnd, &r);
+        int w = r.right - r.left;
+        int h = r.bottom - r.top;
+        HINSTANCE instance = (HINSTANCE)GetWindowLongPtr(hwnd, GWLP_HINSTANCE);
+        struct GUIData* gui = (struct GUIData*)((CREATESTRUCT*)lp)->lpCreateParams;
+        ASSERT(gui);
+        HWND field = NULL;
+        (void)field;
+        {
+            field = CreateWindow(WC_EDIT, "000",
+                WS_CHILD | WS_VISIBLE | ES_LEFT | ES_CENTER | ES_NUMBER | WS_BORDER | ES_READONLY,
+                0, 0, w - h, h,
+                hwnd, NULL, instance, NULL);
+            SendMessage(field, WM_SETFONT, (WPARAM)gui->Font, true);
+            // SendMessage(field, EM_LIMITTEXT, (WPARAM)3, true);
+        }
+        HWND button = NULL;
+        (void)button;
+        {
+            button = CreateWindowW(WC_BUTTONW, L"\u21BB",
+                WS_VISIBLE | WS_CHILD | BS_PUSHBUTTON | BS_FLAT,
+                w - h, 0, h, h,
+                hwnd, (HMENU)0, instance, NULL);
+            // SendMessage(button, WM_SETFONT, (WPARAM)guiData->Font, true);
+            // SIZE size = { };
+            // Button_GetIdealSize(button, &size);
+            // SetWindowPos(button, NULL, C1.X, C1.Y, C1.W, C1.H, 0);
+        }
+        return 0;
+    }
+    default:
+        break;
+    }
+    return DefWindowProc(hwnd, msg, wp, lp);
 }
 
 void SetBoldFont(GUIData* gui)
@@ -393,10 +435,11 @@ void GUIWindow(void (*setupGUI)(GUIData*, void*),
     void* userAppData,
     HANDLE instance, const char* className)
 {
-    UserData* userData = malloc(sizeof(UserData));
-    userData->SetupGUI = setupGUI;
-    userData->ButtonMessage = buttonMessage;
-    userData->Data = userAppData;
+    struct gui_window_data userData = {
+        .SetupGUI = setupGUI,
+        .ButtonMessage = buttonMessage,
+        .Data = userAppData
+    };
 
     // CC
     INITCOMMONCONTROLSEX ic;
@@ -404,24 +447,38 @@ void GUIWindow(void (*setupGUI)(GUIData*, void*),
     ic.dwICC = ICC_TAB_CLASSES;
     InitCommonControlsEx(&ic);
 
-    // Class
     COLORREF col = LIGHT_COLOR;
     HBRUSH bkg = CreateSolidBrush(col);
-    WNDCLASS wc = { };
-    wc.lpfnWndProc = GUIWindowProc;
-    wc.hInstance = instance;
-    wc.lpszClassName = className;
-    wc.cbWndExtra = 0;
-    wc.style = CS_HREDRAW | CS_VREDRAW;
-    wc.hbrBackground = bkg;
-    RegisterClass(&wc);
+
+    // Class
+    {
+        WNDCLASS wc = {
+            .lpfnWndProc = key_input_win_proc,
+            .hInstance = instance,
+            .lpszClassName = key_input_class_name,
+            .style = CS_HREDRAW | CS_VREDRAW,
+            .hbrBackground = bkg
+        };
+        RegisterClass(&wc);
+    }
+
+    {
+        WNDCLASS wc = {
+            .lpfnWndProc = gui_win_proc,
+            .hInstance = instance,
+            .lpszClassName = className,
+            .style = CS_HREDRAW | CS_VREDRAW,
+            .hbrBackground = bkg
+        };
+        RegisterClass(&wc);
+    }
 
     // Window
-    DWORD winStyle = WS_CAPTION | WS_SYSMENU | WS_BORDER | WS_VISIBLE | WS_MINIMIZEBOX;
+    DWORD win_style = WS_CAPTION | WS_SYSMENU | WS_BORDER | WS_VISIBLE | WS_MINIMIZEBOX;
     CreateWindow(className, className,
-        winStyle,
+        win_style,
         0, 0, 0, 0,
-        NULL, NULL, instance, (LPVOID)userData);
+        NULL, NULL, instance, (LPVOID)&userData);
 
     MSG msg = { };
     while (GetMessage(&msg, NULL, 0, 0)) {
@@ -433,41 +490,14 @@ void GUIWindow(void (*setupGUI)(GUIData*, void*),
     UnregisterClass(className, instance);
 }
 
-HWND CreateKeyInputField(HMENU ID, GUIData* guiData)
+HWND CreateKeyInputField(GUIData* guiData)
 {
     HINSTANCE inst = (HINSTANCE)GetWindowLongPtrA(guiData->Parent, GWLP_HINSTANCE);
-
     Cell C = guiData->Cell;
-    HWND parent = NULL;
-    {
-        parent = CreateWindow(0, "000",
-            WS_CHILD | WS_VISIBLE | ES_LEFT | ES_CENTER | ES_NUMBER | WS_BORDER,
-            C.X, C.Y, C.W, C.H,
-            guiData->Parent, NULL, inst, NULL);
-    }
-    Cell C0 = C;
-    C0.W -= C.H;
-    Cell C1 = C;
-    C1.W = C.H;
-    C1.X += C0.W;
-    {
-        HWND field = CreateWindow(WC_EDIT, "000",
-            WS_CHILD | WS_VISIBLE | ES_LEFT | ES_CENTER | ES_NUMBER | WS_BORDER | ES_READONLY,
-            C0.X, C0.Y, C0.W, C0.H,
-            guiData->Parent, NULL, inst, NULL);
-        SendMessage(field, WM_SETFONT, (WPARAM)guiData->Font, true);
-        SendMessage(field, EM_LIMITTEXT, (WPARAM)3, true);
-    }
-    {
-        HWND button = CreateWindowW(WC_BUTTONW, L"\u21BB",
-            WS_VISIBLE | WS_CHILD | BS_PUSHBUTTON | BS_FLAT,
-            guiData->Cell.X, guiData->Cell.Y, 0, 0,
-            guiData->Parent, (HMENU)ID, inst, NULL);
-        SendMessage(button, WM_SETFONT, (WPARAM)guiData->Font, true);
-        // SIZE size = { };
-        // Button_GetIdealSize(button, &size);
-        SetWindowPos(button, NULL, C1.X, C1.Y, C1.W, C1.H, 0);
-    }
+    HWND win = CreateWindow(key_input_class_name, "",
+        WS_CHILD | WS_VISIBLE,
+        C.X, C.Y, C.W, C.H,
+        guiData->Parent, NULL, inst, guiData);
     NextCell(guiData);
-    return parent;
+    return win;
 }
