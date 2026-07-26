@@ -331,11 +331,14 @@ void LoadConfig(Config* config)
         (void)fseek(file, 0, SEEK_SET);
         long readSize = (long)fread(data, sizeof(char), size, file);
         ASSERT(size == readSize);
-        j = cJSON_Parse(data);
+        j = cJSON_ParseWithLength(data, readSize);
         ASSERT(j != NULL);
         free(data);
     }
-
+    {
+        int r = fclose(file);
+        ASSERT(r == 0);
+    }
     // Keys: todo
 #if 0
     GET_ENUM("app hold key", config->Key.AppHold, keyES);
@@ -392,7 +395,7 @@ void WriteConfig(const Config* config)
 
     JSONWriteFloat(j, "scale", config->Scale);
 
-    JSONWriteInt(j, "icons per row", config->IconsPerRow);
+    JSONWriteInt(j, "icons_per_row", config->IconsPerRow);
 
     char* jsonstr = cJSON_Print(j);
 

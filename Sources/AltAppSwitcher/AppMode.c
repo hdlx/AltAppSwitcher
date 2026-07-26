@@ -1898,7 +1898,8 @@ static void Draw(struct WindowData* windowData, RECT clientRect)
                 GdipMeasureString(pGraphics, displayName, count, fontName, &r, pGraphRes->pFormat, &rout, &maxCount, 0);
                 wcsncpy(name, displayName, min(maxCount, count));
                 if (count > maxCount) {
-                    wcscpy(&name[maxCount - 3], L"...");
+                    if (maxCount >= 3)
+                        wcscpy(&name[maxCount - 3], L"...");
                     count = maxCount;
                 }
                 GdipDrawString(pGraphics, name, count, fontName, &r, pGraphRes->pFormat, pGraphRes->pBrushText);
