@@ -602,6 +602,13 @@ HWND CreateKeyInputField(GUIData* guiData, unsigned int* target)
         WS_CHILD | WS_VISIBLE,
         C.X, C.Y, C.W, C.H,
         guiData->Parent, NULL, inst, guiData);
+    {
+        // Init text
+        HWND field = get_win_data(win);
+        char x_as_str[] = "000";
+        (void)sprintf_s(x_as_str, sizeof(x_as_str), "%u", *target);
+        SetWindowText(field, x_as_str);
+    }
     NextCell(guiData);
     guiData->k_bindings[guiData->k_binding_count].target_value = target;
     guiData->k_bindings[guiData->k_binding_count].key_input_control = win;

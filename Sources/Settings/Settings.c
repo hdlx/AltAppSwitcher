@@ -43,8 +43,8 @@ static void SetupGUI(GUIData* gui, void* userData)
     // CreateComboBox("", &cfg->Key.AppClose, keyES, gui);
     CreateKeyInputField(gui, &cfg->Key.AppClose);
 
-    CreateText("Test", "", gui);
-    CreateText("Test", "", gui);
+    CreateText("", "", gui);
+    CreateText("", "", gui);
 
     GridLayout(1, gui);
     CreateText("Graphic options:", "", gui);
