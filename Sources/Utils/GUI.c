@@ -33,6 +33,11 @@ typedef struct IntBinding {
     HWND Field;
 } IntBinding;
 
+struct key_binding {
+    unsigned int* target_value;
+    HWND key_input_control;
+};
+
 typedef struct Cell {
     int X, Y, W, H;
 } Cell;
@@ -56,6 +61,8 @@ struct GUIData {
     unsigned int BBindingCount;
     IntBinding IBindings[64];
     unsigned int IBindingCount;
+    struct key_binding k_bindings[64];
+    unsigned int k_binding_count;
     HFONT CurrentFont;
     HFONT Font;
     HFONT FontBold;
@@ -279,6 +286,7 @@ static void FitParentWindow(const GUIData* gui)
 }
 
 static const char key_input_class_name[] = "key_input_ctrl";
+static const char wait_input_class_name[] = "wait_input_popup";
 
 void ApplyBindings(const GUIData* guiData)
 {
@@ -364,6 +372,66 @@ static LRESULT gui_win_proc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp)
     return DefWindowProc(hwnd, msg, wp, lp);
 }
 
+static LRESULT popup_wait_input_win_proc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp)
+{
+    static char txt[] = "Waiting for keyboard input...";
+    switch (msg) {
+    case WM_CREATE: {
+        SetWindowLongPtr(hwnd, GWLP_USERDATA,
+            (LONG_PTR)((CREATESTRUCT*)lp)->lpCreateParams);
+        return 0;
+    }
+    case WM_PAINT: {
+        PAINTSTRUCT ps;
+        HDC hdc = BeginPaint(hwnd, &ps);
+        RECT r = { };
+        GetClientRect(hwnd, &r);
+        // Local space rect:
+        RECT rl = {
+            .left = 0,
+            .top = 0,
+            .right = r.right - r.left,
+            .bottom = r.bottom - r.top
+        };
+        DrawText(hdc, txt, ARRAYSIZE(txt), &rl,
+            DT_CENTER | DT_VCENTER | DT_SINGLELINE);
+        EndPaint(hwnd, &ps);
+        return 0;
+    }
+    case WM_KEYDOWN:
+    case WM_SYSKEYDOWN: {
+        HWND field = (HWND)GetWindowLongPtr(hwnd, GWLP_USERDATA);
+        ASSERT(field);
+        UINT scan = (lp >> 16) & 0xFF;
+        UINT extended = (lp >> 24) & 1;
+        UINT x = scan | (extended << 8);
+        char x_as_str[] = "000";
+        (void)sprintf_s(x_as_str, sizeof(x_as_str), "%u", x);
+        SetWindowText(field, x_as_str);
+        PostMessage(hwnd, WM_CLOSE, 0, 0);
+        return 0;
+    }
+    default:
+        break;
+    }
+    return DefWindowProc(hwnd, msg, wp, lp);
+}
+
+static void* get_create_param(LPARAM lp)
+{
+    return ((CREATESTRUCT*)lp)->lpCreateParams;
+}
+
+static void set_win_data(HWND win, void* d)
+{
+    SetWindowLongPtr(win, GWLP_USERDATA, (LONG_PTR)d);
+}
+
+static void* get_win_data(HWND win)
+{
+    return (void*)GetWindowLongPtr(win, GWLP_USERDATA);
+}
+
 static LRESULT key_input_win_proc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp)
 {
     switch (msg) {
@@ -373,22 +441,20 @@ static LRESULT key_input_win_proc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp)
         int w = r.right - r.left;
         int h = r.bottom - r.top;
         HINSTANCE instance = (HINSTANCE)GetWindowLongPtr(hwnd, GWLP_HINSTANCE);
-        struct GUIData* gui = (struct GUIData*)((CREATESTRUCT*)lp)->lpCreateParams;
+        struct GUIData* gui = get_create_param(lp);
         ASSERT(gui);
         HWND field = NULL;
-        (void)field;
         {
-            field = CreateWindow(WC_EDIT, "000",
+            field = CreateWindow(WC_EDIT, "unset",
                 WS_CHILD | WS_VISIBLE | ES_LEFT | ES_CENTER | ES_NUMBER | WS_BORDER | ES_READONLY,
                 0, 0, w - h, h,
                 hwnd, NULL, instance, NULL);
             SendMessage(field, WM_SETFONT, (WPARAM)gui->Font, true);
             // SendMessage(field, EM_LIMITTEXT, (WPARAM)3, true);
         }
-        HWND button = NULL;
-        (void)button;
+        set_win_data(hwnd, field);
         {
-            button = CreateWindowW(WC_BUTTONW, L"\u21BB",
+            (void)CreateWindowW(WC_BUTTONW, L"\u21BB",
                 WS_VISIBLE | WS_CHILD | BS_PUSHBUTTON | BS_FLAT,
                 w - h, 0, h, h,
                 hwnd, (HMENU)0, instance, NULL);
@@ -396,6 +462,24 @@ static LRESULT key_input_win_proc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp)
             // SIZE size = { };
             // Button_GetIdealSize(button, &size);
             // SetWindowPos(button, NULL, C1.X, C1.Y, C1.W, C1.H, 0);
+        }
+        return 0;
+    }
+    case WM_COMMAND: {
+        if (HIWORD(wp) == BN_CLICKED) {
+            HWND field = get_win_data(hwnd);
+            ASSERT(field);
+            const int center[2] = { GetSystemMetrics(SM_CXSCREEN) / 2, GetSystemMetrics(SM_CYSCREEN) / 2 };
+            int w = 250;
+            int h = 100;
+            HWND x = CreateWindow(
+                wait_input_class_name,
+                "AAS settings",
+                WS_VISIBLE | WS_OVERLAPPED | WS_CAPTION | WS_SYSMENU,
+                center[0] - w / 2, center[1] - h / 2, w, h,
+                hwnd, 0, (HINSTANCE)GetWindowLongPtr(hwnd, GWLP_HINSTANCE), field);
+            // SendMessage(field, WM_SETFONT, (WPARAM)gui->Font, true);
+            SetFocus(x);
         }
         return 0;
     }
@@ -473,6 +557,17 @@ void GUIWindow(void (*setupGUI)(GUIData*, void*),
         RegisterClass(&wc);
     }
 
+    {
+        WNDCLASS wc = {
+            .lpfnWndProc = popup_wait_input_win_proc,
+            .hInstance = instance,
+            .lpszClassName = wait_input_class_name,
+            .style = CS_HREDRAW | CS_VREDRAW,
+            .hbrBackground = bkg
+        };
+        RegisterClass(&wc);
+    }
+
     // Window
     DWORD win_style = WS_CAPTION | WS_SYSMENU | WS_BORDER | WS_VISIBLE | WS_MINIMIZEBOX;
     CreateWindow(className, className,
@@ -490,7 +585,7 @@ void GUIWindow(void (*setupGUI)(GUIData*, void*),
     UnregisterClass(className, instance);
 }
 
-HWND CreateKeyInputField(GUIData* guiData)
+HWND CreateKeyInputField(GUIData* guiData, unsigned int* target)
 {
     HINSTANCE inst = (HINSTANCE)GetWindowLongPtrA(guiData->Parent, GWLP_HINSTANCE);
     Cell C = guiData->Cell;
@@ -499,5 +594,8 @@ HWND CreateKeyInputField(GUIData* guiData)
         C.X, C.Y, C.W, C.H,
         guiData->Parent, NULL, inst, guiData);
     NextCell(guiData);
+    guiData->k_bindings[guiData->k_binding_count].target_value = target;
+    guiData->k_bindings[guiData->k_binding_count].key_input_control = win;
+    guiData->k_binding_count++;
     return win;
 }
