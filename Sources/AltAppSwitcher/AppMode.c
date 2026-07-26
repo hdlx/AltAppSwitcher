@@ -1377,8 +1377,14 @@ static BOOL FillWinGroups(HWND hwnd, LPARAM lParam)
     return true;
 }
 
+static int Clamp(int x, int y, int z)
+{
+    return max(min(x, z), y);
+}
+
 static uint32_t PosToIdx(const Metrics* m, int x, int y, int count)
 {
+    x = Clamp(x - (int)m->Pad, 0, (int)m->Container * (int)m->ColCount);
     int i = ((x - (int)m->Pad) / (int)m->Container) % (int)m->ColCount;
     i += ((y - (int)m->Pad) / (int)(m->Container + m->AppNameHeight)) * (int)m->ColCount;
     return (uint32_t)min(max(0, i), (int)(count - 1));
