@@ -12,22 +12,25 @@
 
 #define AAS_NONE_VK 0xFFFFFFFE
 #define VK_Q (0x51)
+// New scan code - old config name
+// For retrocompat
+// And maybe later for nice name display
 const EnumString keyES[17] = {
-    { "left alt", VK_LMENU },
-    { "right alt", VK_RMENU },
-    { "alt", VK_MENU },
-    { "tilde", VK_OEM_3 }, // Scan code 41
-    { "left windows", VK_LWIN },
-    { "right windows", VK_RWIN },
-    { "right super", VK_RWIN },
-    { "left super", VK_LWIN },
-    { "left control", VK_LCONTROL },
-    { "right control", VK_RCONTROL },
-    { "left shift", VK_LSHIFT },
-    { "right shift", VK_RSHIFT },
-    { "tab", VK_TAB },
-    { "q", VK_Q },
-    { "f4", VK_F4 },
+    { "left alt", 56 },
+    { "right alt", 312 },
+    { "alt", 56 },
+    { "tilde", 41 },
+    { "left windows", 347 },
+    { "right windows", 348 },
+    { "right super", 347 },
+    { "left super", 348 },
+    { "left control", 29 },
+    { "right control", 285 },
+    { "left shift", 42 },
+    { "right shift", 54 },
+    { "tab", 15 },
+    { "q", 30 },
+    { "f4", 64 },
     { "none", AAS_NONE_VK },
     { "end", 0xFFFFFFFF },
 };
@@ -140,13 +143,13 @@ static bool GetEnumOld(const StrPair* keyValues, const char* token,
 
 void DefaultConfig(Config* config)
 {
-    config->Key.AppHold = VK_LMENU;
-    config->Key.AppSwitch = VK_TAB;
-    config->Key.WinHold = VK_LMENU;
-    config->Key.WinSwitch = VK_OEM_3;
-    config->Key.Invert = VK_LSHIFT;
-    config->Key.PrevApp = VK_OEM_3;
-    config->Key.AppClose = VK_Q;
+    config->Key.AppHold = 56;
+    config->Key.AppSwitch = 15;
+    config->Key.WinHold = 56;
+    config->Key.WinSwitch = 41;
+    config->Key.Invert = 42;
+    config->Key.PrevApp = 41;
+    config->Key.AppClose = 30;
     config->Mouse = true;
     config->MouseKbCommonSel = false;
     config->CheckForUpdates = true;

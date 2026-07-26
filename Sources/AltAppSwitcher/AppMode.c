@@ -2030,7 +2030,7 @@ static int ProcessKeys(struct WindowData* windowData, UINT uMsg, WPARAM wParam, 
         }
 
         // App close
-        if (wParam == windowData->StaticData->Config->Key.AppClose) {
+        if (scan == windowData->StaticData->Config->Key.AppClose) {
             const SWinGroup* winGroup = &windowData->WinGroups.Data[windowData->Selection];
             CloseAppGroup(winGroup, windowData->MainWin);
         }
