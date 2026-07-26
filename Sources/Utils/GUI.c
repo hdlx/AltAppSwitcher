@@ -432,3 +432,42 @@ void GUIWindow(void (*setupGUI)(GUIData*, void*),
     DeleteBrush(bkg);
     UnregisterClass(className, instance);
 }
+
+HWND CreateKeyInputField(HMENU ID, GUIData* guiData)
+{
+    HINSTANCE inst = (HINSTANCE)GetWindowLongPtrA(guiData->Parent, GWLP_HINSTANCE);
+
+    Cell C = guiData->Cell;
+    HWND parent = NULL;
+    {
+        parent = CreateWindow(0, "000",
+            WS_CHILD | WS_VISIBLE | ES_LEFT | ES_CENTER | ES_NUMBER | WS_BORDER,
+            C.X, C.Y, C.W, C.H,
+            guiData->Parent, NULL, inst, NULL);
+    }
+    Cell C0 = C;
+    C0.W -= C.H;
+    Cell C1 = C;
+    C1.W = C.H;
+    C1.X += C0.W;
+    {
+        HWND field = CreateWindow(WC_EDIT, "000",
+            WS_CHILD | WS_VISIBLE | ES_LEFT | ES_CENTER | ES_NUMBER | WS_BORDER | ES_READONLY,
+            C0.X, C0.Y, C0.W, C0.H,
+            guiData->Parent, NULL, inst, NULL);
+        SendMessage(field, WM_SETFONT, (WPARAM)guiData->Font, true);
+        SendMessage(field, EM_LIMITTEXT, (WPARAM)3, true);
+    }
+    {
+        HWND button = CreateWindowW(WC_BUTTONW, L"\u21BB",
+            WS_VISIBLE | WS_CHILD | BS_PUSHBUTTON | BS_FLAT,
+            guiData->Cell.X, guiData->Cell.Y, 0, 0,
+            guiData->Parent, (HMENU)ID, inst, NULL);
+        SendMessage(button, WM_SETFONT, (WPARAM)guiData->Font, true);
+        // SIZE size = { };
+        // Button_GetIdealSize(button, &size);
+        SetWindowPos(button, NULL, C1.X, C1.Y, C1.W, C1.H, 0);
+    }
+    NextCell(guiData);
+    return parent;
+}
