@@ -28,6 +28,11 @@ typedef struct BoolBinding {
     HWND CheckBox;
 } BoolBinding;
 
+typedef struct IntBinding {
+    int* TargetValue;
+    HWND Field;
+} IntBinding;
+
 typedef struct Cell {
     int X, Y, W, H;
 } Cell;
@@ -49,6 +54,8 @@ struct GUIData {
     unsigned int FBindingCount;
     BoolBinding BBindings[64];
     unsigned int BBindingCount;
+    IntBinding IBindings[64];
+    unsigned int IBindingCount;
     HFONT CurrentFont;
     HFONT Font;
     HFONT FontBold;
@@ -136,6 +143,25 @@ void CreatePercentField(const char* tooltip, float* value, GUIData* guiData)
     guiData->FBindings[guiData->FBindingCount].Field = field;
     guiData->FBindings[guiData->FBindingCount].TargetValue = value;
     guiData->FBindingCount++;
+    NextCell(guiData);
+}
+
+void CreateIntField(const char* tooltip, int* value, GUIData* guiData)
+{
+    (void)tooltip;
+    HINSTANCE inst = (HINSTANCE)GetWindowLongPtrA(guiData->Parent, GWLP_HINSTANCE);
+    char sval[] = "\0\0\0";
+    int a = sprintf_s(sval, sizeof(sval) / sizeof(sval[0]), "%i", (int)(*value));
+    ASSERT(a > 0);
+    HWND field = CreateWindow(WC_EDIT, sval,
+        WS_CHILD | WS_VISIBLE | ES_LEFT | ES_CENTER | ES_NUMBER | WS_BORDER,
+        guiData->Cell.X, guiData->Cell.Y, guiData->Cell.W, guiData->Cell.H,
+        guiData->Parent, NULL, inst, NULL);
+    SendMessage(field, WM_SETFONT, (WPARAM)guiData->Font, true);
+    SendMessage(field, EM_LIMITTEXT, (WPARAM)3, true);
+    guiData->IBindings[guiData->IBindingCount].Field = field;
+    guiData->IBindings[guiData->IBindingCount].TargetValue = value;
+    guiData->IBindingCount++;
     NextCell(guiData);
 }
 
@@ -280,6 +306,13 @@ void ApplyBindings(const GUIData* guiData)
     for (unsigned int i = 0; i < guiData->BBindingCount; i++) {
         const BoolBinding* bd = &guiData->BBindings[i];
         *bd->TargetValue = BST_CHECKED == SendMessage(bd->CheckBox, (UINT)BM_GETCHECK, (WPARAM)0, (LPARAM)0);
+    }
+    for (unsigned int i = 0; i < guiData->IBindingCount; i++) {
+        const IntBinding* bd = &guiData->IBindings[i];
+        char text[] = "\0\0\0";
+        *((DWORD*)text) = 3;
+        SendMessage(bd->Field, (UINT)EM_GETLINE, (WPARAM)0, (LPARAM)text);
+        *bd->TargetValue = (int)strtol(text, NULL, 10);
     }
 }
 

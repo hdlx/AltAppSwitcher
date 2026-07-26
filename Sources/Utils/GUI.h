@@ -4,6 +4,7 @@ typedef struct EnumString EnumString;
 typedef struct GUIData GUIData;
 HWND CreateText(const char* text, const char* tooltip, GUIData* guiData);
 void CreatePercentField(const char* tooltip, float* value, GUIData* guiData);
+void CreateIntField(const char* tooltip, int* value, GUIData* guiData);
 void CreateComboBox(const char* tooltip, unsigned int* value, const EnumString* enumStrings, GUIData* guiData);
 HWND CreateButton(const char* text, HMENU ID, GUIData* guiData);
 void CreateBoolControl(const char* tooltip, bool* value, GUIData* guiData);

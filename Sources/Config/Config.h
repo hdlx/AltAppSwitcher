@@ -57,6 +57,7 @@ typedef struct Config {
     AppFilterMode AppFilterMode;
     bool RestoreMinimizedWindows;
     DesktopFilter DesktopFilter;
+    int IconsPerRow;
 } Config;
 
 typedef struct EnumString {

@@ -108,6 +108,16 @@ static bool TryGetFloat(const StrPair* keyValues, const char* token, float* floa
     return true;
 }
 
+static bool TryGetInt(const StrPair* keyValues, const char* token, int* intToSet)
+{
+    unsigned int entry = Find(keyValues, token);
+    if (entry == 0xFFFFFFFF) {
+        return false;
+    }
+    *intToSet = (int)strtol(keyValues[entry].Value, NULL, 10);
+    return true;
+}
+
 static bool TryGetEnum(const StrPair* keyValues, const char* token,
     unsigned int* outValue, const EnumString* enumStrings)
 {
@@ -145,6 +155,7 @@ void DefaultConfig(Config* config)
     config->AppFilterMode = AppFilterModeAll;
     config->RestoreMinimizedWindows = true;
     config->DesktopFilter = DesktopFilterCurrent;
+    config->IconsPerRow = 0;
 }
 
 void LoadConfig(Config* config)
@@ -209,6 +220,8 @@ void LoadConfig(Config* config)
 
     GET_FLOAT("scale", config->Scale);
 
+    TryGetInt(keyValues, "icons per row", &config->IconsPerRow);
+
 #undef GET_ENUM
 #undef GET_BOOL
 #undef GET_FLOAT
@@ -236,6 +249,12 @@ static void WriteBool(FILE* file, const char* entry, bool value)
 static void WriteFloat(FILE* file, const char* entry, float value)
 {
     size_t a = fprintf_s(file, "%s: %f\n", entry, value);
+    ASSERT(a > 0);
+}
+
+static void WriteInt(FILE* file, const char* entry, int value)
+{
+    size_t a = fprintf_s(file, "%s: %i\n", entry, value);
     ASSERT(a > 0);
 }
 
@@ -277,6 +296,8 @@ void WriteConfig(const Config* config)
     WRITE_BOOL("check for updates", config->CheckForUpdates);
 
     WRITE_FLOAT("scale", config->Scale);
+
+    WriteInt(file, "icons per row", config->IconsPerRow);
 
     const int r = fclose(file);
     ASSERT(r == 0);

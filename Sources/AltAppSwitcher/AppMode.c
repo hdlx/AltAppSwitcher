@@ -23,6 +23,7 @@
 #include <PropKey.h>
 #include <Shobjidl.h>
 #include <shlobj.h>
+#include <math.h>
 #include "AppxPackaging.h"
 #undef COBJMACROS
 #include "Config/Config.h"
@@ -75,9 +76,11 @@ typedef struct Metrics {
     uint32_t WinPosY;
     uint32_t WinX;
     uint32_t WinY;
+    uint32_t ColCount;
     float Container;
     float Icon;
     float Pad;
+    float AppNameHeight;
     float DigitBoxHeight;
     float DigitBoxPad;
     float PathThickness;
@@ -1374,13 +1377,32 @@ static BOOL FillWinGroups(HWND hwnd, LPARAM lParam)
     return true;
 }
 
-static void ComputeMetrics(uint32_t iconCount, float scale, Metrics* metrics, bool monitorModeMouse)
+static int Clamp(int x, int y, int z)
+{
+    return max(min(x, z), y);
+}
+
+static uint32_t PosToIdx(const Metrics* m, int x, int y, int count)
+{
+    x = Clamp(x - (int)m->Pad, 0, (int)m->Container * (int)m->ColCount);
+    int i = ((x - (int)m->Pad) / (int)m->Container) % (int)m->ColCount;
+    i += ((y - (int)m->Pad) / (int)(m->Container + m->AppNameHeight)) * (int)m->ColCount;
+    return (uint32_t)min(max(0, i), (int)(count - 1));
+}
+
+static void IdxToPos(const Metrics* m, int idx, int* outX, int* outY)
+{
+    *outX = (int)m->Pad + (int)m->Container * (idx % (int)m->ColCount);
+    *outY = (int)m->Pad + (int)(m->Container + m->AppNameHeight) * (idx / (int)m->ColCount);
+}
+
+static void ComputeMetrics(uint32_t iconCount, Metrics* metrics, const struct Config* cfg)
 {
     int monitorOffset[2] = { 0, 0 };
     int monitorSize[2] = { 0, 0 };
 
     POINT mousePos = { 0, 0 };
-    if (monitorModeMouse)
+    if (cfg->MultipleMonitorMode == MultipleMonitorModeMouse)
         GetCursorPos(&mousePos);
     HMONITOR monitor = MonitorFromPoint(mousePos, MONITOR_DEFAULTTOPRIMARY);
     MONITORINFO info;
@@ -1391,18 +1413,25 @@ static void ComputeMetrics(uint32_t iconCount, float scale, Metrics* metrics, bo
     monitorSize[0] = info.rcMonitor.right - info.rcMonitor.left;
     monitorSize[1] = info.rcMonitor.bottom - info.rcMonitor.top;
 
-    scale = max(scale, 0.5f);
+    uint32_t dimX = (cfg->IconsPerRow > 0) && ((int)iconCount > cfg->IconsPerRow) ? cfg->IconsPerRow : iconCount;
+    uint32_t dimY = ((iconCount + dimX - 1) / dimX);
+    float scale = max(cfg->Scale, 0.5f);
     const int centerY = monitorSize[1] / 2;
     const int centerX = monitorSize[0] / 2;
     const int screenWidth = monitorSize[0];
     const float containerRatio = 1.25f;
     float iconSize = (float)GetSystemMetrics(SM_CXICON) * scale;
-    const float padRatio = max(0.25 * iconSize, 16.0f) / iconSize; // Keep room for app name
-    const int sizeX = min(iconSize * ((int)iconCount * containerRatio + 2.0f * padRatio), screenWidth * 0.9);
-    iconSize = ((float)sizeX / ((((float)iconCount * containerRatio) + (2.0f * padRatio))));
+    const float appNameHeightRatio = max(0.25 * iconSize, 16.0f) / iconSize; // Keep room for app name
+    const float padRatio = max(0.25, appNameHeightRatio);
+    const int sizeX = min(iconSize * ((int)dimX * containerRatio + 2.0f * padRatio), screenWidth * 0.9);
+    iconSize = ((float)sizeX / ((((float)dimX * containerRatio) + (2.0f * padRatio))));
     const uint32_t halfSizeX = sizeX / 2;
-    const uint32_t sizeY = (uint32_t)((1.0f * iconSize * containerRatio) + (2.0f * padRatio * iconSize));
+    const uint32_t sizeY = 0
+        + dimY * (uint32_t)(iconSize * (containerRatio + appNameHeightRatio)) // tile + name
+        + (uint32_t)(padRatio * iconSize) // top win padding
+        + (uint32_t)((padRatio - appNameHeightRatio) * iconSize); // bottom padding: only if bigger than app name zone
     const uint32_t halfSizeY = sizeY / 2;
+    metrics->ColCount = dimX;
     metrics->WinPosX = centerX - halfSizeX + monitorOffset[0];
     metrics->WinPosY = centerY - halfSizeY + monitorOffset[1];
     metrics->WinX = sizeX;
@@ -1410,6 +1439,7 @@ static void ComputeMetrics(uint32_t iconCount, float scale, Metrics* metrics, bo
     metrics->Icon = iconSize;
     metrics->Container = iconSize * containerRatio;
     metrics->Pad = iconSize * padRatio;
+    metrics->AppNameHeight = iconSize * appNameHeightRatio;
     metrics->DigitBoxHeight = min(max(metrics->Container * 0.15f, 16.0f), metrics->Container * 0.5f); // Min size of 16 for text
     metrics->PathThickness = 2.0f;
     metrics->DigitBoxPad = (0.15f * metrics->DigitBoxHeight) + metrics->PathThickness;
@@ -1676,9 +1706,12 @@ static void CloseButtonRect(float* outRect, const Metrics* m, uint32_t idx)
 {
     const float w = m->DigitBoxHeight;
     const float p = m->DigitBoxPad;
+    int x;
+    int y;
+    IdxToPos(m, (int)idx, &x, &y);
     RectF r = {
-        m->Pad + (m->Container * (float)(idx + 1)) - w - p,
-        m->Pad + p,
+        (float)x + m->Container - w - p,
+        (float)y + p,
         w,
         w
     };
@@ -1717,15 +1750,11 @@ static void Draw(struct WindowData* windowData, RECT clientRect)
     const float containerSize = windowData->Metrics.Container;
     const float iconSize = windowData->Metrics.Icon;
     const float selectSize = containerSize;
-    const float pad = windowData->Metrics.Pad;
     const float padSelect = (containerSize - selectSize) * 0.5f;
     const float padIcon = (containerSize - iconSize) * 0.5f;
     const float digitHeight = windowData->Metrics.DigitBoxHeight * 0.75f;
-    const float nameHeight = pad * 0.6f;
-    const float namePad = pad * 0.2f;
-
-    float x = pad;
-    float y = pad;
+    const float nameHeight = windowData->Metrics.AppNameHeight * 0.6f;
+    const float namePad = windowData->Metrics.AppNameHeight * 0.2f;
 
     // Resources
     GpFont* fontName = NULL;
@@ -1746,12 +1775,18 @@ static void Draw(struct WindowData* windowData, RECT clientRect)
         const uint32_t mouseSelIdx = (uint32_t)windowData->MouseSelection;
 
         {
-            RectF selRect = { pad + (containerSize * (float)mouseSelIdx) + padSelect, pad + padSelect, selectSize, selectSize };
+            int tileX = 0;
+            int tileY = 0;
+            IdxToPos(&windowData->Metrics, (int)mouseSelIdx, &tileX, &tileY);
+            RectF selRect = { (float)tileX, (float)tileY, selectSize, selectSize };
             DrawRoundedRect(pGraphics, NULL, pGraphRes->pBrushBgHighlight, &selRect, 10);
         }
 
         {
-            RectF selRect = { pad + (containerSize * (float)selIdx) + padSelect, pad + padSelect, selectSize, selectSize };
+            int tileX = 0;
+            int tileY = 0;
+            IdxToPos(&windowData->Metrics, (int)selIdx, &tileX, &tileY);
+            RectF selRect = { (float)tileX, (float)tileY, selectSize, selectSize };
             COLORREF cr = pGraphRes->TextColor;
             ARGB gdipColor = cr | 0xFF000000;
             GpPen* pPen;
@@ -1763,6 +1798,11 @@ static void Draw(struct WindowData* windowData, RECT clientRect)
 
     for (uint32_t i = 0; i < windowData->WinGroups.Size; i++) {
         const SWinGroup* pWinGroup = &windowData->WinGroups.Data[i];
+        int tileX = 0;
+        int tileY = 0;
+        IdxToPos(&windowData->Metrics, (int)i, &tileX, &tileY);
+        float x = (float)tileX;
+        float y = (float)tileY;
 
         // Icon
         // TODO: Check histogram and invert (or another filter) if background is similar
@@ -1799,8 +1839,8 @@ static void Draw(struct WindowData* windowData, RECT clientRect)
             const float h = windowData->Metrics.DigitBoxHeight;
             const float p = windowData->Metrics.DigitBoxPad;
             RectF r = {
-                (x + padSelect + selectSize - p - w),
-                (y + padSelect + selectSize - p - h),
+                (x + padSelect + selectSize - p - w), // (x + padSelect + selectSize - p - w - (closeButton ? p + w : 0)),
+                (y + padSelect + selectSize - p - w),
                 (w),
                 (h)
             };
@@ -1845,7 +1885,7 @@ static void Draw(struct WindowData* windowData, RECT clientRect)
             const float w = containerSize - (2.0f * p);
             RectF r = {
                 (float)(int)(x + p),
-                (float)(int)(y + containerSize - padSelect + p),
+                (float)(int)(y + containerSize + p),
                 (float)(int)(w),
                 (float)(int)(h)
             };
@@ -1864,8 +1904,6 @@ static void Draw(struct WindowData* windowData, RECT clientRect)
                 GdipDrawString(pGraphics, name, count, fontName, &r, pGraphRes->pFormat, pGraphRes->pBrushText);
             }
         }
-
-        x += containerSize;
     }
 
     // Close button
@@ -2097,9 +2135,8 @@ static void Init(struct WindowData* windowData)
         return;
 
     ComputeMetrics(windowData->WinGroups.Size,
-        windowData->StaticData->Config->Scale,
         &windowData->Metrics,
-        windowData->StaticData->Config->MultipleMonitorMode == MultipleMonitorModeMouse);
+        windowData->StaticData->Config);
 
     // Needed for exact client area.
     RECT r = {
@@ -2202,11 +2239,9 @@ static LRESULT CALLBACK MainWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPAR
             firstMouseMove = false;
             return 0;
         }
-        const int iconContainerSize = (int)windowData.Metrics.Container;
-        const int pad = (int)windowData.Metrics.Pad;
         const int x = GET_X_LPARAM(lParam);
         const int y = GET_Y_LPARAM(lParam);
-        windowData.MouseSelection = min(max(0, (x - pad) / iconContainerSize), (int)windowData.WinGroups.Size - 1);
+        windowData.MouseSelection = (int)PosToIdx(&windowData.Metrics, x, y, (int)windowData.WinGroups.Size);
         if (windowData.StaticData->Config->MouseKbCommonSel)
             windowData.Selection = windowData.MouseSelection;
         float r[4];
