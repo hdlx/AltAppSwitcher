@@ -61,8 +61,8 @@ typedef struct Config {
 } Config;
 
 typedef struct EnumString {
-    const char* Name;
-    unsigned int Value;
+    const char* ValStr;
+    unsigned int ValUInt;
 } EnumString;
 
 extern const EnumString keyES[17];
