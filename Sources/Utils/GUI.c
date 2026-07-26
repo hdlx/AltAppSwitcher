@@ -75,6 +75,21 @@ struct GUIData {
     bool Close;
 };
 
+static void* get_create_param(LPARAM lp)
+{
+    return ((CREATESTRUCT*)lp)->lpCreateParams;
+}
+
+static void set_win_data(HWND win, void* d)
+{
+    SetWindowLongPtr(win, GWLP_USERDATA, (LONG_PTR)d);
+}
+
+static void* get_win_data(HWND win)
+{
+    return (void*)GetWindowLongPtr(win, GWLP_USERDATA);
+}
+
 void CloseGUI(GUIData* gui)
 {
     gui->Close = true;
@@ -324,6 +339,15 @@ void ApplyBindings(const GUIData* guiData)
         SendMessage(bd->Field, (UINT)EM_GETLINE, (WPARAM)0, (LPARAM)text);
         *bd->TargetValue = (int)strtol(text, NULL, 10);
     }
+    for (unsigned int i = 0; i < guiData->k_binding_count; i++) {
+        const struct key_binding* bd = &guiData->k_bindings[i];
+        char text[] = "\0\0\0";
+        *((DWORD*)text) = 3;
+        HWND field = get_win_data(bd->key_input_control);
+        ASSERT(field);
+        SendMessage(field, (UINT)EM_GETLINE, (WPARAM)0, (LPARAM)text);
+        *bd->target_value = (int)strtol(text, NULL, 10);
+    }
 }
 
 struct gui_window_data {
@@ -415,21 +439,6 @@ static LRESULT popup_wait_input_win_proc(HWND hwnd, UINT msg, WPARAM wp, LPARAM 
         break;
     }
     return DefWindowProc(hwnd, msg, wp, lp);
-}
-
-static void* get_create_param(LPARAM lp)
-{
-    return ((CREATESTRUCT*)lp)->lpCreateParams;
-}
-
-static void set_win_data(HWND win, void* d)
-{
-    SetWindowLongPtr(win, GWLP_USERDATA, (LONG_PTR)d);
-}
-
-static void* get_win_data(HWND win)
-{
-    return (void*)GetWindowLongPtr(win, GWLP_USERDATA);
 }
 
 static LRESULT key_input_win_proc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp)
