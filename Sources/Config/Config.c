@@ -339,16 +339,14 @@ void LoadConfig(Config* config)
         int r = fclose(file);
         ASSERT(r == 0);
     }
-    // Keys: todo
-#if 0
-    GET_ENUM("app hold key", config->Key.AppHold, keyES);
-    GET_ENUM("next app key", config->Key.AppSwitch, keyES);
-    GET_ENUM("window hold key", config->Key.WinHold, keyES);
-    GET_ENUM("next window key", config->Key.WinSwitch, keyES);
-    GET_ENUM("invert order key", config->Key.Invert, keyES);
-    GET_ENUM("previous app key", config->Key.PrevApp, keyES);
-    GET_ENUM("close app key", config->Key.AppClose, keyES);
-#endif
+
+    JSONReadInt(j, "app_hold_key", (int*)&config->Key.AppHold);
+    JSONReadInt(j, "next_app_key", (int*)&config->Key.AppSwitch);
+    JSONReadInt(j, "window_hold_key", (int*)&config->Key.WinHold);
+    JSONReadInt(j, "next_window_key", (int*)&config->Key.WinSwitch);
+    JSONReadInt(j, "invert_order_key", (int*)&config->Key.Invert);
+    JSONReadInt(j, "previous_app_key", (int*)&config->Key.PrevApp);
+    JSONReadInt(j, "close_app_key", (int*)&config->Key.AppClose);
 
     JSONReadEnum(j, "theme", &config->ThemeMode, themeES);
     JSONReadEnum(j, "app_switcher_mode", &config->AppSwitcherMode, appSwitcherModeES);
@@ -371,15 +369,15 @@ void LoadConfig(Config* config)
 void WriteConfig(const Config* config)
 {
     cJSON* j = cJSON_CreateObject();
-#if 0
-    WRITE_ENUM("app hold key", config->Key.AppHold, keyES);
-    WRITE_ENUM("next app key", config->Key.AppSwitch, keyES);
-    WRITE_ENUM("window hold key", config->Key.WinHold, keyES);
-    WRITE_ENUM("next window key", config->Key.WinSwitch, keyES);
-    WRITE_ENUM("invert order key", config->Key.Invert, keyES);
-    WRITE_ENUM("previous app key", config->Key.PrevApp, keyES);
-    WRITE_ENUM("close app key", config->Key.AppClose, keyES);
-#endif
+
+    JSONWriteInt(j, "app_hold_key", (int)config->Key.AppHold);
+    JSONWriteInt(j, "next_app_key", (int)config->Key.AppSwitch);
+    JSONWriteInt(j, "window_hold_key", (int)config->Key.WinHold);
+    JSONWriteInt(j, "next_window_key", (int)config->Key.WinSwitch);
+    JSONWriteInt(j, "invert_order_key", (int)config->Key.Invert);
+    JSONWriteInt(j, "previous_app_key", (int)config->Key.PrevApp);
+    JSONWriteInt(j, "close_app_key", (int)config->Key.AppClose);
+
     JSONWriteEnum(j, "theme", config->ThemeMode, themeES);
     JSONWriteEnum(j, "app_switcher_mode", config->AppSwitcherMode, appSwitcherModeES);
     JSONWriteEnum(j, "display_name", config->DisplayName, displayNameES);

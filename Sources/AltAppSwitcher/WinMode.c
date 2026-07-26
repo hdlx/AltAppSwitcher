@@ -334,19 +334,21 @@ struct MainWindowArg {
     HWND ForegroundWindow;
     struct StaticData* StaticData;
 };
-static LRESULT MainWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
+static LRESULT MainWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lp)
 {
     static struct WindowData windowData = { };
 
     switch (uMsg) {
     case WM_CREATE: {
-        struct MainWindowArg* arg = (struct MainWindowArg*)((CREATESTRUCTA*)lParam)->lpCreateParams;
+        struct MainWindowArg* arg = (struct MainWindowArg*)((CREATESTRUCTA*)lp)->lpCreateParams;
         windowData = (struct WindowData) { };
         windowData.MainWin = hwnd;
         windowData.StaticData = arg->StaticData;
         InitializeSwitchWin(arg->ForegroundWindow, &windowData);
         windowData.Selection = 0;
-        const bool invert = GetAsyncKeyState((SHORT)windowData.StaticData->Config->Key.Invert) & 0x8000;
+        UINT inv_scan = windowData.StaticData->Config->Key.Invert;
+        UINT inv_vk = MapVirtualKey((inv_scan & 0xFF) | (inv_scan >> 8 ? 0xE000 : 0), MAPVK_VSC_TO_VK_EX);
+        const bool invert = GetAsyncKeyState((int)inv_vk) & 0x8000;
         windowData.Selection += invert ? -1 : 1;
         windowData.Selection = Modulo(windowData.Selection, (int)windowData.CurrentWinGroup.WindowCount);
         SetFocus(hwnd);
@@ -360,12 +362,15 @@ static LRESULT MainWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
     }
     case WM_SYSKEYDOWN:
     case WM_KEYDOWN: {
+        UINT scan = (lp >> 16) & 0xFF;
+        UINT extended = (lp >> 24) & 1;
+        scan = scan | (extended << 8);
         ASSERT(windowData.StaticData);
         ASSERT(windowData.StaticData->Config);
         int x = 0;
-        const unsigned int winSwitch = USKeyToLocalKey(windowData.StaticData->Config->Key.WinSwitch);
+        const unsigned int winSwitch = windowData.StaticData->Config->Key.WinSwitch;
         if (
-            wParam == winSwitch
+            scan == winSwitch
             || wParam == 'L'
             || wParam == 'J'
             || wParam == VK_RIGHT
@@ -379,7 +384,9 @@ static LRESULT MainWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
             x = -1;
         }
         if (x != 0) {
-            const bool invert = GetAsyncKeyState((SHORT)USKeyToLocalKey(windowData.StaticData->Config->Key.Invert)) & 0x8000;
+            UINT inv_scan = windowData.StaticData->Config->Key.Invert;
+            UINT inv_vk = MapVirtualKey((inv_scan & 0xFF) | (inv_scan >> 8 ? 0xE000 : 0), MAPVK_VSC_TO_VK_EX);
+            const bool invert = GetAsyncKeyState((int)inv_vk) & 0x8000;
             windowData.Selection += invert ? -x : x;
             windowData.Selection = Modulo(windowData.Selection, (int)windowData.CurrentWinGroup.WindowCount);
 #ifdef ASYNC
@@ -403,7 +410,7 @@ static LRESULT MainWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam
     default:
         break;
     }
-    return DefWindowProc(hwnd, uMsg, wParam, lParam);
+    return DefWindowProc(hwnd, uMsg, wParam, lp);
 }
 
 void WinModeInit(HINSTANCE instance, const struct Config* cfg, IVirtualDesktopManager* VDM)

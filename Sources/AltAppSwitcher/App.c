@@ -47,7 +47,7 @@ struct HookData {
 static struct HookData* HookData;
 static DWORD MainThread;
 
-static void RestoreKey(WORD keyCode)
+static void RestoreKey(uint32_t scancode)
 {
     const struct Config* Cfg = HookData->cfg;
     AAS_MSG("RestoreKey");
@@ -66,16 +66,16 @@ static void RestoreKey(WORD keyCode)
         // Needed ?
         INPUT input = { };
         input.type = INPUT_KEYBOARD;
-        input.ki.wVk = Cfg->Key.Invert;
-        input.ki.dwFlags = KEYEVENTF_KEYUP;
+        input.ki.wScan = Cfg->Key.Invert;
+        input.ki.dwFlags = KEYEVENTF_SCANCODE | KEYEVENTF_KEYUP | (Cfg->Key.Invert >> 8 != 0 ? KEYEVENTF_EXTENDEDKEY : 0);
         const UINT uSent = SendInput(1, &input, sizeof(INPUT));
         ASSERT(uSent == 1);
     }
     {
         INPUT input = { };
         input.type = INPUT_KEYBOARD;
-        input.ki.wVk = keyCode;
-        input.ki.dwFlags = KEYEVENTF_KEYUP;
+        input.ki.wScan = scancode & 0xFF;
+        input.ki.dwFlags = KEYEVENTF_SCANCODE | KEYEVENTF_KEYUP | (scancode >> 8 != 0 ? KEYEVENTF_EXTENDEDKEY : 0);
         const UINT uSent = SendInput(1, &input, sizeof(INPUT));
         ASSERT(uSent == 1);
     }
@@ -124,11 +124,14 @@ static LRESULT KbProc(int nCode, WPARAM wParam, LPARAM lParam)
     if (kbStrut.flags & LLKHF_INJECTED)
         return CallNextHookEx(NULL, nCode, wParam, lParam);
 
-    const bool appHoldKey = kbStrut.vkCode == USKeyToLocalKey(Cfg->Key.AppHold);
-    const bool nextAppKey = kbStrut.vkCode == USKeyToLocalKey(Cfg->Key.AppSwitch);
-    const bool prevAppKey = kbStrut.vkCode == USKeyToLocalKey(Cfg->Key.PrevApp);
-    const bool winHoldKey = kbStrut.vkCode == USKeyToLocalKey(Cfg->Key.WinHold);
-    const bool nextWinKey = kbStrut.vkCode == USKeyToLocalKey(Cfg->Key.WinSwitch);
+    UINT scan = kbStrut.scanCode & 0xFF;
+    UINT extended = (kbStrut.flags & LLKHF_EXTENDED) != 0 ? 1 : 0;
+    scan = scan | (extended << 8);
+    const bool appHoldKey = scan == Cfg->Key.AppHold;
+    const bool nextAppKey = scan == Cfg->Key.AppSwitch;
+    const bool prevAppKey = scan == Cfg->Key.PrevApp;
+    const bool winHoldKey = scan == Cfg->Key.WinHold;
+    const bool nextWinKey = scan == Cfg->Key.WinSwitch;
     const bool isWatchedKey = appHoldKey || nextAppKey || prevAppKey || winHoldKey || nextWinKey; // NOLINT
     if (!isWatchedKey)
         return CallNextHookEx(NULL, nCode, wParam, lParam);
@@ -145,8 +148,16 @@ static LRESULT KbProc(int nCode, WPARAM wParam, LPARAM lParam)
         const bool appHoldRelease = appHoldKey && rel;
         const bool nextApp = nextAppKey && !rel;
         const bool nextWin = nextWinKey && !rel;
-        const bool isWinHold = GetAsyncKeyState((int)USKeyToLocalKey(Cfg->Key.WinHold)) & 0x8000;
-        const bool isAppHold = GetAsyncKeyState((int)USKeyToLocalKey(Cfg->Key.AppHold)) & 0x8000;
+        static bool isWinHold = false;
+        if (winHoldKey && !rel)
+            isWinHold = true;
+        if (winHoldKey && rel)
+            isWinHold = false;
+        static bool isAppHold = false;
+        if (appHoldKey && !rel)
+            isAppHold = true;
+        if (appHoldKey && rel)
+            isAppHold = false;
 
         // Denit.
         if ((prevMode == ModeApp && appHoldRelease)
@@ -158,14 +169,14 @@ static LRESULT KbProc(int nCode, WPARAM wParam, LPARAM lParam)
 
         // Init
         if (prevMode == ModeNone && isAppHold && nextApp) {
-            HANDLE ht = CreateThread(NULL, 0, ThreadFnRestoreKey, (LPVOID)(UINT_PTR)USKeyToLocalKey(Cfg->Key.AppHold), CREATE_SUSPENDED, NULL);
+            HANDLE ht = CreateThread(NULL, 0, ThreadFnRestoreKey, (LPVOID)(UINT_PTR)Cfg->Key.AppHold, CREATE_SUSPENDED, NULL);
             SetThreadPriority(ht, THREAD_PRIORITY_TIME_CRITICAL);
             ResumeThread(ht);
             mode = ModeApp;
             PostThreadMessage(MainThread, MSG_INIT_APP, 0, 0);
             bypassMsg = true;
         } else if (prevMode == ModeNone && isWinHold && nextWin) {
-            HANDLE ht = CreateThread(NULL, 0, ThreadFnRestoreKey, (LPVOID)(UINT_PTR)USKeyToLocalKey(Cfg->Key.WinHold), CREATE_SUSPENDED, NULL);
+            HANDLE ht = CreateThread(NULL, 0, ThreadFnRestoreKey, (LPVOID)(UINT_PTR)Cfg->Key.WinHold, CREATE_SUSPENDED, NULL);
             SetThreadPriority(ht, THREAD_PRIORITY_TIME_CRITICAL);
             ResumeThread(ht);
             mode = ModeWin;

@@ -1987,13 +1987,16 @@ static void MoveSelection(struct WindowData* windowData, int x)
     UpdateWindow(windowData->MainWin);
 }
 
-static int ProcessKeys(struct WindowData* windowData, UINT uMsg, WPARAM wParam, LPARAM lParam)
+static int ProcessKeys(struct WindowData* windowData, UINT uMsg, WPARAM wParam, LPARAM lp)
 {
-    (void)lParam;
+    (void)lp;
     switch (uMsg) {
     case WM_SYSKEYDOWN:
     case WM_KEYDOWN: {
         unsigned int vkCode = wParam;
+        UINT scan = (lp >> 16) & 0xFF;
+        UINT extended = (lp >> 24) & 1;
+        scan = scan | (extended << 8);
         ASSERT(windowData)
         ASSERT(windowData->StaticData)
         ASSERT(windowData->StaticData->Config)
@@ -2004,14 +2007,14 @@ static int ProcessKeys(struct WindowData* windowData, UINT uMsg, WPARAM wParam, 
         }
         int x = 0;
         if (
-            vkCode == USKeyToLocalKey(windowData->StaticData->Config->Key.AppSwitch)
+            scan == windowData->StaticData->Config->Key.AppSwitch
             || vkCode == 'L'
             || vkCode == 'J'
             || vkCode == VK_RIGHT
             || vkCode == VK_DOWN) {
             x = 1;
         } else if (
-            vkCode == USKeyToLocalKey(windowData->StaticData->Config->Key.PrevApp)
+            scan == windowData->StaticData->Config->Key.PrevApp
             || vkCode == 'H'
             || vkCode == 'K'
             || vkCode == VK_LEFT
@@ -2019,7 +2022,9 @@ static int ProcessKeys(struct WindowData* windowData, UINT uMsg, WPARAM wParam, 
             x = -1;
         }
         if (x != 0) {
-            const bool invert = GetAsyncKeyState((SHORT)USKeyToLocalKey(windowData->StaticData->Config->Key.Invert)) & 0x8000;
+            UINT inv_scan = windowData->StaticData->Config->Key.Invert;
+            UINT inv_vk = MapVirtualKey((inv_scan & 0xFF) | (inv_scan >> 8 ? 0xE000 : 0), MAPVK_VSC_TO_VK_EX);
+            const bool invert = GetAsyncKeyState((int)inv_vk) & 0x8000;
             MoveSelection(windowData, invert ? -x : x);
             return 0;
         }
