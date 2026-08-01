@@ -420,6 +420,43 @@ static LRESULT gui_win_proc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp)
         SetBkMode((HDC)wp, TRANSPARENT);
         return 0; // (LRESULT)guiData.Background;
     }
+    case WM_VSCROLL: {
+        int action = LOWORD(wp);
+        SCROLLINFO si = { 0 };
+        si.cbSize = sizeof(si);
+        si.fMask = SIF_ALL;
+        GetScrollInfo(hwnd, SB_VERT, &si);
+        int pos = si.nPos;
+        switch (action) {
+        case SB_LINEUP:
+            pos -= 1;
+            break;
+        case SB_LINEDOWN:
+            pos += 1;
+            break;
+        case SB_PAGEUP:
+            pos -= si.nPage;
+            break;
+        case SB_PAGEDOWN:
+            pos += si.nPage;
+            break;
+        case SB_THUMBTRACK:
+            pos = HIWORD(wp);
+            break;
+        }
+
+        si.fMask = SIF_POS;
+        si.nPos = pos;
+        SetScrollInfo(hwnd, SB_VERT, &si, TRUE);
+        {
+            RECT r = { };
+            GetWindowRect(guiData.ContainerWin, &r);
+            SetWindowPos(guiData.ContainerWin, NULL, 0, -pos, 0, 0, SWP_NOSIZE);
+        }
+        // redraw your content with this offset
+        // InvalidateRect(hwnd, NULL, TRUE);
+        break;
+    }
     default:
         break;
     }
@@ -617,7 +654,7 @@ void GUIWindow(void (*setupGUI)(GUIData*, void*),
     }
 
     // Window
-    DWORD win_style = WS_CAPTION | WS_SYSMENU | WS_BORDER | WS_VISIBLE | WS_MINIMIZEBOX | WS_VSCROLL;
+    DWORD win_style = WS_CAPTION | WS_SYSMENU | WS_BORDER | WS_VISIBLE | WS_MINIMIZEBOX | WS_VSCROLL | WS_THICKFRAME;
     CreateWindow(className, className,
         win_style,
         0, 0, 0, 0,
