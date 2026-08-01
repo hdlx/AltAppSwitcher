@@ -74,6 +74,7 @@ struct GUIData {
     bool Close;
     HWND MainWin;
     HWND ContainerWin;
+    int max_height;
 };
 
 static void* get_create_param(LPARAM lp)
@@ -381,6 +382,11 @@ static LRESULT gui_win_proc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp)
     case WM_DESTROY: {
         DeleteGUIData(&guiData);
         PostQuitMessage(0);
+        return 0;
+    }
+    case WM_GETMINMAXINFO: {
+        MINMAXINFO* mmi = (MINMAXINFO*)lp;
+        mmi->ptMaxTrackSize.y = guiData.Cell.Y;
         return 0;
     }
     case WM_CREATE: {
