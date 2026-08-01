@@ -67,12 +67,13 @@ struct GUIData {
     HFONT Font;
     HFONT FontBold;
     HBRUSH Background;
-    HWND Parent;
     Cell Cell;
     int Columns;
     int Column;
     Alignment Align;
     bool Close;
+    HWND MainWin;
+    HWND ContainerWin;
 };
 
 static void* get_create_param(LPARAM lp)
@@ -138,13 +139,13 @@ HWND CreateText(const char* text, const char* tooltip, GUIData* guiData)
     int align = SS_LEFT;
     if (guiData->Align == AlignementCenter)
         align = SS_CENTER;
-    HINSTANCE inst = (HINSTANCE)GetWindowLongPtrA(guiData->Parent, GWLP_HINSTANCE);
+    HINSTANCE inst = (HINSTANCE)GetWindowLongPtrA(guiData->MainWin, GWLP_HINSTANCE);
     HWND textWin = CreateWindow(WC_STATIC, text,
         WS_CHILD | WS_VISIBLE | SS_CENTER | SS_NOTIFY | align, // notify needed to tooltip
         guiData->Cell.X, guiData->Cell.Y, guiData->Cell.W, guiData->Cell.H,
-        guiData->Parent, NULL, inst, NULL);
+        guiData->ContainerWin, NULL, inst, NULL);
     SendMessage(textWin, WM_SETFONT, (WPARAM)guiData->CurrentFont, true);
-    CreateTooltip(guiData->Parent, textWin, (char*)tooltip);
+    CreateTooltip(guiData->ContainerWin, textWin, (char*)tooltip);
     NextCell(guiData);
     return textWin;
 }
@@ -152,14 +153,14 @@ HWND CreateText(const char* text, const char* tooltip, GUIData* guiData)
 void CreatePercentField(const char* tooltip, float* value, GUIData* guiData)
 {
     (void)tooltip;
-    HINSTANCE inst = (HINSTANCE)GetWindowLongPtrA(guiData->Parent, GWLP_HINSTANCE);
+    HINSTANCE inst = (HINSTANCE)GetWindowLongPtrA(guiData->MainWin, GWLP_HINSTANCE);
     char sval[] = "000";
     int a = sprintf_s(sval, sizeof(sval) / sizeof(sval[0]), "%03d", (int)(*value * 100));
     ASSERT(a > 0);
     HWND field = CreateWindow(WC_EDIT, sval,
         WS_CHILD | WS_VISIBLE | ES_LEFT | ES_CENTER | ES_NUMBER | WS_BORDER,
         guiData->Cell.X, guiData->Cell.Y, guiData->Cell.W, guiData->Cell.H,
-        guiData->Parent, NULL, inst, NULL);
+        guiData->ContainerWin, NULL, inst, NULL);
     SendMessage(field, WM_SETFONT, (WPARAM)guiData->Font, true);
     SendMessage(field, EM_LIMITTEXT, (WPARAM)3, true);
     guiData->FBindings[guiData->FBindingCount].Field = field;
@@ -171,14 +172,14 @@ void CreatePercentField(const char* tooltip, float* value, GUIData* guiData)
 void CreateIntField(const char* tooltip, int* value, GUIData* guiData)
 {
     (void)tooltip;
-    HINSTANCE inst = (HINSTANCE)GetWindowLongPtrA(guiData->Parent, GWLP_HINSTANCE);
+    HINSTANCE inst = (HINSTANCE)GetWindowLongPtrA(guiData->MainWin, GWLP_HINSTANCE);
     char sval[] = "\0\0\0";
     int a = sprintf_s(sval, sizeof(sval) / sizeof(sval[0]), "%i", (int)(*value));
     ASSERT(a > 0);
     HWND field = CreateWindow(WC_EDIT, sval,
         WS_CHILD | WS_VISIBLE | ES_LEFT | ES_CENTER | ES_NUMBER | WS_BORDER,
         guiData->Cell.X, guiData->Cell.Y, guiData->Cell.W, guiData->Cell.H,
-        guiData->Parent, NULL, inst, NULL);
+        guiData->ContainerWin, NULL, inst, NULL);
     SendMessage(field, WM_SETFONT, (WPARAM)guiData->Font, true);
     SendMessage(field, EM_LIMITTEXT, (WPARAM)3, true);
     guiData->IBindings[guiData->IBindingCount].Field = field;
@@ -189,18 +190,18 @@ void CreateIntField(const char* tooltip, int* value, GUIData* guiData)
 
 void CreateComboBox(const char* tooltip, unsigned int* value, const EnumString* enumStrings, GUIData* guiData)
 {
-    HINSTANCE inst = (HINSTANCE)GetWindowLongPtrA(guiData->Parent, GWLP_HINSTANCE);
+    HINSTANCE inst = (HINSTANCE)GetWindowLongPtrA(guiData->MainWin, GWLP_HINSTANCE);
     HWND combobox = CreateWindow(WC_COMBOBOX, "Combobox",
         CBS_DROPDOWNLIST | CBS_HASSTRINGS | WS_CHILD | WS_VISIBLE,
         guiData->Cell.X, guiData->Cell.Y, guiData->Cell.W, guiData->Cell.H,
-        guiData->Parent, NULL, inst, NULL);
+        guiData->ContainerWin, NULL, inst, NULL);
     for (unsigned int i = 0; enumStrings[i].Value != 0xFFFFFFFF; i++) {
         SendMessage(combobox, (UINT)CB_ADDSTRING, (WPARAM)0, (LPARAM)enumStrings[i].Name);
         if (*value == enumStrings[i].Value)
             SendMessage(combobox, (UINT)CB_SETCURSEL, (WPARAM)i, (LPARAM)0);
     }
     SendMessage(combobox, WM_SETFONT, (WPARAM)guiData->Font, true);
-    CreateTooltip(guiData->Parent, combobox, (char*)tooltip);
+    CreateTooltip(guiData->ContainerWin, combobox, (char*)tooltip);
     guiData->EBindings[guiData->EBindingCount].ComboBox = combobox;
     guiData->EBindings[guiData->EBindingCount].EnumStrings = enumStrings;
     guiData->EBindings[guiData->EBindingCount].TargetValue = value;
@@ -210,11 +211,11 @@ void CreateComboBox(const char* tooltip, unsigned int* value, const EnumString* 
 
 HWND CreateButton(const char* text, HMENU ID, GUIData* guiData)
 {
-    HINSTANCE inst = (HINSTANCE)GetWindowLongPtrA(guiData->Parent, GWLP_HINSTANCE);
+    HINSTANCE inst = (HINSTANCE)GetWindowLongPtrA(guiData->MainWin, GWLP_HINSTANCE);
     HWND button = CreateWindow(WC_BUTTON, text,
         WS_VISIBLE | WS_CHILD | BS_PUSHBUTTON | BS_FLAT,
         guiData->Cell.X, guiData->Cell.Y, 0, 0,
-        guiData->Parent, (HMENU)ID, inst, NULL);
+        guiData->ContainerWin, (HMENU)ID, inst, NULL);
     SendMessage(button, WM_SETFONT, (WPARAM)guiData->Font, true);
     SIZE size = { };
     Button_GetIdealSize(button, &size);
@@ -226,11 +227,11 @@ HWND CreateButton(const char* text, HMENU ID, GUIData* guiData)
 void CreateBoolControl(const char* tooltip, bool* value, GUIData* guiData)
 {
     (void)tooltip;
-    HINSTANCE inst = (HINSTANCE)GetWindowLongPtrA(guiData->Parent, GWLP_HINSTANCE);
+    HINSTANCE inst = (HINSTANCE)GetWindowLongPtrA(guiData->MainWin, GWLP_HINSTANCE);
     HWND button = CreateWindow(WC_BUTTON, "",
         WS_VISIBLE | WS_CHILD | BS_AUTOCHECKBOX | BS_FLAT | BS_CENTER,
         guiData->Cell.X, guiData->Cell.Y, guiData->Cell.W, guiData->Cell.H,
-        guiData->Parent, (HMENU)0, inst, NULL);
+        guiData->ContainerWin, (HMENU)0, inst, NULL);
     SendMessage(button, BM_SETCHECK, (WPARAM)*value ? BST_CHECKED : BST_UNCHECKED, true);
     SIZE size = { };
     Button_GetIdealSize(button, &size);
@@ -254,7 +255,7 @@ static void InitGUIData(GUIData* guiData, HWND parent)
     guiData->CurrentFont = guiData->Font;
     COLORREF col = LIGHT_COLOR;
     guiData->Background = CreateSolidBrush(col);
-    guiData->Parent = parent;
+    guiData->MainWin = parent;
     guiData->Align = AlignementCenter;
     {
         HWND combobox = CreateWindow(WC_COMBOBOX, "Combobox",
@@ -271,7 +272,7 @@ static void InitGUIData(GUIData* guiData, HWND parent)
     guiData->Cell.Y = WIN_PAD;
     {
         RECT parentRect = { };
-        GetClientRect(guiData->Parent, &parentRect);
+        GetClientRect(guiData->MainWin, &parentRect);
         guiData->Cell.W = (parentRect.right - parentRect.left - WIN_PAD - WIN_PAD);
     }
     guiData->Column = 0;
@@ -296,12 +297,14 @@ static void FitParentWindow(const GUIData* gui)
         center[0] + (WIDTH / 2),
         center[1] + (gui->Cell.Y / 2)
     };
-    AdjustWindowRect(&r, (DWORD)GetWindowLong(gui->Parent, GWL_STYLE), false);
-    SetWindowPos(gui->Parent, 0, r.left, r.top, r.right - r.left, r.bottom - r.top, 0);
+    AdjustWindowRect(&r, (DWORD)GetWindowLong(gui->MainWin, GWL_STYLE), false);
+    SetWindowPos(gui->MainWin, NULL, r.left, r.top, r.right - r.left, r.bottom - r.top, 0);
+    SetWindowPos(gui->ContainerWin, NULL, 0, 0, r.right - r.left, r.bottom - r.top, 0);
 }
 
 static const char key_input_class_name[] = "key_input_ctrl";
 static const char wait_input_class_name[] = "wait_input_popup";
+static const char container_class_name[] = "container";
 
 void ApplyBindings(const GUIData* guiData)
 {
@@ -356,6 +359,21 @@ struct gui_window_data {
     void* Data;
 };
 
+static LRESULT container_win_proc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp)
+{
+    switch (msg) {
+    case WM_COMMAND: {
+        HWND child = (HWND)lp;
+        WPARAM wParam = wp;
+        HWND parent = GetParent(hwnd);
+        SendMessage(parent, WM_COMMAND, wParam, (LPARAM)child);
+    }
+    default:
+        break;
+    }
+    return DefWindowProc(hwnd, msg, wp, lp);
+}
+
 static LRESULT gui_win_proc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp)
 {
     static GUIData guiData = { };
@@ -369,6 +387,18 @@ static LRESULT gui_win_proc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp)
         struct gui_window_data* userData = (struct gui_window_data*)((CREATESTRUCT*)lp)->lpCreateParams;
         SetWindowLongPtr(hwnd, GWLP_USERDATA, (LONG_PTR)userData);
         InitGUIData(&guiData, hwnd);
+        {
+            guiData.ContainerWin = CreateWindowEx(
+                0,
+                container_class_name,
+                NULL,
+                WS_CHILD | WS_VISIBLE,
+                0, 0, 0, 0,
+                hwnd,
+                NULL,
+                (HINSTANCE)GetWindowLongPtr(hwnd, GWLP_HINSTANCE),
+                NULL);
+        }
         userData->SetupGUI(&guiData, userData->Data);
         FitParentWindow(&guiData);
         return 0;
@@ -577,8 +607,17 @@ void GUIWindow(void (*setupGUI)(GUIData*, void*),
         RegisterClass(&wc);
     }
 
+    {
+        WNDCLASS wc = {
+            .hInstance = instance,
+            .lpszClassName = container_class_name,
+            .lpfnWndProc = container_win_proc,
+        };
+        RegisterClass(&wc);
+    }
+
     // Window
-    DWORD win_style = WS_CAPTION | WS_SYSMENU | WS_BORDER | WS_VISIBLE | WS_MINIMIZEBOX;
+    DWORD win_style = WS_CAPTION | WS_SYSMENU | WS_BORDER | WS_VISIBLE | WS_MINIMIZEBOX | WS_VSCROLL;
     CreateWindow(className, className,
         win_style,
         0, 0, 0, 0,
@@ -592,16 +631,19 @@ void GUIWindow(void (*setupGUI)(GUIData*, void*),
 
     DeleteBrush(bkg);
     UnregisterClass(className, instance);
+    UnregisterClass(container_class_name, instance);
+    UnregisterClass(key_input_class_name, instance);
+    UnregisterClass(wait_input_class_name, instance);
 }
 
 HWND CreateKeyInputField(GUIData* guiData, unsigned int* target)
 {
-    HINSTANCE inst = (HINSTANCE)GetWindowLongPtrA(guiData->Parent, GWLP_HINSTANCE);
+    HINSTANCE inst = (HINSTANCE)GetWindowLongPtrA(guiData->MainWin, GWLP_HINSTANCE);
     Cell C = guiData->Cell;
     HWND win = CreateWindow(key_input_class_name, "",
         WS_CHILD | WS_VISIBLE,
         C.X, C.Y, C.W, C.H,
-        guiData->Parent, NULL, inst, guiData);
+        guiData->ContainerWin, NULL, inst, guiData);
     {
         // Init text
         HWND field = get_win_data(win);

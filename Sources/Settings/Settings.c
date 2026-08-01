@@ -20,28 +20,35 @@ static void SetupGUI(GUIData* gui, void* userData)
     GridLayout(1, gui);
     CreateText("Key bindings:", "", gui);
 
-    GridLayout(4, gui);
+    GridLayout(3, gui);
+
     CreateText("App hold", "", gui);
-    // CreateComboBox("", &cfg->Key.AppHold, keyES, gui);
     CreateKeyInputField(gui, &cfg->Key.AppHold);
+    CreateText("Dummy name", "", gui);
+
     CreateText("App switch", "", gui);
-    // CreateComboBox("", &cfg->Key.AppSwitch, keyES, gui);
     CreateKeyInputField(gui, &cfg->Key.AppSwitch);
+    CreateText("Dummy name", "", gui);
+
     CreateText("Win hold", "", gui);
-    // CreateComboBox("", &cfg->Key.WinHold, keyES, gui);
     CreateKeyInputField(gui, &cfg->Key.WinHold);
+    CreateText("Dummy name", "", gui);
+
     CreateText("Win switch", "", gui);
-    // CreateComboBox("", &cfg->Key.WinSwitch, keyES, gui);
     CreateKeyInputField(gui, &cfg->Key.WinSwitch);
+    CreateText("Dummy name", "", gui);
+
     CreateText("Invert", "", gui);
-    // CreateComboBox("", &cfg->Key.Invert, keyES, gui);
     CreateKeyInputField(gui, &cfg->Key.Invert);
+    CreateText("Dummy name", "", gui);
+
     CreateText("Previous app", "", gui);
-    // CreateComboBox("", &cfg->Key.PrevApp, keyES, gui);
     CreateKeyInputField(gui, &cfg->Key.PrevApp);
+    CreateText("Dummy name", "", gui);
+
     CreateText("App close", "", gui);
-    // CreateComboBox("", &cfg->Key.AppClose, keyES, gui);
     CreateKeyInputField(gui, &cfg->Key.AppClose);
+    CreateText("Dummy name", "", gui);
 
     CreateText("", "", gui);
     CreateText("", "", gui);
