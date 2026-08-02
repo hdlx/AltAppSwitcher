@@ -307,15 +307,22 @@ static void DeleteGUIData(gui_window_data* guiData)
 static void FitParentWindow(const gui_window_data* gui)
 {
     const int center[2] = { GetSystemMetrics(SM_CXSCREEN) / 2, GetSystemMetrics(SM_CYSCREEN) / 2 };
-    RECT r = {
+    const RECT client_rect = {
         center[0] - (WIDTH / 2),
         center[1] - (gui->Cell.Y / 2),
         center[0] + (WIDTH / 2),
-        center[1] + (gui->Cell.Y / 2)
+        center[1] + (gui->Cell.Y - (gui->Cell.Y / 2))
     };
-    AdjustWindowRect(&r, (DWORD)GetWindowLong(gui->MainWin, GWL_STYLE), false);
-    SetWindowPos(gui->MainWin, NULL, r.left, r.top, r.right - r.left, r.bottom - r.top, 0);
-    SetWindowPos(gui->ContainerWin, NULL, 0, 0, r.right - r.left, r.bottom - r.top, 0);
+    {
+        RECT r = client_rect;
+        AdjustWindowRect(&r, (DWORD)GetWindowLong(gui->MainWin, GWL_STYLE), false);
+        SetWindowPos(gui->MainWin, NULL, r.left, r.top, r.right - r.left, r.bottom - r.top, 0);
+    }
+    {
+        RECT r = client_rect;
+        AdjustWindowRect(&r, (DWORD)GetWindowLong(gui->ContainerWin, GWL_STYLE), false);
+        SetWindowPos(gui->ContainerWin, NULL, 0, 0, r.right - r.left, r.bottom - r.top, 0);
+    }
 }
 
 static const char key_input_class_name[] = "key_input_ctrl";
@@ -378,6 +385,8 @@ static LRESULT container_win_proc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp)
         HWND parent = GetParent(hwnd);
         SendMessage(parent, WM_COMMAND, wParam, (LPARAM)child);
     }
+    case WM_ERASEBKGND:
+        return TRUE;
     default:
         break;
     }
@@ -719,6 +728,8 @@ void GUIWindow(void (*setupGUI)(gui_window_data*, void*),
             .hInstance = instance,
             .lpszClassName = container_class_name,
             .lpfnWndProc = container_win_proc,
+            .style = 0,
+            .hbrBackground = NULL
         };
         RegisterClass(&wc);
     }
