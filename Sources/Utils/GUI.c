@@ -608,10 +608,10 @@ static LRESULT gui_win_proc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp)
             pos += 10;
             break;
         case SB_PAGEUP:
-            pos -= si.nPage;
+            pos -= (int)si.nPage;
             break;
         case SB_PAGEDOWN:
-            pos += si.nPage;
+            pos += (int)si.nPage;
             break;
         case SB_THUMBTRACK:
             pos = HIWORD(wp);
