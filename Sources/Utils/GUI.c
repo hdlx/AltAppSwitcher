@@ -10,7 +10,6 @@
 #define LINE_PAD 4
 #define DARK_COLOR 0x002C2C2C
 #define LIGHT_COLOR 0x00FFFFFF
-#define WIDTH 400
 
 typedef struct EnumBinding {
     unsigned int* TargetValue;
@@ -58,7 +57,16 @@ typedef enum Alignment {
     AlignementCenter
 } Alignment;
 
+struct gui_window_data_res {
+    HFONT Font;
+    HFONT FontBold;
+    HBRUSH Background;
+};
+
 struct gui_window_data {
+    struct gui_window_data_res resources;
+    HWND MainWin;
+    HWND ContainerWin;
     EnumBinding EBindings[64];
     unsigned int EBindingCount;
     FloatBinding FBindings[64];
@@ -72,17 +80,11 @@ struct gui_window_data {
     struct button_binding but_bindings[64];
     unsigned int but_bindings_count;
     HFONT CurrentFont;
-    HFONT Font;
-    HFONT FontBold;
-    HBRUSH Background;
     Cell Cell;
     int Columns;
     int Column;
     Alignment Align;
     bool Close;
-    HWND MainWin;
-    HWND ContainerWin;
-    int max_height;
     void (*setup_gui)(gui_window_data*, void*);
     void* setup_gui_data;
 };
@@ -100,6 +102,11 @@ static void set_win_data(HWND win, void* d)
 static void* get_win_data(HWND win)
 {
     return (void*)GetWindowLongPtr(win, GWLP_USERDATA);
+}
+
+static HINSTANCE get_instance(HWND win)
+{
+    return (HINSTANCE)GetWindowLongPtr(win, GWLP_HINSTANCE);
 }
 
 void CloseGUI(gui_window_data* gui)
@@ -124,7 +131,7 @@ static void CreateTooltip(HWND parent, HWND tool, char* string)
     HWND tt = CreateWindowEx(WS_EX_TOPMOST, TOOLTIPS_CLASS, NULL,
         WS_POPUP | TTS_NOPREFIX | TTS_ALWAYSTIP,
         0, 0, 100, 100,
-        parent, NULL, (HINSTANCE)GetWindowLongPtr(parent, GWLP_HINSTANCE), NULL);
+        parent, NULL, get_instance(parent), NULL);
     SetWindowPos(tt, HWND_TOPMOST, CW_USEDEFAULT, CW_USEDEFAULT, CW_USEDEFAULT, CW_USEDEFAULT, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
     TOOLINFO ti = { };
     ti.cbSize = sizeof(TOOLINFO);
@@ -137,24 +144,53 @@ static void CreateTooltip(HWND parent, HWND tool, char* string)
     SendMessage(tt, TTM_ACTIVATE, true, (LPARAM)NULL);
 }
 
+static int get_client_width(HWND win)
+{
+    RECT r = { };
+    GetClientRect(win, &r);
+    return r.right - r.left;
+}
+
 void GridLayout(int columns, gui_window_data* guiData)
 {
-    guiData->Cell.W = (WIDTH - WIN_PAD - WIN_PAD - (WIN_PAD * (columns - 1 > 0 ? columns - 1 : 0))) / columns;
+    int w = get_client_width(guiData->MainWin);
+    guiData->Cell.W = (w - WIN_PAD - WIN_PAD - (WIN_PAD * (columns - 1 > 0 ? columns - 1 : 0))) / columns;
     guiData->Column = 0;
     guiData->Columns = columns;
     guiData->Cell.X = WIN_PAD;
 }
 
+int font_height(HFONT font)
+{
+    HDC hdc = GetDC(NULL);
+    HFONT oldFont = (HFONT)SelectObject(hdc, font);
+    TEXTMETRIC tm;
+    GetTextMetrics(hdc, &tm);
+    SelectObject(hdc, oldFont);
+    ReleaseDC(NULL, hdc);
+    return tm.tmHeight;
+}
+
 HWND CreateText(const char* text, const char* tooltip, gui_window_data* guiData)
 {
+    {
+        // Background
+        CreateWindow(WC_STATIC, "",
+            WS_CHILD | WS_VISIBLE, // notify needed to tooltip
+            guiData->Cell.X, guiData->Cell.Y, guiData->Cell.W, guiData->Cell.H,
+            guiData->ContainerWin, NULL, get_instance(guiData->MainWin), NULL);
+    }
+
+    // Text
     int align = SS_LEFT;
     if (guiData->Align == AlignementCenter)
         align = SS_CENTER;
-    HINSTANCE inst = (HINSTANCE)GetWindowLongPtrA(guiData->MainWin, GWLP_HINSTANCE);
+    int font_h = font_height(guiData->CurrentFont);
     HWND textWin = CreateWindow(WC_STATIC, text,
-        WS_CHILD | WS_VISIBLE | SS_CENTER | SS_NOTIFY | align, // notify needed to tooltip
-        guiData->Cell.X, guiData->Cell.Y, guiData->Cell.W, guiData->Cell.H,
-        guiData->ContainerWin, NULL, inst, NULL);
+        WS_CHILD | WS_VISIBLE | SS_CENTER | align | SS_NOTIFY, // notify needed to tooltip
+        guiData->Cell.X, guiData->Cell.Y + (guiData->Cell.H - font_h) / 2, guiData->Cell.W, font_h,
+        guiData->ContainerWin, NULL, get_instance(guiData->MainWin), NULL);
+
     SendMessage(textWin, WM_SETFONT, (WPARAM)guiData->CurrentFont, true);
     CreateTooltip(guiData->ContainerWin, textWin, (char*)tooltip);
     NextCell(guiData);
@@ -164,7 +200,7 @@ HWND CreateText(const char* text, const char* tooltip, gui_window_data* guiData)
 void CreatePercentField(const char* tooltip, float* value, gui_window_data* guiData)
 {
     (void)tooltip;
-    HINSTANCE inst = (HINSTANCE)GetWindowLongPtrA(guiData->MainWin, GWLP_HINSTANCE);
+    HINSTANCE inst = get_instance(guiData->MainWin);
     char sval[] = "000";
     int a = sprintf_s(sval, sizeof(sval) / sizeof(sval[0]), "%03d", (int)(*value * 100));
     ASSERT(a > 0);
@@ -172,7 +208,7 @@ void CreatePercentField(const char* tooltip, float* value, gui_window_data* guiD
         WS_CHILD | WS_VISIBLE | ES_LEFT | ES_CENTER | ES_NUMBER | WS_BORDER,
         guiData->Cell.X, guiData->Cell.Y, guiData->Cell.W, guiData->Cell.H,
         guiData->ContainerWin, NULL, inst, NULL);
-    SendMessage(field, WM_SETFONT, (WPARAM)guiData->Font, true);
+    SendMessage(field, WM_SETFONT, (WPARAM)guiData->resources.Font, true);
     SendMessage(field, EM_LIMITTEXT, (WPARAM)3, true);
     guiData->FBindings[guiData->FBindingCount].Field = field;
     guiData->FBindings[guiData->FBindingCount].TargetValue = value;
@@ -191,7 +227,7 @@ void CreateIntField(const char* tooltip, int* value, gui_window_data* guiData)
         WS_CHILD | WS_VISIBLE | ES_LEFT | ES_CENTER | ES_NUMBER | WS_BORDER,
         guiData->Cell.X, guiData->Cell.Y, guiData->Cell.W, guiData->Cell.H,
         guiData->ContainerWin, NULL, inst, NULL);
-    SendMessage(field, WM_SETFONT, (WPARAM)guiData->Font, true);
+    SendMessage(field, WM_SETFONT, (WPARAM)guiData->resources.Font, true);
     SendMessage(field, EM_LIMITTEXT, (WPARAM)3, true);
     guiData->IBindings[guiData->IBindingCount].Field = field;
     guiData->IBindings[guiData->IBindingCount].TargetValue = value;
@@ -211,7 +247,7 @@ void CreateComboBox(const char* tooltip, unsigned int* value, const EnumString* 
         if (*value == enumStrings[i].Value)
             SendMessage(combobox, (UINT)CB_SETCURSEL, (WPARAM)i, (LPARAM)0);
     }
-    SendMessage(combobox, WM_SETFONT, (WPARAM)guiData->Font, true);
+    SendMessage(combobox, WM_SETFONT, (WPARAM)guiData->resources.Font, true);
     CreateTooltip(guiData->ContainerWin, combobox, (char*)tooltip);
     guiData->EBindings[guiData->EBindingCount].ComboBox = combobox;
     guiData->EBindings[guiData->EBindingCount].EnumStrings = enumStrings;
@@ -227,7 +263,7 @@ HWND CreateButton(const char* text, gui_window_data* guiData, void (*fn)(void*),
         WS_VISIBLE | WS_CHILD | BS_PUSHBUTTON | BS_FLAT,
         guiData->Cell.X, guiData->Cell.Y, 0, 0,
         guiData->ContainerWin, (HMENU)(long long)guiData->but_bindings_count, inst, NULL);
-    SendMessage(button, WM_SETFONT, (WPARAM)guiData->Font, true);
+    SendMessage(button, WM_SETFONT, (WPARAM)guiData->resources.Font, true);
     SIZE size = { };
     Button_GetIdealSize(button, &size);
     SetWindowPos(button, NULL, guiData->Cell.X + (guiData->Cell.W / 2) - (size.cx / 2), guiData->Cell.Y, size.cx, guiData->Cell.H, 0);
@@ -257,28 +293,54 @@ void CreateBoolControl(const char* tooltip, bool* value, gui_window_data* guiDat
     NextCell(guiData);
 }
 
-static void InitGUIData(gui_window_data* guiData, HWND parent)
+static void gui_window_create_resources(struct gui_window_data_res* res)
 {
+    COLORREF col = LIGHT_COLOR;
+    res->Background = CreateSolidBrush(col);
     NONCLIENTMETRICS metrics = { };
     metrics.cbSize = sizeof(metrics);
     SystemParametersInfo(SPI_GETNONCLIENTMETRICS, metrics.cbSize, &metrics, 0);
     metrics.lfCaptionFont.lfHeight = (LONG)((float)metrics.lfCaptionFont.lfHeight * 1.2f);
     metrics.lfCaptionFont.lfWidth = (LONG)((float)metrics.lfCaptionFont.lfWidth * 1.2f);
-    guiData->Font = CreateFontIndirect(&metrics.lfCaptionFont);
+    res->Font = CreateFontIndirect(&metrics.lfCaptionFont);
     LOGFONT title = metrics.lfCaptionFont;
     title.lfWeight = FW_SEMIBOLD;
-    guiData->FontBold = CreateFontIndirect(&title);
-    guiData->CurrentFont = guiData->Font;
-    COLORREF col = LIGHT_COLOR;
-    guiData->Background = CreateSolidBrush(col);
+    res->FontBold = CreateFontIndirect(&title);
+}
+
+static void gui_window_destroy_resources(struct gui_window_data_res* res)
+{
+    DeleteFont(res->Font);
+    DeleteFont(res->FontBold);
+    DeleteBrush(res->Background);
+    res->Font = NULL;
+    res->FontBold = NULL;
+    res->Background = NULL;
+}
+
+static void gui_window_begin_create_gui(gui_window_data* guiData, HWND parent)
+{
+    struct gui_window_data_res res = guiData->resources;
+    void (*setup_gui)(gui_window_data*, void*) = guiData->setup_gui;
+    void* setup_gui_data = guiData->setup_gui_data;
+
+    *guiData = (struct gui_window_data) { };
+
+    // restore backup... dirty.
+    guiData->resources = res;
+    guiData->setup_gui = setup_gui;
+    guiData->setup_gui_data = setup_gui_data;
+
     guiData->MainWin = parent;
+    guiData->ContainerWin = GetWindow(parent, GW_CHILD);
+    guiData->CurrentFont = guiData->resources.Font;
     guiData->Align = AlignementCenter;
     {
         HWND combobox = CreateWindow(WC_COMBOBOX, "Combobox",
             CBS_DROPDOWNLIST | CBS_HASSTRINGS | WS_CHILD | WS_VISIBLE,
             0, 0, 0, 0,
             parent, NULL, NULL, NULL);
-        SendMessage(combobox, WM_SETFONT, (LPARAM)guiData->Font, true);
+        SendMessage(combobox, WM_SETFONT, (LPARAM)guiData->resources.Font, true);
         RECT rect = { };
         GetWindowRect(combobox, &rect);
         guiData->Cell.H = rect.bottom - rect.top;
@@ -294,34 +356,24 @@ static void InitGUIData(gui_window_data* guiData, HWND parent)
     guiData->Column = 0;
 }
 
-static void DeleteGUIData(gui_window_data* guiData)
-{
-    DeleteFont(guiData->Font);
-    DeleteFont(guiData->FontBold);
-    DeleteBrush(guiData->Background);
-    guiData->Font = NULL;
-    guiData->FontBold = NULL;
-    guiData->Background = NULL;
-}
-
-static void FitParentWindow(const gui_window_data* gui)
+void FitParentWindow(const gui_window_data* gui_data)
 {
     const int center[2] = { GetSystemMetrics(SM_CXSCREEN) / 2, GetSystemMetrics(SM_CYSCREEN) / 2 };
     const RECT client_rect = {
-        center[0] - (WIDTH / 2),
-        center[1] - (gui->Cell.Y / 2),
-        center[0] + (WIDTH / 2),
-        center[1] + (gui->Cell.Y - (gui->Cell.Y / 2))
+        center[0] - (get_client_width(gui_data->MainWin) / 2),
+        center[1] - (gui_data->Cell.Y / 2),
+        center[0] + (get_client_width(gui_data->MainWin) / 2),
+        center[1] + (gui_data->Cell.Y - (gui_data->Cell.Y / 2))
     };
     {
         RECT r = client_rect;
-        AdjustWindowRect(&r, (DWORD)GetWindowLong(gui->MainWin, GWL_STYLE), false);
-        SetWindowPos(gui->MainWin, NULL, r.left, r.top, r.right - r.left, r.bottom - r.top, 0);
+        AdjustWindowRect(&r, (DWORD)GetWindowLong(gui_data->MainWin, GWL_STYLE), false);
+        SetWindowPos(gui_data->MainWin, NULL, r.left, r.top, r.right - r.left, r.bottom - r.top, 0);
     }
     {
         RECT r = client_rect;
-        AdjustWindowRect(&r, (DWORD)GetWindowLong(gui->ContainerWin, GWL_STYLE), false);
-        SetWindowPos(gui->ContainerWin, NULL, 0, 0, r.right - r.left, r.bottom - r.top, 0);
+        AdjustWindowRect(&r, (DWORD)GetWindowLong(gui_data->ContainerWin, GWL_STYLE), false);
+        SetWindowPos(gui_data->ContainerWin, NULL, 0, 0, r.right - r.left, r.bottom - r.top, 0);
     }
 }
 
@@ -395,27 +447,28 @@ static LRESULT container_win_proc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp)
 
 static LRESULT gui_win_proc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp)
 {
-    static gui_window_data guiData = { };
     switch (msg) {
     case WM_DESTROY: {
-        DeleteGUIData(&guiData);
+        gui_window_destroy_resources(&((struct gui_window_data*)get_win_data(hwnd))->resources);
         PostQuitMessage(0);
         return 0;
     }
     case WM_GETMINMAXINFO: {
+        struct gui_window_data* win_data = get_win_data(hwnd);
+        if (!win_data)
+            return 0;
         MINMAXINFO* mmi = (MINMAXINFO*)lp;
-        int h = guiData.Cell.Y;
+        int h = win_data->Cell.Y;
         RECT r = { 0, 0, 0, h };
-        AdjustWindowRect(&r, (DWORD)GetWindowLong(guiData.MainWin, GWL_STYLE), false);
+        AdjustWindowRect(&r, (DWORD)GetWindowLong(win_data->MainWin, GWL_STYLE), false);
         mmi->ptMaxTrackSize.y = r.bottom - r.top;
         return 0;
     }
     case WM_CREATE: {
         struct gui_window_data* win_data = (struct gui_window_data*)((CREATESTRUCT*)lp)->lpCreateParams;
-        SetWindowLongPtr(hwnd, GWLP_USERDATA, (LONG_PTR)win_data);
-        InitGUIData(&guiData, hwnd);
+        set_win_data(hwnd, win_data);
         {
-            guiData.ContainerWin = CreateWindowEx(
+            CreateWindowEx(
                 0,
                 container_class_name,
                 NULL,
@@ -426,14 +479,36 @@ static LRESULT gui_win_proc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp)
                 (HINSTANCE)GetWindowLongPtr(hwnd, GWLP_HINSTANCE),
                 NULL);
         }
-        win_data->setup_gui(&guiData, win_data->setup_gui_data);
-        FitParentWindow(&guiData);
+        gui_window_create_resources(&win_data->resources);
+        gui_window_begin_create_gui(win_data, hwnd);
+        win_data->setup_gui(win_data, win_data->setup_gui_data);
+        SetWindowPos(win_data->ContainerWin, NULL, 0, 0, get_client_width(win_data->MainWin), win_data->Cell.Y, SWP_NOMOVE);
+
+        // FitParentWindow(win_data);
         return 0;
     }
-    case WM_SIZE: {
+    case WM_EXITSIZEMOVE: {
+        struct gui_window_data* win_data = get_win_data(hwnd);
+        SendMessage(hwnd, WM_SETREDRAW, FALSE, 0);
+        HWND child = GetWindow(win_data->ContainerWin, GW_CHILD);
+        while (child) {
+            HWND next = GetWindow(child, GW_HWNDNEXT);
+            DestroyWindow(child);
+            child = next;
+        }
+        gui_window_begin_create_gui(win_data, hwnd);
+        win_data->setup_gui(win_data, win_data->setup_gui_data);
+        SetWindowPos(win_data->ContainerWin, NULL, 0, 0, get_client_width(win_data->MainWin), win_data->Cell.Y, SWP_NOMOVE);
+        SendMessage(hwnd, WM_SETREDRAW, TRUE, 0);
         RECT r = { };
-        GetClientRect(guiData.MainWin, &r);
-        const int content_height = guiData.Cell.Y;
+        GetClientRect(win_data->MainWin, &r);
+        InvalidateRect(win_data->MainWin, &r, true);
+    }
+    case WM_SIZE: {
+        struct gui_window_data* win_data = get_win_data(hwnd);
+        RECT r = { };
+        GetClientRect(win_data->MainWin, &r);
+        const int content_height = win_data->Cell.Y;
         const int win_height = r.bottom - r.top;
         if (content_height < win_height) {
             // ShowScrollBar(hwnd, SB_VERT, FALSE);
@@ -452,15 +527,15 @@ static LRESULT gui_win_proc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp)
         return 0;
     }
     case WM_COMMAND: {
-        struct gui_window_data* userData = (struct gui_window_data*)GetWindowLongPtr(hwnd, GWLP_USERDATA);
-        ApplyBindings(&guiData);
-        ASSERT(userData);
-        if (!userData)
+        struct gui_window_data* win_data = get_win_data(hwnd);
+        ApplyBindings(win_data);
+        ASSERT(win_data);
+        if (!win_data)
             return 0;
         UINT button_id = LOWORD(wp);
         if (HIWORD(wp) == BN_CLICKED)
-            guiData.but_bindings[button_id].fn(guiData.but_bindings[button_id].data);
-        if (guiData.Close)
+            win_data->but_bindings[button_id].fn(win_data->but_bindings[button_id].data);
+        if (win_data->Close)
             PostQuitMessage(0);
         return 0;
     }
@@ -470,11 +545,12 @@ static LRESULT gui_win_proc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp)
         return 0; // (LRESULT)guiData.Background;
     }
     case WM_MOUSEWHEEL: {
+        struct gui_window_data* win_data = get_win_data(hwnd);
         int max = 0;
         {
             RECT r = { };
-            GetClientRect(guiData.MainWin, &r);
-            const int content_height = guiData.Cell.Y;
+            GetClientRect(win_data->MainWin, &r);
+            const int content_height = win_data->Cell.Y;
             const int win_height = r.bottom - r.top;
             if (content_height < win_height) {
                 return 0;
@@ -494,12 +570,13 @@ static LRESULT gui_win_proc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp)
         SetScrollInfo(hwnd, SB_VERT, &si, TRUE);
         {
             RECT r = { };
-            GetWindowRect(guiData.ContainerWin, &r);
-            SetWindowPos(guiData.ContainerWin, NULL, 0, -si.nPos, 0, 0, SWP_NOSIZE);
+            GetWindowRect(win_data->ContainerWin, &r);
+            SetWindowPos(win_data->ContainerWin, NULL, 0, -si.nPos, 0, 0, SWP_NOSIZE);
         }
         return 0;
     }
     case WM_VSCROLL: {
+        struct gui_window_data* win_data = get_win_data(hwnd);
         int action = LOWORD(wp);
         SCROLLINFO si = { 0 };
         si.cbSize = sizeof(si);
@@ -531,8 +608,8 @@ static LRESULT gui_win_proc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp)
         SetScrollInfo(hwnd, SB_VERT, &si, TRUE);
         {
             RECT r = { };
-            GetWindowRect(guiData.ContainerWin, &r);
-            SetWindowPos(guiData.ContainerWin, NULL, 0, -pos, 0, 0, SWP_NOSIZE);
+            GetWindowRect(win_data->ContainerWin, &r);
+            SetWindowPos(win_data->ContainerWin, NULL, 0, -pos, 0, 0, SWP_NOSIZE);
         }
         // redraw your content with this offset
         // InvalidateRect(hwnd, NULL, TRUE);
@@ -606,7 +683,7 @@ static LRESULT key_input_win_proc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp)
                 WS_CHILD | WS_VISIBLE | ES_LEFT | ES_CENTER | ES_NUMBER | WS_BORDER | ES_READONLY,
                 0, 0, w - h, h,
                 hwnd, NULL, instance, NULL);
-            SendMessage(field, WM_SETFONT, (WPARAM)gui->Font, true);
+            SendMessage(field, WM_SETFONT, (WPARAM)gui->resources.Font, true);
             // SendMessage(field, EM_LIMITTEXT, (WPARAM)3, true);
         }
         set_win_data(hwnd, field);
@@ -615,7 +692,7 @@ static LRESULT key_input_win_proc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp)
                 WS_VISIBLE | WS_CHILD | BS_PUSHBUTTON | BS_FLAT,
                 w - h, 0, h, h,
                 hwnd, (HMENU)0, instance, NULL);
-            // SendMessage(button, WM_SETFONT, (WPARAM)guiData->Font, true);
+            // SendMessage(button, WM_SETFONT, (WPARAM)guiData->resources.Font, true);
             // SIZE size = { };
             // Button_GetIdealSize(button, &size);
             // SetWindowPos(button, NULL, C1.X, C1.Y, C1.W, C1.H, 0);
@@ -648,12 +725,12 @@ static LRESULT key_input_win_proc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp)
 
 void SetBoldFont(gui_window_data* gui)
 {
-    gui->CurrentFont = gui->FontBold;
+    gui->CurrentFont = gui->resources.FontBold;
 }
 
 void SetNormalFont(gui_window_data* gui)
 {
-    gui->CurrentFont = gui->Font;
+    gui->CurrentFont = gui->resources.Font;
 }
 
 void AlignLeft(gui_window_data* gui)
@@ -739,7 +816,7 @@ void GUIWindow(void (*setupGUI)(gui_window_data*, void*),
     CreateWindow(
         className, className,
         win_style,
-        0, 0, 0, 0,
+        0, 0, 400, 600,
         NULL, NULL, instance, (LPVOID)&win_data);
 
     MSG msg = { };

@@ -18,7 +18,7 @@ static void ApplyButton(void* userData)
     RestartAAS();
 }
 
-static void SetupGUI(gui_window_data* gui, void* userData)
+static void SetupGUI(GUIData* gui, void* userData)
 {
     Config* cfg = (Config*)userData;
 
