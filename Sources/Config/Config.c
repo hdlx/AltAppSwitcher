@@ -162,6 +162,7 @@ void DefaultConfig(Config* config)
     config->RestoreMinimizedWindows = true;
     config->DesktopFilter = DesktopFilterCurrent;
     config->IconsPerRow = 0;
+    config->AskForElevation = true;
 }
 
 // Init config from old (non json) file.
@@ -363,6 +364,7 @@ void LoadConfig(Config* config)
     JSONReadBool(j, "allow_mouse", &config->Mouse);
     JSONReadBool(j, "mouse_keyboard_common_selection", &config->MouseKbCommonSel);
     JSONReadBool(j, "check_for_updates", &config->CheckForUpdates);
+    JSONReadBool(j, "ask_for_elevation", &config->AskForElevation);
 
     JSONReadFloat(j, "scale", &config->Scale);
 
@@ -393,6 +395,7 @@ void WriteConfig(const Config* config)
     JSONWriteBool(j, "allow_mouse", config->Mouse);
     JSONWriteBool(j, "mouse_keyboard_common_selection", config->MouseKbCommonSel);
     JSONWriteBool(j, "check_for_updates", config->CheckForUpdates);
+    JSONWriteBool(j, "ask_for_elevation", config->AskForElevation);
 
     JSONWriteFloat(j, "scale", config->Scale);
 

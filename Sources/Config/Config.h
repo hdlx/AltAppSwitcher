@@ -58,6 +58,7 @@ typedef struct Config {
     bool RestoreMinimizedWindows;
     DesktopFilter DesktopFilter;
     int IconsPerRow;
+    bool AskForElevation;
 } Config;
 
 typedef struct EnumString {

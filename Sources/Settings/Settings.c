@@ -94,6 +94,8 @@ static void SetupGUI(gui_window_data* gui, void* userData)
     CreateText("Desktop filter:", "", gui);
     CreateComboBox("",
         &cfg->DesktopFilter, desktopFilterES, gui);
+    CreateText("Ask for elevation", "", gui);
+    CreateBoolControl("", &cfg->AskForElevation, gui);
 
     GridLayout(1, gui);
     CreateButton("Apply", gui, ApplyButton, (void*)cfg);

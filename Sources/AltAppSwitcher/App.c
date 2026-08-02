@@ -268,6 +268,44 @@ int StartAltAppSwitcher(HINSTANCE instance)
         }
         AAS_MSG("Get elevation()");
 
+        if (!appData.Elevated && appData.Config.AskForElevation) {
+            TASKDIALOGCONFIG config = { .cbSize = sizeof(TASKDIALOGCONFIG) };
+            TASKDIALOG_BUTTON buttons[] = {
+                { IDYES, L"Yes" },
+                { IDNO, L"No" }
+            };
+            config.dwCommonButtons = 0;
+            config.pButtons = buttons;
+            config.cButtons = 2;
+            config.pszWindowTitle = L"AltAppSwitcher";
+            config.pszMainInstruction = L"AltAppSwitcher is launching with limited rights and"
+                                        L" won't be able to manipulate elevated process.\n"
+                                        L"We recommand launching AltAppSwitcher as administrator.\n"
+                                        L"Launch as administator?";
+            config.pszVerificationText = L"Do not ask again";
+            int button;
+            BOOL checkbox;
+            TaskDialogIndirect(&config, &button, NULL, &checkbox);
+            if (checkbox) {
+                appData.Config.AskForElevation = false;
+                WriteConfig(&appData.Config);
+            }
+            if (button == IDYES) {
+                char currentExe[MAX_PATH] = { };
+                GetModuleFileName(NULL, currentExe, MAX_PATH);
+                SHELLEXECUTEINFOA sei = { };
+                sei.cbSize = sizeof(sei);
+                sei.fMask = SEE_MASK_NOCLOSEPROCESS;
+                sei.lpVerb = "runas";
+                sei.lpFile = currentExe;
+                sei.lpParameters = "";
+                sei.nShow = SW_SHOWNORMAL;
+                if (ShellExecuteEx(&sei)) {
+                    return 0;
+                }
+            }
+        }
+
         char updater[MAX_PATH] = { };
         UpdaterPath(updater);
         if (appData.Config.CheckForUpdates && access(updater, F_OK) == 0) {
@@ -392,10 +430,8 @@ int StartAltAppSwitcher(HINSTANCE instance)
     if (restartAAS) {
         STARTUPINFO si = { };
         PROCESS_INFORMATION pi = { };
-
         char currentExe[MAX_PATH] = { };
         GetModuleFileName(NULL, currentExe, MAX_PATH);
-
         CreateProcess(NULL, currentExe, 0, 0, false, CREATE_NEW_PROCESS_GROUP, 0, 0,
             &si, &pi);
     }
