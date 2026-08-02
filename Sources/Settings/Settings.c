@@ -11,37 +11,53 @@
 
 #define APPLY_BUTTON_ID 1993
 
-static void SetupGUI(GUIData* gui, void* userData)
+static void ApplyButton(void* userData)
+{
+    Config* cfg = (Config*)userData;
+    WriteConfig(cfg);
+    RestartAAS();
+}
+
+static void SetupGUI(gui_window_data* gui, void* userData)
 {
     Config* cfg = (Config*)userData;
 
     LoadConfig(cfg);
 
     GridLayout(1, gui);
+    SetBoldFont(gui);
     CreateText("Key bindings:", "", gui);
 
-    GridLayout(4, gui);
+    GridLayout(2, gui);
+    SetNormalFont(gui);
+
     CreateText("App hold", "", gui);
-    CreateComboBox("", &cfg->Key.AppHold, keyES, gui);
+    CreateKeyInputField(gui, &cfg->Key.AppHold);
+
     CreateText("App switch", "", gui);
-    CreateComboBox("", &cfg->Key.AppSwitch, keyES, gui);
+    CreateKeyInputField(gui, &cfg->Key.AppSwitch);
+
     CreateText("Win hold", "", gui);
-    CreateComboBox("", &cfg->Key.WinHold, keyES, gui);
+    CreateKeyInputField(gui, &cfg->Key.WinHold);
+
     CreateText("Win switch", "", gui);
-    CreateComboBox("", &cfg->Key.WinSwitch, keyES, gui);
+    CreateKeyInputField(gui, &cfg->Key.WinSwitch);
+
     CreateText("Invert", "", gui);
-    CreateComboBox("", &cfg->Key.Invert, keyES, gui);
+    CreateKeyInputField(gui, &cfg->Key.Invert);
+
     CreateText("Previous app", "", gui);
-    CreateComboBox("", &cfg->Key.PrevApp, keyES, gui);
+    CreateKeyInputField(gui, &cfg->Key.PrevApp);
+
     CreateText("App close", "", gui);
-    CreateComboBox("", &cfg->Key.AppClose, keyES, gui);
-    CreateText("", "", gui);
-    CreateText("", "", gui);
+    CreateKeyInputField(gui, &cfg->Key.AppClose);
 
     GridLayout(1, gui);
+    SetBoldFont(gui);
     CreateText("Graphic options:", "", gui);
 
     GridLayout(2, gui);
+    SetNormalFont(gui);
     CreateText("Theme:", "Color scheme. \"Auto\" to match system's.", gui);
     CreateComboBox("", &cfg->ThemeMode, themeES, gui);
     CreateText("Scale (\%):", "Scale controls icon size, expressed as percentage, 100 being Windows default icon size.", gui);
@@ -58,9 +74,11 @@ static void SetupGUI(GUIData* gui, void* userData)
         &cfg->IconsPerRow, gui);
 
     GridLayout(1, gui);
+    SetBoldFont(gui);
     CreateText("Other:", "", gui);
 
     GridLayout(2, gui);
+    SetNormalFont(gui);
     CreateText("Mouse:", "Allow selecting entry by clicking on the UI.", gui);
     CreateBoolControl("", &cfg->Mouse, gui);
     CreateText("Single selection tile:", "Mouse and keyboard use the same selection tile (MacOS-style)", gui);
@@ -78,21 +96,7 @@ static void SetupGUI(GUIData* gui, void* userData)
         &cfg->DesktopFilter, desktopFilterES, gui);
 
     GridLayout(1, gui);
-    CreateButton("Apply", (HMENU)APPLY_BUTTON_ID, gui);
-}
-
-static void ButtonMessage(UINT buttonID, GUIData* guiData, void* userData)
-{
-    switch (buttonID) {
-    case APPLY_BUTTON_ID: {
-        Config* cfg = (Config*)userData;
-        ApplyBindings(guiData);
-        WriteConfig(cfg);
-        RestartAAS();
-    }
-    default:
-        break;
-    }
+    CreateButton("Apply", gui, ApplyButton, (void*)cfg);
 }
 
 int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int nShowCmd) // NOLINT
@@ -104,6 +108,6 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
     char title[260];
     int a = sprintf_s(title, sizeof(title), "AAS settings - v%u.%u", AAS_MAJOR, AAS_MINOR);
     ASSERT(a > 0);
-    GUIWindow(SetupGUI, ButtonMessage, (void*)&config, hInstance, title);
+    GUIWindow(SetupGUI, (void*)&config, hInstance, title);
     return 0;
 }

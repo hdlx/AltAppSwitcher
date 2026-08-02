@@ -1,22 +1,22 @@
 #include <windef.h>
 #include <stdbool.h>
 typedef struct EnumString EnumString;
-typedef struct GUIData GUIData;
-HWND CreateText(const char* text, const char* tooltip, GUIData* guiData);
-void CreatePercentField(const char* tooltip, float* value, GUIData* guiData);
-void CreateIntField(const char* tooltip, int* value, GUIData* guiData);
-void CreateComboBox(const char* tooltip, unsigned int* value, const EnumString* enumStrings, GUIData* guiData);
-HWND CreateButton(const char* text, HMENU ID, GUIData* guiData);
-void CreateBoolControl(const char* tooltip, bool* value, GUIData* guiData);
-void GridLayout(int columns, GUIData* guiData);
-void ApplyBindings(const GUIData* guiData);
-void GUIWindow(void (*setupGUI)(GUIData*, void*),
-    void (*buttonMessage)(UINT, GUIData*, void*),
+typedef struct gui_window_data gui_window_data;
+HWND CreateText(const char* text, const char* tooltip, gui_window_data* guiData);
+void CreatePercentField(const char* tooltip, float* value, gui_window_data* guiData);
+void CreateIntField(const char* tooltip, int* value, gui_window_data* guiData);
+void CreateComboBox(const char* tooltip, unsigned int* value, const EnumString* enumStrings, gui_window_data* guiData);
+HWND CreateKeyInputField(gui_window_data* guiData, unsigned int* target);
+HWND CreateButton(const char* text, gui_window_data* guiData, void (*fn)(void*), void* data);
+void CreateBoolControl(const char* tooltip, bool* value, gui_window_data* guiData);
+void GridLayout(int columns, gui_window_data* guiData);
+void ApplyBindings(const gui_window_data* guiData);
+void GUIWindow(void (*setupGUI)(gui_window_data*, void*),
     void* userAppData,
     HANDLE instance, const char* className);
-void SetBoldFont(GUIData* gui);
-void SetNormalFont(GUIData* gui);
-void AlignLeft(GUIData* gui);
-void AlignCenter(GUIData* gui);
-void WhiteSpace(GUIData* gui);
-void CloseGUI(GUIData* gui);
+void SetBoldFont(gui_window_data* gui);
+void SetNormalFont(gui_window_data* gui);
+void AlignLeft(gui_window_data* gui);
+void AlignCenter(gui_window_data* gui);
+void WhiteSpace(gui_window_data* gui);
+void CloseGUI(gui_window_data* gui);

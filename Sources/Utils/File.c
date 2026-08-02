@@ -124,7 +124,7 @@ void ConfigPath(char* outPath)
     char currentExe[MAX_PATH] = { };
     GetModuleFileName(NULL, currentExe, MAX_PATH);
     ParentDir(currentExe, outPath);
-    strcat_s(outPath, sizeof(char) * MAX_PATH, "/AltAppSwitcherConfig.txt");
+    strcat_s(outPath, sizeof(char) * MAX_PATH, "/AltAppSwitcherConfig.json");
 }
 
 void LogPath(char* outPath)

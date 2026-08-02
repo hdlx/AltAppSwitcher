@@ -4,27 +4,33 @@
 #include <Winuser.h>
 #include <stdlib.h>
 #include <debugapi.h>
+#include <cJSON/cJSON.h>
+#include <errno.h>
+#include <string.h>
 #include "Utils/Error.h"
 #include "Utils/File.h"
 
 #define AAS_NONE_VK 0xFFFFFFFE
 #define VK_Q (0x51)
+// New scan code - old config name
+// For retrocompat
+// And maybe later for nice name display
 const EnumString keyES[17] = {
-    { "left alt", VK_LMENU },
-    { "right alt", VK_RMENU },
-    { "alt", VK_MENU },
-    { "tilde", VK_OEM_3 }, // Scan code 41
-    { "left windows", VK_LWIN },
-    { "right windows", VK_RWIN },
-    { "right super", VK_RWIN },
-    { "left super", VK_LWIN },
-    { "left control", VK_LCONTROL },
-    { "right control", VK_RCONTROL },
-    { "left shift", VK_LSHIFT },
-    { "right shift", VK_RSHIFT },
-    { "tab", VK_TAB },
-    { "q", VK_Q },
-    { "f4", VK_F4 },
+    { "left alt", 56 },
+    { "right alt", 312 },
+    { "alt", 56 },
+    { "tilde", 41 },
+    { "left windows", 347 },
+    { "right windows", 348 },
+    { "right super", 347 },
+    { "left super", 348 },
+    { "left control", 29 },
+    { "right control", 285 },
+    { "left shift", 42 },
+    { "right shift", 54 },
+    { "tab", 15 },
+    { "q", 30 },
+    { "f4", 64 },
     { "none", AAS_NONE_VK },
     { "end", 0xFFFFFFFF },
 };
@@ -81,7 +87,7 @@ static unsigned int Find(const StrPair* keyValues, const char* key)
     return 0xFFFFFFFF;
 }
 
-static bool TryGetBool(const StrPair* keyValues, const char* token, bool* boolToSet)
+static bool GetBoolOld(const StrPair* keyValues, const char* token, bool* boolToSet)
 {
     unsigned int entry = Find(keyValues, token);
     if (entry == 0xFFFFFFFF) {
@@ -98,7 +104,7 @@ static bool TryGetBool(const StrPair* keyValues, const char* token, bool* boolTo
     return false;
 }
 
-static bool TryGetFloat(const StrPair* keyValues, const char* token, float* floatToSet)
+static bool GetFloatOld(const StrPair* keyValues, const char* token, float* floatToSet)
 {
     unsigned int entry = Find(keyValues, token);
     if (entry == 0xFFFFFFFF) {
@@ -108,7 +114,7 @@ static bool TryGetFloat(const StrPair* keyValues, const char* token, float* floa
     return true;
 }
 
-static bool TryGetInt(const StrPair* keyValues, const char* token, int* intToSet)
+static bool GetIntOld(const StrPair* keyValues, const char* token, int* intToSet)
 {
     unsigned int entry = Find(keyValues, token);
     if (entry == 0xFFFFFFFF) {
@@ -118,16 +124,16 @@ static bool TryGetInt(const StrPair* keyValues, const char* token, int* intToSet
     return true;
 }
 
-static bool TryGetEnum(const StrPair* keyValues, const char* token,
+static bool GetEnumOld(const StrPair* keyValues, const char* token,
     unsigned int* outValue, const EnumString* enumStrings)
 {
     unsigned int entry = Find(keyValues, token);
     if (entry == 0xFFFFFFFF) {
         return false;
     }
-    for (unsigned int i = 0; enumStrings[i].Value != 0xFFFFFFFF; i++) {
-        if (!strcmp(keyValues[entry].Value, enumStrings[i].Name)) {
-            *outValue = enumStrings[i].Value;
+    for (unsigned int i = 0; enumStrings[i].ValUInt != 0xFFFFFFFF; i++) {
+        if (!strcmp(keyValues[entry].Value, enumStrings[i].ValStr)) {
+            *outValue = enumStrings[i].ValUInt;
             return true;
         }
     }
@@ -137,13 +143,13 @@ static bool TryGetEnum(const StrPair* keyValues, const char* token,
 
 void DefaultConfig(Config* config)
 {
-    config->Key.AppHold = VK_LMENU;
-    config->Key.AppSwitch = VK_TAB;
-    config->Key.WinHold = VK_LMENU;
-    config->Key.WinSwitch = VK_OEM_3;
-    config->Key.Invert = VK_LSHIFT;
-    config->Key.PrevApp = VK_OEM_3;
-    config->Key.AppClose = VK_Q;
+    config->Key.AppHold = 56;
+    config->Key.AppSwitch = 15;
+    config->Key.WinHold = 56;
+    config->Key.WinSwitch = 41;
+    config->Key.Invert = 42;
+    config->Key.PrevApp = 41;
+    config->Key.AppClose = 30;
     config->Mouse = true;
     config->MouseKbCommonSel = false;
     config->CheckForUpdates = true;
@@ -158,25 +164,33 @@ void DefaultConfig(Config* config)
     config->IconsPerRow = 0;
 }
 
-void LoadConfig(Config* config)
+// Init config from old (non json) file.
+// If not found, lead config untouched.
+static void ReadConfigOld(Config* config)
 {
     DefaultConfig(config);
     char configFile[MAX_PATH] = { };
-    ConfigPath(configFile);
+    // Old cfg file
+    {
+        configFile[0] = '\0';
+        char currentExe[MAX_PATH] = { };
+        GetModuleFileName(NULL, currentExe, MAX_PATH);
+        ParentDir(currentExe, configFile);
+        strcat_s(configFile, sizeof(char) * MAX_PATH, "/AltAppSwitcherConfig.txt");
+    }
     FILE* file = fopen(configFile, "rb");
     if (file == NULL) {
-        WriteConfig(config);
         return;
     }
 
 #define GET_ENUM(ENTRY, DST, ENUM_STRING) \
-    TryGetEnum(keyValues, ENTRY, &(DST), ENUM_STRING)
+    GetEnumOld(keyValues, ENTRY, &(DST), ENUM_STRING)
 
 #define GET_BOOL(ENTRY, DST) \
-    TryGetBool(keyValues, ENTRY, &(DST))
+    GetBoolOld(keyValues, ENTRY, &(DST))
 
 #define GET_FLOAT(ENTRY, DST) \
-    TryGetFloat(keyValues, ENTRY, &(DST))
+    GetFloatOld(keyValues, ENTRY, &(DST))
 
     static StrPair keyValues[32] = { };
 
@@ -220,89 +234,187 @@ void LoadConfig(Config* config)
 
     GET_FLOAT("scale", config->Scale);
 
-    TryGetInt(keyValues, "icons per row", &config->IconsPerRow);
-
+    GetIntOld(keyValues, "icons per row", &config->IconsPerRow);
 #undef GET_ENUM
 #undef GET_BOOL
 #undef GET_FLOAT
 }
 
-static void WriteEnum(FILE* file, const char* entry,
-    unsigned int value, const EnumString* enumStrings)
+static void JSONReadEnum(const cJSON* parentObj, const char* key,
+    unsigned int* outValue, const EnumString* enumStrings)
 {
-    for (unsigned int i = 0; enumStrings[i].Value != 0xFFFFFFFF; i++) {
-        if (enumStrings[i].Value == value) {
-            size_t a = fprintf_s(file, "%s: %s\n", entry, enumStrings[i].Name);
-            (void)a;
+    const cJSON* obj = cJSON_GetObjectItem(parentObj, key);
+    if (!obj || !cJSON_IsString(obj))
+        return;
+    const EnumString* es = enumStrings;
+    const char* valueStr = cJSON_GetStringValue(obj);
+    while (es->ValUInt != 0xFFFFFFFF) {
+        if (!strcmp(es->ValStr, valueStr)) {
+            *outValue = es->ValUInt;
             return;
         }
+        es++;
     }
-    ASSERT(false)
 }
 
-static void WriteBool(FILE* file, const char* entry, bool value)
+static void JSONReadBool(const cJSON* parentObj, const char* key,
+    bool* outValue)
 {
-    size_t a = fprintf_s(file, "%s: %s\n", entry, value ? "true" : "false");
-    ASSERT(a > 0);
+    const cJSON* obj = cJSON_GetObjectItem(parentObj, key);
+    if (!obj || !cJSON_IsBool(obj))
+        return;
+    *outValue = cJSON_IsTrue(obj);
 }
 
-static void WriteFloat(FILE* file, const char* entry, float value)
+static void JSONReadFloat(const cJSON* parentObj, const char* key,
+    float* outValue)
 {
-    size_t a = fprintf_s(file, "%s: %f\n", entry, value);
-    ASSERT(a > 0);
+    const cJSON* obj = cJSON_GetObjectItem(parentObj, key);
+    if (!obj || !cJSON_IsNumber(obj))
+        return;
+    *outValue = (float)cJSON_GetNumberValue(obj);
 }
 
-static void WriteInt(FILE* file, const char* entry, int value)
+static void JSONReadInt(const cJSON* parentObj, const char* key,
+    int* outValue)
 {
-    size_t a = fprintf_s(file, "%s: %i\n", entry, value);
-    ASSERT(a > 0);
+    const cJSON* obj = cJSON_GetObjectItem(parentObj, key);
+    if (!obj || !cJSON_IsNumber(obj))
+        return;
+    *outValue = (int)cJSON_GetNumberValue(obj);
+}
+
+static void JSONWriteEnum(cJSON* parentObj, const char* key,
+    unsigned int inValue, const EnumString* enumStrings)
+{
+    const EnumString* es = enumStrings;
+    while (es->ValUInt != 0xFFFFFFFF) {
+        if (es->ValUInt == inValue) {
+            cJSON_AddStringToObject(parentObj, key, es->ValStr);
+            return;
+        }
+        es++;
+    }
+}
+
+static void JSONWriteFloat(cJSON* parentObj, const char* key,
+    float inValue)
+{
+    cJSON_AddNumberToObject(parentObj, key, inValue);
+}
+
+static void JSONWriteInt(cJSON* parentObj, const char* key,
+    int inValue)
+{
+    cJSON_AddNumberToObject(parentObj, key, inValue);
+}
+
+static void JSONWriteBool(cJSON* parentObj, const char* key,
+    bool inValue)
+{
+    cJSON_AddBoolToObject(parentObj, key, inValue);
+}
+
+void LoadConfig(Config* config)
+{
+    DefaultConfig(config);
+    char configFile[MAX_PATH] = { };
+    ConfigPath(configFile);
+    FILE* file = fopen(configFile, "rb");
+    if (file == NULL) {
+        ReadConfigOld(config);
+        WriteConfig(config);
+        return;
+    }
+    cJSON* j = NULL;
+    {
+        (void)fseek(file, 0, SEEK_END);
+        long size = ftell(file);
+        char* data = malloc(sizeof(char) * size);
+        (void)fseek(file, 0, SEEK_SET);
+        long readSize = (long)fread(data, sizeof(char), size, file);
+        ASSERT(size == readSize);
+        j = cJSON_ParseWithLength(data, readSize);
+        ASSERT(j != NULL);
+        free(data);
+    }
+    {
+        int r = fclose(file);
+        ASSERT(r == 0);
+    }
+
+    JSONReadInt(j, "app_hold_key", (int*)&config->Key.AppHold);
+    JSONReadInt(j, "next_app_key", (int*)&config->Key.AppSwitch);
+    JSONReadInt(j, "window_hold_key", (int*)&config->Key.WinHold);
+    JSONReadInt(j, "next_window_key", (int*)&config->Key.WinSwitch);
+    JSONReadInt(j, "invert_order_key", (int*)&config->Key.Invert);
+    JSONReadInt(j, "previous_app_key", (int*)&config->Key.PrevApp);
+    JSONReadInt(j, "close_app_key", (int*)&config->Key.AppClose);
+
+    JSONReadEnum(j, "theme", &config->ThemeMode, themeES);
+    JSONReadEnum(j, "app_switcher_mode", &config->AppSwitcherMode, appSwitcherModeES);
+    JSONReadEnum(j, "display_name", &config->DisplayName, displayNameES);
+    JSONReadEnum(j, "multiple_monitor_mode", &config->MultipleMonitorMode, multipleMonitorModeES);
+    JSONReadEnum(j, "app_filter_mode", &config->AppFilterMode, appFilterModeES);
+    JSONReadEnum(j, "desktop_filter", &config->DesktopFilter, desktopFilterES);
+
+    JSONReadBool(j, "restore minimized windows", &config->RestoreMinimizedWindows);
+
+    JSONReadBool(j, "allow_mouse", &config->Mouse);
+    JSONReadBool(j, "mouse_keyboard_common_selection", &config->MouseKbCommonSel);
+    JSONReadBool(j, "check_for_updates", &config->CheckForUpdates);
+
+    JSONReadFloat(j, "scale", &config->Scale);
+
+    JSONReadInt(j, "icons_per_row", &config->IconsPerRow);
 }
 
 void WriteConfig(const Config* config)
 {
-    char configFile[MAX_PATH] = { };
-    ConfigPath(configFile);
-    FILE* file = fopen(configFile, "w");
-    ASSERT(file);
-    if (!file)
-        return;
+    cJSON* j = cJSON_CreateObject();
 
-#define WRITE_ENUM(ENTRY, VALUE, ENUM_STRING) \
-    WriteEnum(file, ENTRY, VALUE, ENUM_STRING)
+    JSONWriteInt(j, "app_hold_key", (int)config->Key.AppHold);
+    JSONWriteInt(j, "next_app_key", (int)config->Key.AppSwitch);
+    JSONWriteInt(j, "window_hold_key", (int)config->Key.WinHold);
+    JSONWriteInt(j, "next_window_key", (int)config->Key.WinSwitch);
+    JSONWriteInt(j, "invert_order_key", (int)config->Key.Invert);
+    JSONWriteInt(j, "previous_app_key", (int)config->Key.PrevApp);
+    JSONWriteInt(j, "close_app_key", (int)config->Key.AppClose);
 
-#define WRITE_BOOL(ENTRY, VALUE) \
-    WriteBool(file, ENTRY, VALUE)
+    JSONWriteEnum(j, "theme", config->ThemeMode, themeES);
+    JSONWriteEnum(j, "app_switcher_mode", config->AppSwitcherMode, appSwitcherModeES);
+    JSONWriteEnum(j, "display_name", config->DisplayName, displayNameES);
+    JSONWriteEnum(j, "multiple_monitor_ mode", config->MultipleMonitorMode, multipleMonitorModeES);
+    JSONWriteEnum(j, "app_filter_mode", config->AppFilterMode, appFilterModeES);
+    JSONWriteEnum(j, "desktop_filter", config->DesktopFilter, desktopFilterES);
 
-#define WRITE_FLOAT(ENTRY, VALUE) \
-    WriteFloat(file, ENTRY, VALUE)
+    JSONWriteBool(j, "restore_minimized_windows", config->RestoreMinimizedWindows);
 
-    WRITE_ENUM("app hold key", config->Key.AppHold, keyES);
-    WRITE_ENUM("next app key", config->Key.AppSwitch, keyES);
-    WRITE_ENUM("window hold key", config->Key.WinHold, keyES);
-    WRITE_ENUM("next window key", config->Key.WinSwitch, keyES);
-    WRITE_ENUM("invert order key", config->Key.Invert, keyES);
-    WRITE_ENUM("previous app key", config->Key.PrevApp, keyES);
-    WRITE_ENUM("close app key", config->Key.AppClose, keyES);
-    WRITE_ENUM("theme", config->ThemeMode, themeES);
-    WRITE_ENUM("app switcher mode", config->AppSwitcherMode, appSwitcherModeES);
-    WRITE_ENUM("display name", config->DisplayName, displayNameES);
-    WRITE_ENUM("multiple monitor mode", config->MultipleMonitorMode, multipleMonitorModeES);
-    WRITE_ENUM("app filter mode", config->AppFilterMode, appFilterModeES);
-    WRITE_ENUM("desktop filter", config->DesktopFilter, desktopFilterES);
-    WRITE_BOOL("restore minimized windows", config->RestoreMinimizedWindows);
+    JSONWriteBool(j, "allow_mouse", config->Mouse);
+    JSONWriteBool(j, "mouse_keyboard_common_selection", config->MouseKbCommonSel);
+    JSONWriteBool(j, "check_for_updates", config->CheckForUpdates);
 
-    WRITE_BOOL("allow mouse", config->Mouse);
-    WRITE_BOOL("mouse keyboard common selection", config->MouseKbCommonSel);
-    WRITE_BOOL("check for updates", config->CheckForUpdates);
+    JSONWriteFloat(j, "scale", config->Scale);
 
-    WRITE_FLOAT("scale", config->Scale);
+    JSONWriteInt(j, "icons_per_row", config->IconsPerRow);
 
-    WriteInt(file, "icons per row", config->IconsPerRow);
+    char* jsonstr = cJSON_Print(j);
 
-    const int r = fclose(file);
-    ASSERT(r == 0);
+    {
+        char configFile[MAX_PATH] = { };
+        ConfigPath(configFile);
+        FILE* file = fopen(configFile, "w");
+        ASSERT(file);
+        {
+            int r = fputs(jsonstr, file);
+            ASSERT(r == 0);
+        }
+        {
+            int r = fclose(file);
+            ASSERT(r == 0);
+        }
+    }
 
-#undef WRITE_ENUM
-#undef WRITE_BOOL
-#undef WRITE_FLOAT
+    cJSON_free(jsonstr);
+    cJSON_Delete(j);
 }
