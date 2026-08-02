@@ -25,45 +25,39 @@ static void SetupGUI(gui_window_data* gui, void* userData)
     LoadConfig(cfg);
 
     GridLayout(1, gui);
+    SetBoldFont(gui);
     CreateText("Key bindings:", "", gui);
 
-    GridLayout(3, gui);
+    GridLayout(2, gui);
+    SetNormalFont(gui);
 
     CreateText("App hold", "", gui);
     CreateKeyInputField(gui, &cfg->Key.AppHold);
-    CreateText("Dummy name", "", gui);
 
     CreateText("App switch", "", gui);
     CreateKeyInputField(gui, &cfg->Key.AppSwitch);
-    CreateText("Dummy name", "", gui);
 
     CreateText("Win hold", "", gui);
     CreateKeyInputField(gui, &cfg->Key.WinHold);
-    CreateText("Dummy name", "", gui);
 
     CreateText("Win switch", "", gui);
     CreateKeyInputField(gui, &cfg->Key.WinSwitch);
-    CreateText("Dummy name", "", gui);
 
     CreateText("Invert", "", gui);
     CreateKeyInputField(gui, &cfg->Key.Invert);
-    CreateText("Dummy name", "", gui);
 
     CreateText("Previous app", "", gui);
     CreateKeyInputField(gui, &cfg->Key.PrevApp);
-    CreateText("Dummy name", "", gui);
 
     CreateText("App close", "", gui);
     CreateKeyInputField(gui, &cfg->Key.AppClose);
-    CreateText("Dummy name", "", gui);
-
-    CreateText("", "", gui);
-    CreateText("", "", gui);
 
     GridLayout(1, gui);
+    SetBoldFont(gui);
     CreateText("Graphic options:", "", gui);
 
     GridLayout(2, gui);
+    SetNormalFont(gui);
     CreateText("Theme:", "Color scheme. \"Auto\" to match system's.", gui);
     CreateComboBox("", &cfg->ThemeMode, themeES, gui);
     CreateText("Scale (\%):", "Scale controls icon size, expressed as percentage, 100 being Windows default icon size.", gui);
@@ -80,9 +74,11 @@ static void SetupGUI(gui_window_data* gui, void* userData)
         &cfg->IconsPerRow, gui);
 
     GridLayout(1, gui);
+    SetBoldFont(gui);
     CreateText("Other:", "", gui);
 
     GridLayout(2, gui);
+    SetNormalFont(gui);
     CreateText("Mouse:", "Allow selecting entry by clicking on the UI.", gui);
     CreateBoolControl("", &cfg->Mouse, gui);
     CreateText("Single selection tile:", "Mouse and keyboard use the same selection tile (MacOS-style)", gui);

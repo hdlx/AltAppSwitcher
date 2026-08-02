@@ -89,6 +89,21 @@ struct gui_window_data {
     void* setup_gui_data;
 };
 
+static void aas_scan_to_nice_name(char* out_str, unsigned int sizeof_str, unsigned int aas_scan)
+{
+    UINT scan = aas_scan & 0xFF;
+    UINT extended = aas_scan >> 8;
+    // Built win expected scan + ext format
+    LONG lp = (LONG)(scan & 0xFF) << 16;
+    if (extended)
+        lp |= 1 << 24;
+    char key_name[128] = "";
+    GetKeyNameText(lp, key_name, 128);
+    for (char* c = key_name; *c != '\0'; c++)
+        *c = (char)tolower((int)*c);
+    (void)sprintf_s(out_str, sizeof_str, "%s (%u%s)", key_name, scan, extended ? "e" : "");
+}
+
 static void* get_create_param(LPARAM lp)
 {
     return ((CREATESTRUCT*)lp)->lpCreateParams;
@@ -300,11 +315,11 @@ static void gui_window_create_resources(struct gui_window_data_res* res)
     NONCLIENTMETRICS metrics = { };
     metrics.cbSize = sizeof(metrics);
     SystemParametersInfo(SPI_GETNONCLIENTMETRICS, metrics.cbSize, &metrics, 0);
-    metrics.lfCaptionFont.lfHeight = (LONG)((float)metrics.lfCaptionFont.lfHeight * 1.2f);
-    metrics.lfCaptionFont.lfWidth = (LONG)((float)metrics.lfCaptionFont.lfWidth * 1.2f);
-    res->Font = CreateFontIndirect(&metrics.lfCaptionFont);
-    LOGFONT title = metrics.lfCaptionFont;
-    title.lfWeight = FW_SEMIBOLD;
+    metrics.lfMessageFont.lfHeight = (LONG)((float)metrics.lfCaptionFont.lfHeight * 1.2f);
+    metrics.lfMessageFont.lfWidth = 0;
+    res->Font = CreateFontIndirect(&metrics.lfMessageFont);
+    LOGFONT title = metrics.lfMessageFont;
+    title.lfWeight = FW_BOLD;
     res->FontBold = CreateFontIndirect(&title);
 }
 
@@ -356,13 +371,13 @@ static void gui_window_begin_create_gui(gui_window_data* guiData, HWND parent)
     guiData->Column = 0;
 }
 
-void FitParentWindow(const gui_window_data* gui_data)
+static void fit_window(const gui_window_data* gui_data)
 {
     const int center[2] = { GetSystemMetrics(SM_CXSCREEN) / 2, GetSystemMetrics(SM_CYSCREEN) / 2 };
     const RECT client_rect = {
         center[0] - (get_client_width(gui_data->MainWin) / 2),
         center[1] - (gui_data->Cell.Y / 2),
-        center[0] + (get_client_width(gui_data->MainWin) / 2),
+        center[0] + (get_client_width(gui_data->MainWin) - get_client_width(gui_data->MainWin) / 2),
         center[1] + (gui_data->Cell.Y - (gui_data->Cell.Y / 2))
     };
     {
@@ -370,11 +385,11 @@ void FitParentWindow(const gui_window_data* gui_data)
         AdjustWindowRect(&r, (DWORD)GetWindowLong(gui_data->MainWin, GWL_STYLE), false);
         SetWindowPos(gui_data->MainWin, NULL, r.left, r.top, r.right - r.left, r.bottom - r.top, 0);
     }
-    {
-        RECT r = client_rect;
-        AdjustWindowRect(&r, (DWORD)GetWindowLong(gui_data->ContainerWin, GWL_STYLE), false);
-        SetWindowPos(gui_data->ContainerWin, NULL, 0, 0, r.right - r.left, r.bottom - r.top, 0);
-    }
+}
+
+static void fit_container(const gui_window_data* gui_data)
+{
+    SetWindowPos(gui_data->ContainerWin, NULL, 0, 0, get_client_width(gui_data->MainWin), gui_data->Cell.Y, SWP_NOMOVE);
 }
 
 static const char key_input_class_name[] = "key_input_ctrl";
@@ -423,8 +438,8 @@ void ApplyBindings(const gui_window_data* guiData)
         *((DWORD*)text) = 3;
         HWND field = get_win_data(bd->key_input_control);
         ASSERT(field);
-        SendMessage(field, (UINT)EM_GETLINE, (WPARAM)0, (LPARAM)text);
-        *bd->target_value = (int)strtol(text, NULL, 10);
+        unsigned int x = (UINT64)get_win_data(field);
+        *bd->target_value = x;
     }
 }
 
@@ -437,8 +452,11 @@ static LRESULT container_win_proc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp)
         HWND parent = GetParent(hwnd);
         SendMessage(parent, WM_COMMAND, wParam, (LPARAM)child);
     }
-    case WM_ERASEBKGND:
-        return TRUE;
+    case WM_CTLCOLOREDIT:
+    case WM_CTLCOLORSTATIC: {
+        SetBkMode((HDC)wp, TRANSPARENT);
+        return 0;
+    }
     default:
         break;
     }
@@ -482,9 +500,8 @@ static LRESULT gui_win_proc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp)
         gui_window_create_resources(&win_data->resources);
         gui_window_begin_create_gui(win_data, hwnd);
         win_data->setup_gui(win_data, win_data->setup_gui_data);
-        SetWindowPos(win_data->ContainerWin, NULL, 0, 0, get_client_width(win_data->MainWin), win_data->Cell.Y, SWP_NOMOVE);
-
-        // FitParentWindow(win_data);
+        fit_window(win_data);
+        fit_container(win_data);
         return 0;
     }
     case WM_EXITSIZEMOVE: {
@@ -498,7 +515,7 @@ static LRESULT gui_win_proc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp)
         }
         gui_window_begin_create_gui(win_data, hwnd);
         win_data->setup_gui(win_data, win_data->setup_gui_data);
-        SetWindowPos(win_data->ContainerWin, NULL, 0, 0, get_client_width(win_data->MainWin), win_data->Cell.Y, SWP_NOMOVE);
+        fit_container(win_data);
         SendMessage(hwnd, WM_SETREDRAW, TRUE, 0);
         RECT r = { };
         GetClientRect(win_data->MainWin, &r);
@@ -649,14 +666,15 @@ static LRESULT popup_wait_input_win_proc(HWND hwnd, UINT msg, WPARAM wp, LPARAM 
     }
     case WM_KEYDOWN:
     case WM_SYSKEYDOWN: {
-        HWND field = (HWND)GetWindowLongPtr(hwnd, GWLP_USERDATA);
+        HWND field = get_win_data(hwnd);
         ASSERT(field);
         UINT scan = (lp >> 16) & 0xFF;
         UINT extended = (lp >> 24) & 1;
-        UINT x = scan | (extended << 8);
-        char x_as_str[] = "000";
-        (void)sprintf_s(x_as_str, sizeof(x_as_str), "%u", x);
-        SetWindowText(field, x_as_str);
+        UINT aas_scan = scan | (extended << 8);
+        set_win_data(field, (void*)(UINT64)aas_scan);
+        char display_name[128] = "";
+        aas_scan_to_nice_name(display_name, sizeof(display_name), aas_scan);
+        SetWindowText(field, display_name);
         PostMessage(hwnd, WM_CLOSE, 0, 0);
         return 0;
     }
@@ -832,14 +850,6 @@ void GUIWindow(void (*setupGUI)(gui_window_data*, void*),
     UnregisterClass(wait_input_class_name, instance);
 }
 
-static void scan_to_nice_name(unsigned int scan, char* out_str)
-{
-    LONG lp = (LONG)(scan & 0xFF) << 16;
-    if (scan >> 8)
-        lp |= 1 << 24;
-    GetKeyNameText(lp, out_str, 128);
-}
-
 HWND CreateKeyInputField(gui_window_data* guiData, unsigned int* target)
 {
     HINSTANCE inst = (HINSTANCE)GetWindowLongPtrA(guiData->MainWin, GWLP_HINSTANCE);
@@ -848,12 +858,14 @@ HWND CreateKeyInputField(gui_window_data* guiData, unsigned int* target)
         WS_CHILD | WS_VISIBLE,
         C.X, C.Y, C.W, C.H,
         guiData->ContainerWin, NULL, inst, guiData);
+
     {
         // Init text
         HWND field = get_win_data(win);
-        char x_as_str[128] = "";
-        scan_to_nice_name(*target, x_as_str);
-        SetWindowText(field, x_as_str);
+        set_win_data(field, (void*)(UINT64)*target);
+        char display_name[128] = "";
+        aas_scan_to_nice_name(display_name, sizeof(display_name), *target);
+        SetWindowText(field, display_name);
     }
     NextCell(guiData);
     guiData->k_bindings[guiData->k_binding_count].target_value = target;
