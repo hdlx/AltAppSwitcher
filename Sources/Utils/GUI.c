@@ -832,6 +832,14 @@ void GUIWindow(void (*setupGUI)(gui_window_data*, void*),
     UnregisterClass(wait_input_class_name, instance);
 }
 
+static void scan_to_nice_name(unsigned int scan, char* out_str)
+{
+    LONG lp = (LONG)(scan & 0xFF) << 16;
+    if (scan >> 8)
+        lp |= 1 << 24;
+    GetKeyNameText(lp, out_str, 128);
+}
+
 HWND CreateKeyInputField(gui_window_data* guiData, unsigned int* target)
 {
     HINSTANCE inst = (HINSTANCE)GetWindowLongPtrA(guiData->MainWin, GWLP_HINSTANCE);
@@ -843,8 +851,8 @@ HWND CreateKeyInputField(gui_window_data* guiData, unsigned int* target)
     {
         // Init text
         HWND field = get_win_data(win);
-        char x_as_str[] = "000";
-        (void)sprintf_s(x_as_str, sizeof(x_as_str), "%u", *target);
+        char x_as_str[128] = "";
+        scan_to_nice_name(*target, x_as_str);
         SetWindowText(field, x_as_str);
     }
     NextCell(guiData);
