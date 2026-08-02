@@ -58,7 +58,7 @@ typedef enum Alignment {
     AlignementCenter
 } Alignment;
 
-struct GUIData {
+struct gui_window_data {
     EnumBinding EBindings[64];
     unsigned int EBindingCount;
     FloatBinding FBindings[64];
@@ -83,6 +83,8 @@ struct GUIData {
     HWND MainWin;
     HWND ContainerWin;
     int max_height;
+    void (*setup_gui)(gui_window_data*, void*);
+    void* setup_gui_data;
 };
 
 static void* get_create_param(LPARAM lp)
@@ -100,12 +102,12 @@ static void* get_win_data(HWND win)
     return (void*)GetWindowLongPtr(win, GWLP_USERDATA);
 }
 
-void CloseGUI(GUIData* gui)
+void CloseGUI(gui_window_data* gui)
 {
     gui->Close = true;
 }
 
-static void NextCell(GUIData* guiData)
+static void NextCell(gui_window_data* guiData)
 {
     guiData->Column++;
     if (guiData->Column == guiData->Columns) {
@@ -135,7 +137,7 @@ static void CreateTooltip(HWND parent, HWND tool, char* string)
     SendMessage(tt, TTM_ACTIVATE, true, (LPARAM)NULL);
 }
 
-void GridLayout(int columns, GUIData* guiData)
+void GridLayout(int columns, gui_window_data* guiData)
 {
     guiData->Cell.W = (WIDTH - WIN_PAD - WIN_PAD - (WIN_PAD * (columns - 1 > 0 ? columns - 1 : 0))) / columns;
     guiData->Column = 0;
@@ -143,7 +145,7 @@ void GridLayout(int columns, GUIData* guiData)
     guiData->Cell.X = WIN_PAD;
 }
 
-HWND CreateText(const char* text, const char* tooltip, GUIData* guiData)
+HWND CreateText(const char* text, const char* tooltip, gui_window_data* guiData)
 {
     int align = SS_LEFT;
     if (guiData->Align == AlignementCenter)
@@ -159,7 +161,7 @@ HWND CreateText(const char* text, const char* tooltip, GUIData* guiData)
     return textWin;
 }
 
-void CreatePercentField(const char* tooltip, float* value, GUIData* guiData)
+void CreatePercentField(const char* tooltip, float* value, gui_window_data* guiData)
 {
     (void)tooltip;
     HINSTANCE inst = (HINSTANCE)GetWindowLongPtrA(guiData->MainWin, GWLP_HINSTANCE);
@@ -178,7 +180,7 @@ void CreatePercentField(const char* tooltip, float* value, GUIData* guiData)
     NextCell(guiData);
 }
 
-void CreateIntField(const char* tooltip, int* value, GUIData* guiData)
+void CreateIntField(const char* tooltip, int* value, gui_window_data* guiData)
 {
     (void)tooltip;
     HINSTANCE inst = (HINSTANCE)GetWindowLongPtrA(guiData->MainWin, GWLP_HINSTANCE);
@@ -197,7 +199,7 @@ void CreateIntField(const char* tooltip, int* value, GUIData* guiData)
     NextCell(guiData);
 }
 
-void CreateComboBox(const char* tooltip, unsigned int* value, const EnumString* enumStrings, GUIData* guiData)
+void CreateComboBox(const char* tooltip, unsigned int* value, const EnumString* enumStrings, gui_window_data* guiData)
 {
     HINSTANCE inst = (HINSTANCE)GetWindowLongPtrA(guiData->MainWin, GWLP_HINSTANCE);
     HWND combobox = CreateWindow(WC_COMBOBOX, "Combobox",
@@ -218,7 +220,7 @@ void CreateComboBox(const char* tooltip, unsigned int* value, const EnumString* 
     NextCell(guiData);
 }
 
-HWND CreateButton(const char* text, GUIData* guiData, void (*fn)(void*), void* data)
+HWND CreateButton(const char* text, gui_window_data* guiData, void (*fn)(void*), void* data)
 {
     HINSTANCE inst = (HINSTANCE)GetWindowLongPtrA(guiData->MainWin, GWLP_HINSTANCE);
     HWND button = CreateWindow(WC_BUTTON, text,
@@ -238,7 +240,7 @@ HWND CreateButton(const char* text, GUIData* guiData, void (*fn)(void*), void* d
     return button;
 }
 
-void CreateBoolControl(const char* tooltip, bool* value, GUIData* guiData)
+void CreateBoolControl(const char* tooltip, bool* value, gui_window_data* guiData)
 {
     (void)tooltip;
     HINSTANCE inst = (HINSTANCE)GetWindowLongPtrA(guiData->MainWin, GWLP_HINSTANCE);
@@ -255,7 +257,7 @@ void CreateBoolControl(const char* tooltip, bool* value, GUIData* guiData)
     NextCell(guiData);
 }
 
-static void InitGUIData(GUIData* guiData, HWND parent)
+static void InitGUIData(gui_window_data* guiData, HWND parent)
 {
     NONCLIENTMETRICS metrics = { };
     metrics.cbSize = sizeof(metrics);
@@ -292,7 +294,7 @@ static void InitGUIData(GUIData* guiData, HWND parent)
     guiData->Column = 0;
 }
 
-static void DeleteGUIData(GUIData* guiData)
+static void DeleteGUIData(gui_window_data* guiData)
 {
     DeleteFont(guiData->Font);
     DeleteFont(guiData->FontBold);
@@ -302,7 +304,7 @@ static void DeleteGUIData(GUIData* guiData)
     guiData->Background = NULL;
 }
 
-static void FitParentWindow(const GUIData* gui)
+static void FitParentWindow(const gui_window_data* gui)
 {
     const int center[2] = { GetSystemMetrics(SM_CXSCREEN) / 2, GetSystemMetrics(SM_CYSCREEN) / 2 };
     RECT r = {
@@ -320,7 +322,7 @@ static const char key_input_class_name[] = "key_input_ctrl";
 static const char wait_input_class_name[] = "wait_input_popup";
 static const char container_class_name[] = "container";
 
-void ApplyBindings(const GUIData* guiData)
+void ApplyBindings(const gui_window_data* guiData)
 {
     for (unsigned int i = 0; i < guiData->EBindingCount; i++) {
         const EnumBinding* bd = &guiData->EBindings[i];
@@ -367,11 +369,6 @@ void ApplyBindings(const GUIData* guiData)
     }
 }
 
-struct gui_window_data {
-    void (*SetupGUI)(GUIData*, void*);
-    void* Data;
-};
-
 static LRESULT container_win_proc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp)
 {
     switch (msg) {
@@ -389,7 +386,7 @@ static LRESULT container_win_proc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp)
 
 static LRESULT gui_win_proc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp)
 {
-    static GUIData guiData = { };
+    static gui_window_data guiData = { };
     switch (msg) {
     case WM_DESTROY: {
         DeleteGUIData(&guiData);
@@ -398,12 +395,15 @@ static LRESULT gui_win_proc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp)
     }
     case WM_GETMINMAXINFO: {
         MINMAXINFO* mmi = (MINMAXINFO*)lp;
-        mmi->ptMaxTrackSize.y = guiData.Cell.Y;
+        int h = guiData.Cell.Y;
+        RECT r = { 0, 0, 0, h };
+        AdjustWindowRect(&r, (DWORD)GetWindowLong(guiData.MainWin, GWL_STYLE), false);
+        mmi->ptMaxTrackSize.y = r.bottom - r.top;
         return 0;
     }
     case WM_CREATE: {
-        struct gui_window_data* userData = (struct gui_window_data*)((CREATESTRUCT*)lp)->lpCreateParams;
-        SetWindowLongPtr(hwnd, GWLP_USERDATA, (LONG_PTR)userData);
+        struct gui_window_data* win_data = (struct gui_window_data*)((CREATESTRUCT*)lp)->lpCreateParams;
+        SetWindowLongPtr(hwnd, GWLP_USERDATA, (LONG_PTR)win_data);
         InitGUIData(&guiData, hwnd);
         {
             guiData.ContainerWin = CreateWindowEx(
@@ -417,8 +417,29 @@ static LRESULT gui_win_proc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp)
                 (HINSTANCE)GetWindowLongPtr(hwnd, GWLP_HINSTANCE),
                 NULL);
         }
-        userData->SetupGUI(&guiData, userData->Data);
+        win_data->setup_gui(&guiData, win_data->setup_gui_data);
         FitParentWindow(&guiData);
+        return 0;
+    }
+    case WM_SIZE: {
+        RECT r = { };
+        GetClientRect(guiData.MainWin, &r);
+        const int content_height = guiData.Cell.Y;
+        const int win_height = r.bottom - r.top;
+        if (content_height < win_height) {
+            // ShowScrollBar(hwnd, SB_VERT, FALSE);
+            return 0;
+        }
+        // ShowScrollBar(hwnd, SB_VERT, TRUE);
+        SCROLLINFO si = { };
+        si.cbSize = sizeof(si);
+        si.fMask = SIF_ALL;
+        GetScrollInfo(hwnd, SB_VERT, &si);
+        si.fMask = SIF_RANGE | SIF_PAGE | SIF_POS;
+        si.nMin = 0;
+        si.nMax = content_height - win_height;
+        // si.nPage = content_height;
+        SetScrollInfo(hwnd, SB_VERT, &si, TRUE);
         return 0;
     }
     case WM_COMMAND: {
@@ -439,6 +460,36 @@ static LRESULT gui_win_proc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp)
         SetBkMode((HDC)wp, TRANSPARENT);
         return 0; // (LRESULT)guiData.Background;
     }
+    case WM_MOUSEWHEEL: {
+        int max = 0;
+        {
+            RECT r = { };
+            GetClientRect(guiData.MainWin, &r);
+            const int content_height = guiData.Cell.Y;
+            const int win_height = r.bottom - r.top;
+            if (content_height < win_height) {
+                return 0;
+            }
+            max = content_height - win_height;
+        }
+        int delta = GET_WHEEL_DELTA_WPARAM(wp);
+        int lines = 30;
+        int scroll = -(delta / WHEEL_DELTA) * lines;
+        SCROLLINFO si = { 0 };
+        si.cbSize = sizeof(si);
+        si.fMask = SIF_POS;
+        GetScrollInfo(hwnd, SB_VERT, &si);
+        si.fMask = SIF_POS;
+        si.nPos += scroll;
+        si.nPos = max(0, min(max, si.nPos));
+        SetScrollInfo(hwnd, SB_VERT, &si, TRUE);
+        {
+            RECT r = { };
+            GetWindowRect(guiData.ContainerWin, &r);
+            SetWindowPos(guiData.ContainerWin, NULL, 0, -si.nPos, 0, 0, SWP_NOSIZE);
+        }
+        return 0;
+    }
     case WM_VSCROLL: {
         int action = LOWORD(wp);
         SCROLLINFO si = { 0 };
@@ -448,10 +499,10 @@ static LRESULT gui_win_proc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp)
         int pos = si.nPos;
         switch (action) {
         case SB_LINEUP:
-            pos -= 1;
+            pos -= 10;
             break;
         case SB_LINEDOWN:
-            pos += 1;
+            pos += 10;
             break;
         case SB_PAGEUP:
             pos -= si.nPage;
@@ -461,6 +512,8 @@ static LRESULT gui_win_proc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp)
             break;
         case SB_THUMBTRACK:
             pos = HIWORD(wp);
+            break;
+        default:
             break;
         }
 
@@ -536,7 +589,7 @@ static LRESULT key_input_win_proc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp)
         int w = r.right - r.left;
         int h = r.bottom - r.top;
         HINSTANCE instance = (HINSTANCE)GetWindowLongPtr(hwnd, GWLP_HINSTANCE);
-        struct GUIData* gui = get_create_param(lp);
+        struct gui_window_data* gui = get_create_param(lp);
         ASSERT(gui);
         HWND field = NULL;
         {
@@ -584,38 +637,38 @@ static LRESULT key_input_win_proc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp)
     return DefWindowProc(hwnd, msg, wp, lp);
 }
 
-void SetBoldFont(GUIData* gui)
+void SetBoldFont(gui_window_data* gui)
 {
     gui->CurrentFont = gui->FontBold;
 }
 
-void SetNormalFont(GUIData* gui)
+void SetNormalFont(gui_window_data* gui)
 {
     gui->CurrentFont = gui->Font;
 }
 
-void AlignLeft(GUIData* gui)
+void AlignLeft(gui_window_data* gui)
 {
     gui->Align = AlignementLeft;
 }
 
-void AlignCenter(GUIData* gui)
+void AlignCenter(gui_window_data* gui)
 {
     gui->Align = AlignementCenter;
 }
 
-void WhiteSpace(GUIData* gui)
+void WhiteSpace(gui_window_data* gui)
 {
     NextCell(gui);
 }
 
-void GUIWindow(void (*setupGUI)(GUIData*, void*),
+void GUIWindow(void (*setupGUI)(gui_window_data*, void*),
     void* userAppData,
     HANDLE instance, const char* className)
 {
-    struct gui_window_data userData = {
-        .SetupGUI = setupGUI,
-        .Data = userAppData
+    gui_window_data win_data = {
+        .setup_gui = setupGUI,
+        .setup_gui_data = userAppData
     };
 
     // CC
@@ -672,10 +725,11 @@ void GUIWindow(void (*setupGUI)(GUIData*, void*),
 
     // Window
     DWORD win_style = WS_CAPTION | WS_SYSMENU | WS_BORDER | WS_VISIBLE | WS_MINIMIZEBOX | WS_VSCROLL | WS_THICKFRAME;
-    CreateWindow(className, className,
+    CreateWindow(
+        className, className,
         win_style,
         0, 0, 0, 0,
-        NULL, NULL, instance, (LPVOID)&userData);
+        NULL, NULL, instance, (LPVOID)&win_data);
 
     MSG msg = { };
     while (GetMessage(&msg, NULL, 0, 0)) {
@@ -690,7 +744,7 @@ void GUIWindow(void (*setupGUI)(GUIData*, void*),
     UnregisterClass(wait_input_class_name, instance);
 }
 
-HWND CreateKeyInputField(GUIData* guiData, unsigned int* target)
+HWND CreateKeyInputField(gui_window_data* guiData, unsigned int* target)
 {
     HINSTANCE inst = (HINSTANCE)GetWindowLongPtrA(guiData->MainWin, GWLP_HINSTANCE);
     Cell C = guiData->Cell;
