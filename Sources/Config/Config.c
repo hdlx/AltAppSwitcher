@@ -29,7 +29,7 @@ const EnumString keyES[17] = {
     { "left shift", 42 },
     { "right shift", 54 },
     { "tab", 15 },
-    { "q", 30 },
+    { "q", 16 },
     { "f4", 64 },
     { "none", AAS_NONE_VK },
     { "end", 0xFFFFFFFF },
