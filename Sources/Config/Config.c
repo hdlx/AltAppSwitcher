@@ -149,7 +149,7 @@ void DefaultConfig(Config* config)
     config->Key.WinSwitch = 41;
     config->Key.Invert = 42;
     config->Key.PrevApp = 41;
-    config->Key.AppClose = 30;
+    config->Key.AppClose = 16;
     config->Mouse = true;
     config->MouseKbCommonSel = false;
     config->CheckForUpdates = true;
