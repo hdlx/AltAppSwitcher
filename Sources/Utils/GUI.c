@@ -38,6 +38,12 @@ struct key_binding {
     HWND key_input_control;
 };
 
+struct button_binding {
+    void (*fn)(void*);
+    void* data;
+    HWND button;
+};
+
 typedef struct Cell {
     int X, Y, W, H;
 } Cell;
@@ -63,6 +69,8 @@ struct GUIData {
     unsigned int IBindingCount;
     struct key_binding k_bindings[64];
     unsigned int k_binding_count;
+    struct button_binding but_bindings[64];
+    unsigned int but_bindings_count;
     HFONT CurrentFont;
     HFONT Font;
     HFONT FontBold;
@@ -210,18 +218,23 @@ void CreateComboBox(const char* tooltip, unsigned int* value, const EnumString* 
     NextCell(guiData);
 }
 
-HWND CreateButton(const char* text, HMENU ID, GUIData* guiData)
+HWND CreateButton(const char* text, GUIData* guiData, void (*fn)(void*), void* data)
 {
     HINSTANCE inst = (HINSTANCE)GetWindowLongPtrA(guiData->MainWin, GWLP_HINSTANCE);
     HWND button = CreateWindow(WC_BUTTON, text,
         WS_VISIBLE | WS_CHILD | BS_PUSHBUTTON | BS_FLAT,
         guiData->Cell.X, guiData->Cell.Y, 0, 0,
-        guiData->ContainerWin, (HMENU)ID, inst, NULL);
+        guiData->ContainerWin, (HMENU)(long long)guiData->but_bindings_count, inst, NULL);
     SendMessage(button, WM_SETFONT, (WPARAM)guiData->Font, true);
     SIZE size = { };
     Button_GetIdealSize(button, &size);
     SetWindowPos(button, NULL, guiData->Cell.X + (guiData->Cell.W / 2) - (size.cx / 2), guiData->Cell.Y, size.cx, guiData->Cell.H, 0);
     NextCell(guiData);
+
+    guiData->but_bindings[guiData->but_bindings_count].fn = fn;
+    guiData->but_bindings[guiData->but_bindings_count].data = data;
+    guiData->but_bindings_count++;
+
     return button;
 }
 
@@ -356,7 +369,6 @@ void ApplyBindings(const GUIData* guiData)
 
 struct gui_window_data {
     void (*SetupGUI)(GUIData*, void*);
-    void (*ButtonMessage)(UINT, GUIData*, void*);
     void* Data;
 };
 
@@ -411,12 +423,13 @@ static LRESULT gui_win_proc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp)
     }
     case WM_COMMAND: {
         struct gui_window_data* userData = (struct gui_window_data*)GetWindowLongPtr(hwnd, GWLP_USERDATA);
+        ApplyBindings(&guiData);
         ASSERT(userData);
         if (!userData)
             return 0;
-        if (HIWORD(wp) == BN_CLICKED) {
-            userData->ButtonMessage(LOWORD(wp), &guiData, userData->Data);
-        }
+        UINT button_id = LOWORD(wp);
+        if (HIWORD(wp) == BN_CLICKED)
+            guiData.but_bindings[button_id].fn(guiData.but_bindings[button_id].data);
         if (guiData.Close)
             PostQuitMessage(0);
         return 0;
@@ -597,13 +610,11 @@ void WhiteSpace(GUIData* gui)
 }
 
 void GUIWindow(void (*setupGUI)(GUIData*, void*),
-    void (*buttonMessage)(UINT, GUIData*, void*),
     void* userAppData,
     HANDLE instance, const char* className)
 {
     struct gui_window_data userData = {
         .SetupGUI = setupGUI,
-        .ButtonMessage = buttonMessage,
         .Data = userAppData
     };
 

@@ -7,12 +7,11 @@ void CreatePercentField(const char* tooltip, float* value, GUIData* guiData);
 void CreateIntField(const char* tooltip, int* value, GUIData* guiData);
 void CreateComboBox(const char* tooltip, unsigned int* value, const EnumString* enumStrings, GUIData* guiData);
 HWND CreateKeyInputField(GUIData* guiData, unsigned int* target);
-HWND CreateButton(const char* text, HMENU ID, GUIData* guiData);
+HWND CreateButton(const char* text, GUIData* guiData, void (*fn)(void*), void* data);
 void CreateBoolControl(const char* tooltip, bool* value, GUIData* guiData);
 void GridLayout(int columns, GUIData* guiData);
 void ApplyBindings(const GUIData* guiData);
 void GUIWindow(void (*setupGUI)(GUIData*, void*),
-    void (*buttonMessage)(UINT, GUIData*, void*),
     void* userAppData,
     HANDLE instance, const char* className);
 void SetBoldFont(GUIData* gui);

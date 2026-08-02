@@ -11,6 +11,13 @@
 
 #define APPLY_BUTTON_ID 1993
 
+static void ApplyButton(void* userData)
+{
+    Config* cfg = (Config*)userData;
+    WriteConfig(cfg);
+    RestartAAS();
+}
+
 static void SetupGUI(GUIData* gui, void* userData)
 {
     Config* cfg = (Config*)userData;
@@ -93,21 +100,7 @@ static void SetupGUI(GUIData* gui, void* userData)
         &cfg->DesktopFilter, desktopFilterES, gui);
 
     GridLayout(1, gui);
-    CreateButton("Apply", (HMENU)APPLY_BUTTON_ID, gui);
-}
-
-static void ButtonMessage(UINT buttonID, GUIData* guiData, void* userData)
-{
-    switch (buttonID) {
-    case APPLY_BUTTON_ID: {
-        Config* cfg = (Config*)userData;
-        ApplyBindings(guiData);
-        WriteConfig(cfg);
-        RestartAAS();
-    }
-    default:
-        break;
-    }
+    CreateButton("Apply", gui, ApplyButton, (void*)cfg);
 }
 
 int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int nShowCmd) // NOLINT
@@ -119,6 +112,6 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
     char title[260];
     int a = sprintf_s(title, sizeof(title), "AAS settings - v%u.%u", AAS_MAJOR, AAS_MINOR);
     ASSERT(a > 0);
-    GUIWindow(SetupGUI, ButtonMessage, (void*)&config, hInstance, title);
+    GUIWindow(SetupGUI, (void*)&config, hInstance, title);
     return 0;
 }
