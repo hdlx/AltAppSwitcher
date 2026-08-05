@@ -21,6 +21,7 @@
 #include "WinMode.h"
 #include "Common.h"
 #include "Messages.h"
+#include "tray_window.h"
 
 #define ASYNC_APPLY
 
@@ -325,6 +326,7 @@ int StartAltAppSwitcher(HINSTANCE instance)
     AAS_MSG("AppModeInit");
     WinModeInit(instance, &appData.Config, appData.VDM);
     AAS_MSG("WinModeInit");
+    tray_init(instance);
 
     HANDLE threadKbHook = CreateThread(NULL, 0, KbHookCb, (void*)&appData, CREATE_SUSPENDED, NULL);
     (void)threadKbHook;
