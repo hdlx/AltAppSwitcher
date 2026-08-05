@@ -49,6 +49,9 @@ ALLH = $(wildcard $(ROOTDIR)/*/*.h $(ROOTDIR)/*/*/*.h $(ROOTDIR)/*/*/*/*.h)
 ALLC = $(wildcard $(ROOTDIR)/*/*.c $(ROOTDIR)/*/*/*.c $(ROOTDIR)/*/*/*/*.c)
 ALLOBJECTS = $(patsubst $(ROOTDIR)/%.c, $(OBJDIR)/%.o, $(ALLC))
 
+# Resources file
+RESOURCES = $(OBJDIR)/resources.res
+
 # Subsets, for link.
 AASOBJECTS = $(filter $(OBJDIR)/Sources/AltAppSwitcher/%, $(ALLOBJECTS))
 AASDLLOBJECTS = $(filter $(OBJDIR)/Sources/AltAppSwitcherDll/%, $(ALLOBJECTS))
@@ -66,7 +69,7 @@ AASLIBS = -l dwmapi -l User32 -l Gdi32 -l Gdiplus -l shlwapi -l pthread -l Ole32
 SETTINGSLIB = -l Comctl32 -l Gdi32
 UPDATERLIBS = -l zip -l zlibstatic -l bcrypt -l curl -l curl.dll
 
-AASASSETS = $(patsubst $(ROOTDIR)/Assets/AAS/%, $(AASBUILDDIR)/%, $(wildcard $(ROOTDIR)/Assets/AAS/*))
+AASASSETS = $(patsubst $(ROOTDIR)/Assets/deploy/%, $(AASBUILDDIR)/%, $(wildcard $(ROOTDIR)/Assets/deploy/*))
 SDKDLL = $(patsubst $(ROOTDIR)/SDK/Dll/$(ARCH)/%, $(AASBUILDDIR)/%, $(wildcard $(ROOTDIR)/SDK/Dll/$(ARCH)/*))
 AASDLL = $(AASBUILDDIR)/AAS.dll
 
@@ -100,8 +103,12 @@ $(ALLOBJECTS): $(OBJDIR)/%.o: $(ROOTDIR)/%.c $(ALLH)
 	clang-tidy $< --warnings-as-errors=* --allow-no-checks $(clang_tidy_disable_if_dbg) --header-filter='.*/$(SOURCEDIR)/.*' -- $(CFLAGS)
 	$(CC) $(CFLAGS) -MJ $@.json -c $< -o $@
 
+# Compile rc into res
+$(RESOURCES): $(ROOTDIR)/Assets/build/resources.rc $(ROOTDIR)/Assets/build/icon.ico
+	rc /fo $(RESOURCES) $(ROOTDIR)/Assets/build/resources.rc
+
 # Build exe targets (link):
-$(AASBUILDDIR)/AltAppSwitcher.exe: $(AASOBJECTS) $(CONFIGOBJECTS) $(COMMONOBJECTS)
+$(AASBUILDDIR)/AltAppSwitcher.exe: $(AASOBJECTS) $(CONFIGOBJECTS) $(COMMONOBJECTS) $(RESOURCES)
 	$(CC) $(LFLAGS) $(LDIRS) $(AASLIBS) $^ -o $@
 
 $(AASBUILDDIR)/Settings.exe: $(SETTINGSOBJECTS) $(CONFIGOBJECTS) $(COMMONOBJECTS) $(GUIOBJECTS)
@@ -114,7 +121,7 @@ $(AASBUILDDIR)/AASDll.dll: $(AASDLLOBJECTS) $(COMMONOBJECTS)
 	$(CC) -shared $(LFLAGS) $(LDIRS) $(AASLIBS) $^ -o $@
 
 # Assets:
-$(AASASSETS): $(AASBUILDDIR)/%: $(ROOTDIR)/Assets/AAS/%
+$(AASASSETS): $(AASBUILDDIR)/%: $(ROOTDIR)/Assets/deploy/%
 	python ./AAS.py Copy "$<" "$@"
 
 # Dll:
