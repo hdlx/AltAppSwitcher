@@ -108,7 +108,7 @@ $(RESOURCES): $(ROOTDIR)/Assets/build/resources.rc $(ROOTDIR)/Assets/build/icon.
 	rc /fo $(RESOURCES) $(ROOTDIR)/Assets/build/resources.rc
 
 # Build exe targets (link):
-$(AASBUILDDIR)/AltAppSwitcher.exe: $(AASOBJECTS) $(CONFIGOBJECTS) $(COMMONOBJECTS) $(RESOURCES)
+$(AASBUILDDIR)/AltAppSwitcher.exe: $(AASOBJECTS) $(CONFIGOBJECTS) $(COMMONOBJECTS) $(RESOURCES) $(GUIOBJECTS)
 	$(CC) $(LFLAGS) $(LDIRS) $(AASLIBS) $^ -o $@
 
 $(AASBUILDDIR)/Settings.exe: $(SETTINGSOBJECTS) $(CONFIGOBJECTS) $(COMMONOBJECTS) $(GUIOBJECTS)

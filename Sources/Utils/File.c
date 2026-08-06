@@ -144,3 +144,12 @@ void UpdaterPath(char* outPath)
     ParentDir(currentExe, outPath);
     strcat_s(outPath, sizeof(char) * MAX_PATH, "/Updater.exe");
 }
+
+void SettingsPath(char* outPath)
+{
+    outPath[0] = '\0';
+    char currentExe[MAX_PATH] = { };
+    GetModuleFileName(NULL, currentExe, MAX_PATH);
+    ParentDir(currentExe, outPath);
+    strcat_s(outPath, sizeof(char) * MAX_PATH, "/Settings.exe");
+}

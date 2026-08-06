@@ -1,3 +1,4 @@
 #include <windef.h>
-void tray_init(HINSTANCE instance);
-void tray_deinit(HINSTANCE instance);
+struct aas_tray;
+struct aas_tray* tray_init(HINSTANCE instance);
+void tray_deinit(struct aas_tray* tray);

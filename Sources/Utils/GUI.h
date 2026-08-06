@@ -20,3 +20,7 @@ void AlignLeft(gui_window_data* gui);
 void AlignCenter(gui_window_data* gui);
 void WhiteSpace(gui_window_data* gui);
 void CloseGUI(gui_window_data* gui);
+
+void set_win_data(HWND win, void* d);
+void* get_win_data(HWND win);
+HINSTANCE get_instance(HWND win);

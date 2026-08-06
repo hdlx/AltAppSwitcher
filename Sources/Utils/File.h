@@ -7,3 +7,4 @@ void ParentDir(const char* file, char* out);
 void ConfigPath(char* outPath);
 void LogPath(char* outPath);
 void UpdaterPath(char* outPath);
+void SettingsPath(char* outPath);

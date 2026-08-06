@@ -256,6 +256,7 @@ int main(int argc, char* argv[])
 {
     BOOL extract = 0;
     BOOL preview = 0;
+    BOOL status_popup = 0;
     char targetDir[256] = { };
     for (int i = 0; i < argc; i++) {
         if (!strcmp(argv[i], "--target") && (i + 1) < argc) {
@@ -264,6 +265,8 @@ int main(int argc, char* argv[])
             extract = 1;
         } else if (!strcmp(argv[i], "--preview")) {
             preview = 1;
+        } else if (!strcmp(argv[i], "--status-popup")) {
+            status_popup = 1;
         }
     }
     if (extract) {
@@ -273,9 +276,25 @@ int main(int argc, char* argv[])
 
     char version[64] = { };
     char assetURL[512] = { };
-    GetLastAASVersion(preview, version, assetURL);
-    if (assetURL[0] == '\0')
+    // If up to date, GetLastAASVersion returns true but assetURL is not filled.
+    // This is not great. To change to match fn name (returns assetURL whatever the current version is, let caller
+    // handle the version comparisaon logic)
+    BOOL success = GetLastAASVersion(preview, version, assetURL);
+    if (!success) {
+        if (status_popup) {
+            char msg[256] = "AltAppSwitcher could not reach version server. Plese retry later.";
+            MessageBox(0, msg, "AltAppSwitcher updater", MB_OK);
+        }
         return 0;
+    }
+
+    if (assetURL[0] == '\0') {
+        if (status_popup) {
+            char msg[256] = "AltAppSwitcher is up-to-date.";
+            MessageBox(0, msg, "AltAppSwitcher updater", MB_OK);
+        }
+        return 0;
+    }
 
     {
         char msg[256];

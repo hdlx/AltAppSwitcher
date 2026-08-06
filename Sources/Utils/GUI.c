@@ -109,17 +109,17 @@ static void* get_create_param(LPARAM lp)
     return ((CREATESTRUCT*)lp)->lpCreateParams;
 }
 
-static void set_win_data(HWND win, void* d)
+void set_win_data(HWND win, void* d)
 {
     SetWindowLongPtr(win, GWLP_USERDATA, (LONG_PTR)d);
 }
 
-static void* get_win_data(HWND win)
+void* get_win_data(HWND win)
 {
     return (void*)GetWindowLongPtr(win, GWLP_USERDATA);
 }
 
-static HINSTANCE get_instance(HWND win)
+HINSTANCE get_instance(HWND win)
 {
     return (HINSTANCE)GetWindowLongPtr(win, GWLP_HINSTANCE);
 }
