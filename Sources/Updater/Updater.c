@@ -85,7 +85,6 @@ static int GetLastAASVersion(BOOL preview, char* outVersion, char* assetURL)
         response.Data = realloc(old, response.Size + 1);
         if (!response.Data) {
             free(old);
-            ASSERT(true);
             return 0;
         }
         response.Data[response.Size] = '\0';
@@ -108,6 +107,11 @@ static int GetLastAASVersion(BOOL preview, char* outVersion, char* assetURL)
 
     const cJSON* tagName = cJSON_GetObjectItem(release, "tag_name");
     const char* tag = cJSON_GetStringValue(tagName);
+    if (tag == NULL) {
+        // Tag not found. Typically, because json response holds "API rate limit exceeded..."
+        cJSON_Delete(json);
+        return 0;
+    }
     int major = 0;
     int minor = 0;
     strcpy_s(outVersion, sizeof(char) * 64, tag);
@@ -282,7 +286,7 @@ int main(int argc, char* argv[])
     BOOL success = GetLastAASVersion(preview, version, assetURL);
     if (!success) {
         if (status_popup) {
-            char msg[256] = "AltAppSwitcher could not reach version server. Plese retry later.";
+            char msg[256] = "AltAppSwitcher could not reach version server. Please retry later.";
             MessageBox(0, msg, "AltAppSwitcher updater", MB_OK);
         }
         return 0;
