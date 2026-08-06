@@ -105,13 +105,13 @@ $(ALLOBJECTS): $(OBJDIR)/%.o: $(ROOTDIR)/%.c $(ALLH)
 
 # Compile rc into res
 $(RESOURCES): $(ROOTDIR)/Assets/build/resources.rc $(ROOTDIR)/Assets/build/icon.ico
-	rc /fo $(RESOURCES) $(ROOTDIR)/Assets/build/resources.rc
+	windres $(ROOTDIR)/Assets/build/resources.rc $(RESOURCES)
 
 # Build exe targets (link):
 $(AASBUILDDIR)/AltAppSwitcher.exe: $(AASOBJECTS) $(CONFIGOBJECTS) $(COMMONOBJECTS) $(RESOURCES) $(GUIOBJECTS)
 	$(CC) $(LFLAGS) $(LDIRS) $(AASLIBS) $^ -o $@
 
-$(AASBUILDDIR)/Settings.exe: $(SETTINGSOBJECTS) $(CONFIGOBJECTS) $(COMMONOBJECTS) $(GUIOBJECTS)
+$(AASBUILDDIR)/Settings.exe: $(SETTINGSOBJECTS) $(CONFIGOBJECTS) $(COMMONOBJECTS) $(GUIOBJECTS) $(RESOURCES)
 	$(CC) $(LFLAGS) $(LDIRS) $(SETTINGSLIB) $^ -o $@
 
 $(AASBUILDDIR)/Updater.exe: $(UPDATEROBJECTS) $(COMMONOBJECTS)

@@ -802,7 +802,8 @@ void GUIWindow(void (*setupGUI)(gui_window_data*, void*),
             .hInstance = instance,
             .lpszClassName = className,
             .style = CS_HREDRAW | CS_VREDRAW,
-            .hbrBackground = bkg
+            .hbrBackground = bkg,
+            .hIcon = LoadIcon(instance, MAKEINTRESOURCE(101))
         };
         RegisterClass(&wc);
     }
