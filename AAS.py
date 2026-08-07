@@ -86,6 +86,11 @@ def Format():
                 os.system(f"clang-format.exe { path }/{ name } -i")
                 print(f"clang-format.exe { path }/{ name } -i")
 
+def png_to_ico(png_path, ico_path):
+    from PIL import Image
+    img = Image.open(png_path).convert("RGBA")
+    img.save(ico_path, sizes=[(256,256), (128,128), (64,64), (48,48), (32,32), (16,16)])
+
 import sys
 if __name__ == "__main__": 
     args = sys.argv[1:]
@@ -100,6 +105,8 @@ if __name__ == "__main__":
         MakeCompileCommands(args[1], args[2:])
     elif fn == "MakeArchive":
         MakeArchive(args[1])
+    elif fn == "png-to-ico":
+        png_to_ico(args[1], args[2])
     elif fn == "Format":
         Format()
 
