@@ -46,8 +46,6 @@ Download **Python** and install or add to "Path" so `python` can be called from 
 Alternatively, you can use MinGW-provided Python under `Python/bin`.
 - **Make**\
 Make is part of MinGW.
-- *(Optional) mt.exe:*\
-To deploy (Makefile `deploy` target), we need Microsoft's `mt.exe`. This tool is used to embed manifest in exe. The application runs fine with external manifest (when not using Makefile `deploy` target). `mt.exe` is part of the Windows SDK.
 ### Building:
 - Clone the repository.
 - Open a terminal at the root of the repository.
