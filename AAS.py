@@ -48,11 +48,11 @@ def MakeCompileCommands(file, args):
     outf.write("\n]")
     outf.close()
 
-def EmbedAndDeleteManifest(exePath):
-    if not os.path.exists(f"{exePath}.manifest"):
-        return
-    os.system(f"mt.exe -manifest \"{exePath}.manifest\" -outputresource:\"{exePath}\"")
-    os.remove(f"{exePath}.manifest")
+# def EmbedAndDeleteManifest(exePath):
+#     if not os.path.exists(f"{exePath}.manifest"):
+#         return
+#     os.system(f"mt.exe -manifest \"{exePath}.manifest\" -outputresource:\"{exePath}\"")
+#     os.remove(f"{exePath}.manifest")
 
 def MakeArchive(srcDir):
     arch = ''
@@ -72,9 +72,9 @@ def MakeArchive(srcDir):
     if os.path.exists(tempDir):
         shutil.rmtree(tempDir)
     shutil.copytree(srcDir, tempDir)
-    for x in os.listdir(tempDir):
-        if x.endswith(".exe"):
-            EmbedAndDeleteManifest(os.path.join(tempDir, x))
+    # for x in os.listdir(tempDir):
+    #     if x.endswith(".exe"):
+    #         EmbedAndDeleteManifest(os.path.join(tempDir, x))
     print(shutil.get_archive_formats())
     shutil.make_archive(tempDir, "zip", tempDir)
     shutil.rmtree(tempDir)

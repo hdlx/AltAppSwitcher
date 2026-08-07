@@ -18,6 +18,7 @@ ROOTDIR = .
 OUTPUTDIR = $(ROOTDIR)/Output
 BUILDDIR = $(OUTPUTDIR)/$(CONF)_$(ARCH)
 SOURCEDIR = $(ROOTDIR)/Sources
+RES_SRC_DIR = $(ROOTDIR)/Assets/build
 OBJDIR = $(BUILDDIR)/Objects
 AASBUILDDIR = $(BUILDDIR)/AAS
 INSTALLERBUILDDIR = $(BUILDDIR)/Installer
@@ -49,8 +50,12 @@ ALLH = $(wildcard $(ROOTDIR)/*/*.h $(ROOTDIR)/*/*/*.h $(ROOTDIR)/*/*/*/*.h)
 ALLC = $(wildcard $(ROOTDIR)/*/*.c $(ROOTDIR)/*/*/*.c $(ROOTDIR)/*/*/*/*.c)
 ALLOBJECTS = $(patsubst $(ROOTDIR)/%.c, $(OBJDIR)/%.o, $(ALLC))
 
-# Resources file
-RESOURCES = $(OBJDIR)/resources.res
+# Resource files
+AAS_RES = $(OBJDIR)/AltAppSwitcher.res
+SETTINGS_RES = $(OBJDIR)/Settings.res
+UPDATER_RES = $(OBJDIR)/Updater.res
+ALL_RES = $(AAS_RES) $(SETTINGS_RES) $(UPDATER_RES)
+ALL_RES_SRC = $(wildcard $(RES_SRC_DIR)/*)
 
 # Subsets, for link.
 AASOBJECTS = $(filter $(OBJDIR)/Sources/AltAppSwitcher/%, $(ALLOBJECTS))
@@ -104,17 +109,17 @@ $(ALLOBJECTS): $(OBJDIR)/%.o: $(ROOTDIR)/%.c $(ALLH)
 	$(CC) $(CFLAGS) -MJ $@.json -c $< -o $@
 
 # Compile rc into res
-$(RESOURCES): $(ROOTDIR)/Assets/build/resources.rc $(ROOTDIR)/Assets/build/icon.ico
-	windres $(ROOTDIR)/Assets/build/resources.rc $(RESOURCES)
+$(ALL_RES): $(OBJDIR)/%.res: $(ALL_RES_SRC)
+	windres $(RES_SRC_DIR)/$*.rc $@
 
 # Build exe targets (link):
-$(AASBUILDDIR)/AltAppSwitcher.exe: $(AASOBJECTS) $(CONFIGOBJECTS) $(COMMONOBJECTS) $(RESOURCES) $(GUIOBJECTS)
+$(AASBUILDDIR)/AltAppSwitcher.exe: $(AASOBJECTS) $(CONFIGOBJECTS) $(COMMONOBJECTS) $(AAS_RES) $(GUIOBJECTS)
 	$(CC) $(LFLAGS) $(LDIRS) $(AASLIBS) $^ -o $@
 
-$(AASBUILDDIR)/Settings.exe: $(SETTINGSOBJECTS) $(CONFIGOBJECTS) $(COMMONOBJECTS) $(GUIOBJECTS) $(RESOURCES)
+$(AASBUILDDIR)/Settings.exe: $(SETTINGSOBJECTS) $(CONFIGOBJECTS) $(COMMONOBJECTS) $(GUIOBJECTS) $(SETTINGS_RES)
 	$(CC) $(LFLAGS) $(LDIRS) $(SETTINGSLIB) $^ -o $@
 
-$(AASBUILDDIR)/Updater.exe: $(UPDATEROBJECTS) $(COMMONOBJECTS)
+$(AASBUILDDIR)/Updater.exe: $(UPDATEROBJECTS) $(COMMONOBJECTS) $(UPDATE_RES)
 	$(CC) $(LFLAGS) $(LDIRS) $(UPDATERLIBS) $^ -o $@
 
 $(AASBUILDDIR)/AASDll.dll: $(AASDLLOBJECTS) $(COMMONOBJECTS)
