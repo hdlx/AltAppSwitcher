@@ -506,6 +506,8 @@ static LRESULT gui_win_proc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp)
     }
     case WM_EXITSIZEMOVE: {
         struct gui_window_data* win_data = get_win_data(hwnd);
+        // Clear gui data before deleting, to avoid invalid hwnd pointers (bindings)
+        gui_window_begin_create_gui(win_data, hwnd);
         SendMessage(hwnd, WM_SETREDRAW, FALSE, 0);
         HWND child = GetWindow(win_data->ContainerWin, GW_CHILD);
         while (child) {
@@ -513,7 +515,6 @@ static LRESULT gui_win_proc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp)
             DestroyWindow(child);
             child = next;
         }
-        gui_window_begin_create_gui(win_data, hwnd);
         win_data->setup_gui(win_data, win_data->setup_gui_data);
         fit_container(win_data);
         SendMessage(hwnd, WM_SETREDRAW, TRUE, 0);
