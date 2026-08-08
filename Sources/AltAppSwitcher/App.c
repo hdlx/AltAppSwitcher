@@ -281,7 +281,7 @@ int StartAltAppSwitcher(HINSTANCE instance)
             config.pszWindowTitle = L"AltAppSwitcher";
             config.pszMainInstruction = L"AltAppSwitcher is launching with limited rights and"
                                         L" won't be able to manipulate elevated process.\n"
-                                        L"We recommand launching AltAppSwitcher as administrator.\n"
+                                        L"We recommend launching AltAppSwitcher as administrator.\n"
                                         L"Launch as administator?";
             config.pszVerificationText = L"Do not ask again";
             int button;
