@@ -10,6 +10,7 @@ static const wchar_t* xml = L"<?xml version=\"1.0\" encoding=\"UTF-16\"?>\n"
                             L"<Task version=\"1.2\" xmlns=\"http://schemas.microsoft.com/windows/2004/02/mit/task\">\n"
                             L"<Triggers>\n"
                             L"    <LogonTrigger>\n"
+                            L"    <UserId>S-1-5-21-3287124450-1563820360-1966382520-1001</UserId>\n"
                             L"        <Enabled>true</Enabled>\n"
                             L"    </LogonTrigger>\n"
                             /*L"    <SessionStateChangeTrigger>\n"
@@ -20,6 +21,7 @@ static const wchar_t* xml = L"<?xml version=\"1.0\" encoding=\"UTF-16\"?>\n"
                             L"</Triggers>\n"
                             L"<Principals>\n"
                             L"    <Principal id=\"Author\">\n"
+                            L"    <UserId>S-1-5-21-3287124450-1563820360-1966382520-1001</UserId>\n"
                             L"        <LogonType>InteractiveToken</LogonType>\n"
                             L"        <RunLevel>%ls</RunLevel>\n"
                             L"    </Principal>\n"
@@ -101,7 +103,7 @@ bool create_task_from_xml()
         if (FAILED(hr))
             break;
 
-        xml_bstr = SysAllocString(xml);
+        xml_bstr = SysAllocString(xml_fmt);
         hr = ITaskFolder_RegisterTask(root_folder,
             L"AltAppSwitcher",
             xml_bstr,
