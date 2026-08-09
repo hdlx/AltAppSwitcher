@@ -50,8 +50,10 @@ static LRESULT win_proc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp)
         tray->taskbar_msg = RegisterWindowMessage(TEXT("TaskbarCreated"));
         tray->menu = CreatePopupMenu();
         AppendMenu(tray->menu, MF_STRING, 10, TEXT("Settings"));
-        AppendMenu(tray->menu, MF_STRING, 1993, TEXT("Check updates"));
-        AppendMenu(tray->menu, MF_STRING, 21, TEXT("Close"));
+        AppendMenu(tray->menu, MF_STRING, 11, TEXT("Check updates"));
+        AppendMenu(tray->menu, MF_STRING, 12, TEXT("Add to startup"));
+        AppendMenu(tray->menu, MF_STRING, 13, TEXT("Remove from startup"));
+        AppendMenu(tray->menu, MF_STRING, 14, TEXT("Close"));
         break;
     }
     case WM_TRAYICON: {
@@ -78,7 +80,7 @@ static LRESULT win_proc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp)
     }
     case WM_COMMAND: {
         switch (LOWORD(wp)) {
-        case 21:
+        case 14:
             CloseAAS();
             break;
         case 10: {
@@ -92,13 +94,35 @@ static LRESULT win_proc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp)
             }
             break;
         }
-        case 1993: {
+        case 11: {
             char updater[MAX_PATH] = { };
             UpdaterPath(updater);
             if (access(updater, F_OK) == 0) {
                 STARTUPINFO si = { };
                 PROCESS_INFORMATION pi = { };
                 CreateProcess(updater, "--status-popup", 0, 0, false, CREATE_NEW_PROCESS_GROUP, 0, 0,
+                    &si, &pi);
+            }
+            break;
+        }
+        case 12: {
+            char add_to_startup[MAX_PATH] = { };
+            add_to_startup_path(add_to_startup);
+            if (access(add_to_startup, F_OK) == 0) {
+                STARTUPINFO si = { };
+                PROCESS_INFORMATION pi = { };
+                CreateProcess(add_to_startup, "", 0, 0, false, CREATE_NEW_PROCESS_GROUP, 0, 0,
+                    &si, &pi);
+            }
+            break;
+        }
+        case 13: {
+            char remove_from_startup[MAX_PATH] = { };
+            remove_from_startup_path(remove_from_startup);
+            if (access(remove_from_startup, F_OK) == 0) {
+                STARTUPINFO si = { };
+                PROCESS_INFORMATION pi = { };
+                CreateProcess(remove_from_startup, "", 0, 0, false, CREATE_NEW_PROCESS_GROUP, 0, 0,
                     &si, &pi);
             }
             break;

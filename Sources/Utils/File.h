@@ -8,3 +8,5 @@ void ConfigPath(char* outPath);
 void LogPath(char* outPath);
 void UpdaterPath(char* outPath);
 void SettingsPath(char* outPath);
+void add_to_startup_path(char* outPath);
+void remove_from_startup_path(char* outPath);
