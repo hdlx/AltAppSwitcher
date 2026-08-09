@@ -54,7 +54,8 @@ ALLOBJECTS = $(patsubst $(ROOTDIR)/%.c, $(OBJDIR)/%.o, $(ALLC))
 AAS_RES = $(OBJDIR)/AltAppSwitcher.res
 SETTINGS_RES = $(OBJDIR)/Settings.res
 UPDATER_RES = $(OBJDIR)/Updater.res
-ALL_RES = $(AAS_RES) $(SETTINGS_RES) $(UPDATER_RES)
+STARTUP_RES = $(OBJDIR)/Startup.res
+ALL_RES = $(AAS_RES) $(SETTINGS_RES) $(UPDATER_RES) $(STARTUP_RES)
 ALL_RES_SRC = $(wildcard $(RES_SRC_DIR)/*)
 
 # Subsets, for link.
@@ -63,6 +64,7 @@ AASDLLOBJECTS = $(filter $(OBJDIR)/Sources/AltAppSwitcherDll/%, $(ALLOBJECTS))
 CONFIGOBJECTS = $(filter $(OBJDIR)/Sources/Config/%, $(ALLOBJECTS))
 SETTINGSOBJECTS = $(filter $(OBJDIR)/Sources/Settings/%, $(ALLOBJECTS))
 UPDATEROBJECTS = $(filter $(OBJDIR)/Sources/Updater/%, $(ALLOBJECTS))
+STARTUPOBJECTS = $(filter $(OBJDIR)/Sources/startup/%, $(ALLOBJECTS))
 ERROROBJECTS = $(filter $(OBJDIR)/Sources/Utils/Error%, $(ALLOBJECTS))
 FILEOBJECTS = $(filter $(OBJDIR)/Sources/Utils/File%, $(ALLOBJECTS))
 MSGOBJECTS = $(filter $(OBJDIR)/Sources/Utils/Message%, $(ALLOBJECTS))
@@ -73,6 +75,7 @@ COMMONOBJECTS = $(ERROROBJECTS) $(FILEOBJECTS) $(MSGOBJECTS) $(SDKOBJECTS)
 AASLIBS = -l dwmapi -l User32 -l Gdi32 -l Gdiplus -l shlwapi -l pthread -l Ole32 -l Comctl32 -l uuid
 SETTINGSLIB = -l Comctl32 -l Gdi32
 UPDATERLIBS = -l zip -l zlibstatic -l bcrypt -l curl -l curl.dll
+STARTUPLIBS = -l taskschd -l Ole32 -l oleaut32
 
 AASASSETS = $(patsubst $(ROOTDIR)/Assets/deploy/%, $(AASBUILDDIR)/%, $(wildcard $(ROOTDIR)/Assets/deploy/*))
 SDKDLL = $(patsubst $(ROOTDIR)/SDK/Dll/$(ARCH)/%, $(AASBUILDDIR)/%, $(wildcard $(ROOTDIR)/SDK/Dll/$(ARCH)/*))
@@ -85,6 +88,7 @@ AASDLL = $(AASBUILDDIR)/AAS.dll
 ALLAAS = $(AASBUILDDIR)/AltAppSwitcher.exe
 ALLAAS += $(AASBUILDDIR)/Settings.exe
 ALLAAS += $(AASBUILDDIR)/Updater.exe
+ALLAAS += $(AASBUILDDIR)/Startup.exe
 # ALLAAS += $(AASBUILDDIR)/AASDll.dll
 ALLAAS += $(AASASSETS)
 ALLAAS += $(SDKDLL)
@@ -121,6 +125,9 @@ $(AASBUILDDIR)/Settings.exe: $(SETTINGSOBJECTS) $(CONFIGOBJECTS) $(COMMONOBJECTS
 
 $(AASBUILDDIR)/Updater.exe: $(UPDATEROBJECTS) $(COMMONOBJECTS) $(UPDATE_RES)
 	$(CC) $(LFLAGS) $(LDIRS) $(UPDATERLIBS) $^ -o $@
+
+$(AASBUILDDIR)/Startup.exe: $(STARTUPOBJECTS) $(COMMONOBJECTS) $(STARTUP_RES)
+	$(CC) $(LFLAGS) $(LDIRS) $(STARTUPLIBS) $^ -o $@
 
 $(AASBUILDDIR)/AASDll.dll: $(AASDLLOBJECTS) $(COMMONOBJECTS)
 	$(CC) -shared $(LFLAGS) $(LDIRS) $(AASLIBS) $^ -o $@
