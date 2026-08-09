@@ -10,7 +10,7 @@ static const wchar_t* xml = L"<?xml version=\"1.0\" encoding=\"UTF-16\"?>\n"
                             L"<Task version=\"1.2\" xmlns=\"http://schemas.microsoft.com/windows/2004/02/mit/task\">\n"
                             L"<Triggers>\n"
                             L"    <LogonTrigger>\n"
-                            L"    <UserId>S-1-5-21-3287124450-1563820360-1966382520-1001</UserId>\n"
+                            /*L"    <UserId>S-1-5-21-3287124450-1563820360-1966382520-1001</UserId>\n"*/
                             L"        <Enabled>true</Enabled>\n"
                             L"    </LogonTrigger>\n"
                             /*L"    <SessionStateChangeTrigger>\n"
