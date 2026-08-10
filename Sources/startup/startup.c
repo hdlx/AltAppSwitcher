@@ -210,7 +210,7 @@ static bool remove_task()
 int main(int argc, char* argv[])
 {
     bool remove = false;
-    if (argc > 0 && !strcmp(argv[1], "--remove"))
+    if (argc > 1 && !strcmp(argv[1], "--remove"))
         remove = true;
     HRESULT hr = CoInitializeEx(NULL, COINIT_MULTITHREADED);
     ASSERT(!FAILED(hr));

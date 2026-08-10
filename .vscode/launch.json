@@ -46,7 +46,7 @@
 			"request": "launch",
 			"name": "Startup x86_64 Debug",
 			"program": "${workspaceFolder}/Output/Debug_x86_64/AAS/Startup.exe",
-			"args": ["--remove"],
+			"args": [],
 			"preLaunchTask": "Build x86_64 Debug",
 			"cwd": "${workspaceFolder}/Output/Debug_x86_64/AAS",
 			"console": "integratedTerminal"
