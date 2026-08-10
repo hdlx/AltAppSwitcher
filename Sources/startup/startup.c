@@ -1,4 +1,5 @@
 #define COBJMACROS
+#include <initguid.h>
 #include <stdbool.h>
 #include <shlobj.h>
 #include <taskschd.h>

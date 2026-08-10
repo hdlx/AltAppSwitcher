@@ -75,7 +75,7 @@ COMMONOBJECTS = $(ERROROBJECTS) $(FILEOBJECTS) $(MSGOBJECTS) $(SDKOBJECTS)
 AASLIBS = -l dwmapi -l User32 -l Gdi32 -l Gdiplus -l shlwapi -l pthread -l Ole32 -l Comctl32 -l uuid
 SETTINGSLIB = -l Comctl32 -l Gdi32
 UPDATERLIBS = -l zip -l zlibstatic -l bcrypt -l curl -l curl.dll
-STARTUPLIBS = -l taskschd -l Ole32 -l oleaut32
+STARTUPLIBS = -l Ole32 -l oleaut32
 
 AASASSETS = $(patsubst $(ROOTDIR)/Assets/deploy/%, $(AASBUILDDIR)/%, $(wildcard $(ROOTDIR)/Assets/deploy/*))
 SDKDLL = $(patsubst $(ROOTDIR)/SDK/Dll/$(ARCH)/%, $(AASBUILDDIR)/%, $(wildcard $(ROOTDIR)/SDK/Dll/$(ARCH)/*))
