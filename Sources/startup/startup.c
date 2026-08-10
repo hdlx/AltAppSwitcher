@@ -53,7 +53,15 @@ static void cs_to_wcs(wchar_t* dst, const char* src)
     *dst = L'\0';
 }
 
-static bool create_task()
+static const char remove_msg_default[] = "Remove startup task failed.";
+static const char remove_msg_no_task[] = "No startup task to remove.";
+static const char remove_msg_success[] = "Startup task removed.";
+
+static const char create_msg_default[] = "Create startup task failed.";
+static const char create_msg_success_update[] = "Startup task succesfully updated.";
+static const char create_msg_success_new[] = "Startup task succesfully created.";
+
+static bool create_task(const char** out_msg)
 {
     wchar_t exe[MAX_PATH] = { };
     wchar_t dir[MAX_PATH] = { };
@@ -87,7 +95,7 @@ static bool create_task()
         CloseHandle(tok);
     }
 
-    (void)swprintf(
+    (void)swprintf_s(
         xml_fmt,
         sizeof(xml_fmt),
         xml,
@@ -105,7 +113,7 @@ static bool create_task()
     ITaskFolder* root_folder = NULL;
     IRegisteredTask* task = NULL;
     BSTR xml_bstr = NULL;
-
+    *out_msg = create_msg_default;
     HRESULT hr = -1;
     ASSERT(FAILED(hr)); // Just makes sure -1 means failure
     do {
@@ -127,6 +135,17 @@ static bool create_task()
         hr = ITaskService_GetFolder(service, L"\\", &root_folder);
         if (FAILED(hr))
             break;
+
+        bool already_exists = false;
+        {
+            IRegisteredTask* prev_task = NULL;
+            (void)ITaskFolder_GetTask(root_folder, L"AltAppSwitcher", &prev_task);
+            if (prev_task) {
+                IRegisteredTask_Release(prev_task);
+                already_exists = true;
+            }
+        }
+
         xml_bstr = SysAllocString(xml_fmt);
         hr = ITaskFolder_RegisterTask(root_folder,
             L"AltAppSwitcher",
@@ -137,8 +156,11 @@ static bool create_task()
             TASK_LOGON_INTERACTIVE_TOKEN,
             (VARIANT) { },
             &task);
-        if (FAILED(hr)) {
-            printf("error is %x", (int)hr);
+        if (SUCCEEDED(hr)) {
+            if (already_exists)
+                *out_msg = create_msg_success_update;
+            else
+                *out_msg = create_msg_success_new;
         }
     } while (false);
 
@@ -157,13 +179,14 @@ static bool create_task()
     return SUCCEEDED(hr);
 }
 
-static bool remove_task()
+static bool remove_task(const char** out_msg)
 {
     ITaskService* service = NULL;
     ITaskFolder* root_folder = NULL;
     IRegisteredTask* task = NULL;
 
     HRESULT hr = -1;
+    *out_msg = remove_msg_default;
     ASSERT(FAILED(hr)); // Just makes sure -1 means failure
     do {
         hr = CoCreateInstance(
@@ -185,12 +208,28 @@ static bool remove_task()
         hr = ITaskService_GetFolder(service, L"\\", &root_folder);
         if (FAILED(hr))
             break;
+
+        bool already_exists = false;
+        {
+            IRegisteredTask* prev_task = NULL;
+            hr = ITaskFolder_GetTask(root_folder, L"AltAppSwitcher", &prev_task);
+            if (prev_task) {
+                IRegisteredTask_Release(prev_task);
+                already_exists = true;
+            }
+        }
+
+        if (!already_exists) {
+            *out_msg = remove_msg_no_task;
+            break;
+        }
+
         hr = ITaskFolder_DeleteTask(
             root_folder,
             L"AltAppSwitcher",
             0);
-        if (FAILED(hr)) {
-            printf("error is %x", (int)hr);
+        if (SUCCEEDED(hr)) {
+            *out_msg = remove_msg_success;
         }
     } while (false);
 
@@ -216,20 +255,11 @@ int main(int argc, char* argv[])
     }
     HRESULT hr = CoInitializeEx(NULL, COINIT_MULTITHREADED);
     ASSERT(!FAILED(hr));
-    char* msg = NULL;
-    if (remove) {
-        bool succ = remove_task();
-        if (succ)
-            msg = "Remove task succedeed";
-        else
-            msg = "Remove task failed";
-    } else {
-        bool succ = create_task();
-        if (succ)
-            msg = "Add task succedeed";
-        else
-            msg = "Add task failed";
-    }
+    const char* msg = NULL;
+    if (remove)
+        remove_task(&msg);
+    else
+        create_task(&msg);
     MessageBox(0, msg, "AltAppSwitcher", MB_OK | MB_SETFOREGROUND);
     CoUninitialize();
     return 0;
