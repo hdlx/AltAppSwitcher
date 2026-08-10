@@ -163,20 +163,11 @@ void aas_path(char* outPath)
     strcat_s(outPath, sizeof(char) * MAX_PATH, "/AltAppSwitcher.exe");
 }
 
-void add_to_startup_path(char* outPath)
+void startup_path(char* outPath)
 {
     outPath[0] = '\0';
     char currentExe[MAX_PATH] = { };
     GetModuleFileName(NULL, currentExe, MAX_PATH);
     ParentDir(currentExe, outPath);
-    strcat_s(outPath, sizeof(char) * MAX_PATH, "/AddToStartup.bat");
-}
-
-void remove_from_startup_path(char* outPath)
-{
-    outPath[0] = '\0';
-    char currentExe[MAX_PATH] = { };
-    GetModuleFileName(NULL, currentExe, MAX_PATH);
-    ParentDir(currentExe, outPath);
-    strcat_s(outPath, sizeof(char) * MAX_PATH, "/RemoveFromStartup.bat");
+    strcat_s(outPath, sizeof(char) * MAX_PATH, "/Startup.exe");
 }

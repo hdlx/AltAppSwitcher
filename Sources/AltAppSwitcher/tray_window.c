@@ -107,7 +107,7 @@ static LRESULT win_proc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp)
         }
         case 12: {
             char add_to_startup[MAX_PATH] = { };
-            add_to_startup_path(add_to_startup);
+            startup_path(add_to_startup);
             if (access(add_to_startup, F_OK) == 0) {
                 STARTUPINFO si = { };
                 PROCESS_INFORMATION pi = { };
@@ -118,11 +118,11 @@ static LRESULT win_proc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp)
         }
         case 13: {
             char remove_from_startup[MAX_PATH] = { };
-            remove_from_startup_path(remove_from_startup);
+            startup_path(remove_from_startup);
             if (access(remove_from_startup, F_OK) == 0) {
                 STARTUPINFO si = { };
                 PROCESS_INFORMATION pi = { };
-                CreateProcess(remove_from_startup, "", 0, 0, false, CREATE_NEW_PROCESS_GROUP, 0, 0,
+                CreateProcess(remove_from_startup, "--remove", 0, 0, false, CREATE_NEW_PROCESS_GROUP, 0, 0,
                     &si, &pi);
             }
             break;

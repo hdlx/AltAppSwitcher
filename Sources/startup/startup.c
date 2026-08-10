@@ -52,7 +52,8 @@ static void cs_to_wcs(wchar_t* dst, const char* src)
     }
     *dst = L'\0';
 }
-bool create_task_from_xml()
+
+static bool create_task()
 {
     wchar_t exe[MAX_PATH] = { };
     wchar_t dir[MAX_PATH] = { };
@@ -96,17 +97,17 @@ bool create_task_from_xml()
         elevated ? L"HighestAvailable" : L"LeastPrivilege",
         exe,
         dir);
+#if 0
     wprintf(xml_fmt);
-
-    HRESULT hr = CoInitializeEx(NULL, COINIT_MULTITHREADED);
-    if (FAILED(hr))
-        return false;
+#endif
 
     ITaskService* service = NULL;
     ITaskFolder* root_folder = NULL;
     IRegisteredTask* task = NULL;
     BSTR xml_bstr = NULL;
 
+    HRESULT hr = -1;
+    ASSERT(FAILED(hr)); // Just makes sure -1 means failure
     do {
         hr = CoCreateInstance(
             &CLSID_TaskScheduler,
@@ -138,7 +139,6 @@ bool create_task_from_xml()
             &task);
         if (FAILED(hr)) {
             printf("error is %x", (int)hr);
-            ASSERT(false);
         }
     } while (false);
 
@@ -154,15 +154,81 @@ bool create_task_from_xml()
             ITaskService_Release(service);
     }
 
-    CoUninitialize();
+    return SUCCEEDED(hr);
+}
+
+static bool remove_task()
+{
+    ITaskService* service = NULL;
+    ITaskFolder* root_folder = NULL;
+    IRegisteredTask* task = NULL;
+
+    HRESULT hr = -1;
+    ASSERT(FAILED(hr)); // Just makes sure -1 means failure
+    do {
+        hr = CoCreateInstance(
+            &CLSID_TaskScheduler,
+            NULL,
+            CLSCTX_INPROC_SERVER,
+            &IID_ITaskService,
+            (void**)&service);
+        if (FAILED(hr))
+            break;
+        hr = ITaskService_Connect(
+            service,
+            (VARIANT) { },
+            (VARIANT) { },
+            (VARIANT) { },
+            (VARIANT) { });
+        if (FAILED(hr))
+            break;
+        hr = ITaskService_GetFolder(service, L"\\", &root_folder);
+        if (FAILED(hr))
+            break;
+        hr = ITaskFolder_DeleteTask(
+            root_folder,
+            L"AltAppSwitcher",
+            0);
+        if (FAILED(hr)) {
+            printf("error is %x", (int)hr);
+        }
+    } while (false);
+
+    // Cleanup
+    {
+        if (task)
+            IRegisteredTask_Release(task);
+        if (root_folder)
+            ITaskFolder_Release(root_folder);
+        if (service)
+            ITaskService_Release(service);
+    }
 
     return SUCCEEDED(hr);
 }
 
 int main(int argc, char* argv[])
 {
-    create_task_from_xml();
-    (void)argc;
-    (void)argv;
+    bool remove = false;
+    if (argc > 0 && !strcmp(argv[1], "--remove"))
+        remove = true;
+    HRESULT hr = CoInitializeEx(NULL, COINIT_MULTITHREADED);
+    ASSERT(!FAILED(hr));
+    char* msg = NULL;
+    if (remove) {
+        bool succ = remove_task();
+        if (succ)
+            msg = "Remove task succedeed";
+        else
+            msg = "Remove task failed";
+    } else {
+        bool succ = create_task();
+        if (succ)
+            msg = "Add task succedeed";
+        else
+            msg = "Add task failed";
+    }
+    MessageBox(0, msg, "AltAppSwitcher", MB_OK | MB_SETFOREGROUND);
+    CoUninitialize();
     return 0;
 }
