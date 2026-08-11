@@ -57,10 +57,39 @@ static void cs_to_wcs(wchar_t* dst, const char* src)
 static const char remove_msg_default[] = "Remove startup task failed.";
 static const char remove_msg_no_task[] = "No startup task to remove.";
 static const char remove_msg_success[] = "Startup task removed.";
+static const char remove_msg_insufficient_right[] = "Could not remove startup task. A task is already registered as administrator. Re-run this as administrator to remove it.";
 
 static const char create_msg_default[] = "Create startup task failed.";
 static const char create_msg_success_update[] = "Startup task succesfully updated.";
 static const char create_msg_success_new[] = "Startup task succesfully created.";
+static const char create_msg_insufficient_right[] = "Could not update startup task. A task is already registered as administrator. Re-run this as administrator to update it.";
+
+static bool task_is_elevated(IRegisteredTask* task, bool* out_elevated)
+{
+    ITaskDefinition* definition = NULL;
+    IPrincipal* principal = NULL;
+    *out_elevated = false;
+    HRESULT hr = -1;
+    ASSERT(FAILED(hr)); // Just makes sure -1 means failure
+    do {
+        hr = IRegisteredTask_get_Definition(task, &definition);
+        if (!SUCCEEDED(hr))
+            break;
+        hr = ITaskDefinition_get_Principal(definition, &principal);
+        if (!SUCCEEDED(hr))
+            break;
+        TASK_RUNLEVEL_TYPE run_level;
+        hr = IPrincipal_get_RunLevel(principal, &run_level);
+        if (!SUCCEEDED(hr))
+            break;
+        *out_elevated = run_level == TASK_RUNLEVEL_HIGHEST;
+    } while (false);
+    if (principal)
+        IPrincipal_Release(principal);
+    if (definition)
+        ITaskDefinition_Release(definition);
+    return hr;
+}
 
 static bool create_task(const char** out_msg)
 {
@@ -113,6 +142,7 @@ static bool create_task(const char** out_msg)
     ITaskService* service = NULL;
     ITaskFolder* root_folder = NULL;
     IRegisteredTask* task = NULL;
+    IRegisteredTask* prev_task = NULL;
     BSTR xml_bstr = NULL;
     *out_msg = create_msg_default;
     HRESULT hr = -1;
@@ -138,12 +168,19 @@ static bool create_task(const char** out_msg)
             break;
 
         bool already_exists = false;
-        {
-            IRegisteredTask* prev_task = NULL;
-            (void)ITaskFolder_GetTask(root_folder, L"AltAppSwitcher", &prev_task);
-            if (prev_task) {
-                IRegisteredTask_Release(prev_task);
-                already_exists = true;
+        ITaskFolder_GetTask(root_folder, L"AltAppSwitcher", &prev_task);
+        if (prev_task) {
+            already_exists = true;
+        }
+
+        if (already_exists) {
+            bool prev_task_is_elevated = false;
+            hr = task_is_elevated(prev_task, &prev_task_is_elevated);
+            if (FAILED(hr))
+                break;
+            if (prev_task_is_elevated && !elevated) {
+                *out_msg = create_msg_insufficient_right;
+                break;
             }
         }
 
@@ -171,6 +208,8 @@ static bool create_task(const char** out_msg)
             SysFreeString(xml_bstr);
         if (task)
             IRegisteredTask_Release(task);
+        if (prev_task)
+            IRegisteredTask_Release(prev_task);
         if (root_folder)
             ITaskFolder_Release(root_folder);
         if (service)
@@ -184,7 +223,17 @@ static bool remove_task(const char** out_msg)
 {
     ITaskService* service = NULL;
     ITaskFolder* root_folder = NULL;
-    IRegisteredTask* task = NULL;
+    IRegisteredTask* prev_task = NULL;
+
+    bool elevated = false;
+    {
+        HANDLE tok;
+        OpenProcessToken(GetCurrentProcess(), TOKEN_QUERY, &tok);
+        TOKEN_ELEVATION elTok;
+        DWORD cbSize = sizeof(TOKEN_ELEVATION);
+        GetTokenInformation(tok, TokenElevation, &elTok, sizeof(elTok), &cbSize);
+        elevated = elTok.TokenIsElevated;
+    }
 
     HRESULT hr = -1;
     *out_msg = remove_msg_default;
@@ -210,18 +259,19 @@ static bool remove_task(const char** out_msg)
         if (FAILED(hr))
             break;
 
-        bool already_exists = false;
-        {
-            IRegisteredTask* prev_task = NULL;
-            hr = ITaskFolder_GetTask(root_folder, L"AltAppSwitcher", &prev_task);
-            if (prev_task) {
-                IRegisteredTask_Release(prev_task);
-                already_exists = true;
-            }
+        hr = ITaskFolder_GetTask(root_folder, L"AltAppSwitcher", &prev_task);
+        if (!prev_task) {
+            *out_msg = remove_msg_no_task;
+            break;
         }
 
-        if (!already_exists) {
-            *out_msg = remove_msg_no_task;
+        bool prev_task_is_elevated = false;
+        hr = task_is_elevated(prev_task, &prev_task_is_elevated);
+        if (FAILED(hr))
+            break;
+
+        if (prev_task_is_elevated && !elevated) {
+            *out_msg = remove_msg_insufficient_right;
             break;
         }
 
@@ -236,8 +286,8 @@ static bool remove_task(const char** out_msg)
 
     // Cleanup
     {
-        if (task)
-            IRegisteredTask_Release(task);
+        if (prev_task)
+            IRegisteredTask_Release(prev_task);
         if (root_folder)
             ITaskFolder_Release(root_folder);
         if (service)
