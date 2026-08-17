@@ -386,7 +386,7 @@ void WriteConfig(const Config* config)
     JSONWriteEnum(j, "theme", config->ThemeMode, themeES);
     JSONWriteEnum(j, "app_switcher_mode", config->AppSwitcherMode, appSwitcherModeES);
     JSONWriteEnum(j, "display_name", config->DisplayName, displayNameES);
-    JSONWriteEnum(j, "multiple_monitor_ mode", config->MultipleMonitorMode, multipleMonitorModeES);
+    JSONWriteEnum(j, "multiple_monitor_mode", config->MultipleMonitorMode, multipleMonitorModeES);
     JSONWriteEnum(j, "app_filter_mode", config->AppFilterMode, appFilterModeES);
     JSONWriteEnum(j, "desktop_filter", config->DesktopFilter, desktopFilterES);
 
