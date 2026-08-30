@@ -278,3 +278,74 @@ DWORD TryAttachToForeground()
         return 0;
     return fgWinThread;
 }
+
+#define MRU_CAPACITY 128u
+
+static HWND MruList[MRU_CAPACITY];
+static uint32_t MruCount = 0;
+static HWINEVENTHOOK MruHook = NULL;
+
+static void MruTrackerRecord(HWND hwnd)
+{
+    if (!hwnd)
+        return;
+
+    // Ignore our own popup windows so they never pollute the MRU list.
+    DWORD pid = 0;
+    GetWindowThreadProcessId(hwnd, &pid);
+    if (pid == GetCurrentProcessId())
+        return;
+
+    uint32_t existingIdx = MruCount;
+    for (uint32_t i = 0; i < MruCount; i++) {
+        if (MruList[i] == hwnd) {
+            existingIdx = i;
+            break;
+        }
+    }
+
+    const uint32_t shiftEnd = existingIdx < MruCount ? existingIdx : min(MruCount, MRU_CAPACITY - 1);
+    for (uint32_t i = shiftEnd; i > 0; i--)
+        MruList[i] = MruList[i - 1];
+    MruList[0] = hwnd;
+    if (existingIdx >= MruCount && MruCount < MRU_CAPACITY)
+        MruCount++;
+}
+
+static void CALLBACK MruWinEventProc(HWINEVENTHOOK hook, DWORD event, HWND hwnd, LONG idObject, LONG idChild, DWORD idEventThread, DWORD idEventTime)
+{
+    (void)hook;
+    (void)event;
+    (void)idEventThread;
+    (void)idEventTime;
+    if (idObject != OBJID_WINDOW || idChild != CHILDID_SELF)
+        return;
+    MruTrackerRecord(hwnd);
+}
+
+void MruTrackerInit(void)
+{
+    MruCount = 0;
+    MruHook = SetWinEventHook(EVENT_SYSTEM_FOREGROUND, EVENT_SYSTEM_FOREGROUND, NULL,
+        MruWinEventProc, 0, 0, WINEVENT_OUTOFCONTEXT);
+    // Seed with whatever is foreground right now, so the very first
+    // switcher invocation already has a sensible "current app" rank.
+    MruTrackerRecord(GetForegroundWindow());
+}
+
+void MruTrackerDeinit(void)
+{
+    if (MruHook) {
+        UnhookWinEvent(MruHook);
+        MruHook = NULL;
+    }
+}
+
+int MruTrackerGetRank(HWND hwnd)
+{
+    for (uint32_t i = 0; i < MruCount; i++) {
+        if (MruList[i] == hwnd)
+            return (int)i;
+    }
+    return -1;
+}
