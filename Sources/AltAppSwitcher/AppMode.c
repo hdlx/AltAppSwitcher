@@ -17,6 +17,7 @@
 #include <winreg.h>
 #include <windowsx.h>
 #include <unistd.h>
+#include <limits.h>
 // https://stackoverflow.com/questions/71437203/proper-way-of-activating-a-window-using-winapi
 #include <uiautomationclient.h>
 #include <gdiplus/gdiplusenums.h>
@@ -2091,6 +2092,43 @@ static void DeinitApp(struct WindowData* windowData)
 #endif
 }
 
+// Windows sends minimized windows to the bottom of the raw Z-order that
+// EnumWindows() returns, which used to make them jump to the very end of
+// the switcher regardless of how recently they were actually used.
+// Re-order the groups by real activation recency (tracked independently
+// via MruTrackerGetRank) instead, so a minimized window keeps the slot it
+// had before being minimized. A group with no MRU history yet (e.g. right
+// after AAS starts) keeps its relative Z-order position, since insertion
+// sort is stable and unknown ranks all compare equal.
+static void SortWinGroupsByRecency(SWinGroupArr* winGroups)
+{
+    for (uint32_t i = 1; i < winGroups->Size; i++) {
+        const SWinGroup key = winGroups->Data[i];
+        int keyRank = INT_MAX;
+        for (uint32_t w = 0; w < key.WindowCount; w++) {
+            const int rank = MruTrackerGetRank(key.Windows[w]);
+            if (rank >= 0 && rank < keyRank)
+                keyRank = rank;
+        }
+
+        uint32_t j = i;
+        while (j > 0) {
+            const SWinGroup* prev = &winGroups->Data[j - 1];
+            int prevRank = INT_MAX;
+            for (uint32_t w = 0; w < prev->WindowCount; w++) {
+                const int rank = MruTrackerGetRank(prev->Windows[w]);
+                if (rank >= 0 && rank < prevRank)
+                    prevRank = rank;
+            }
+            if (prevRank <= keyRank)
+                break;
+            winGroups->Data[j] = winGroups->Data[j - 1];
+            j--;
+        }
+        winGroups->Data[j] = key;
+    }
+}
+
 static void Init(struct WindowData* windowData)
 {
     ASSERT(windowData->StaticData);
@@ -2131,6 +2169,7 @@ static void Init(struct WindowData* windowData)
     }
     StaticData.UWPIconMap.UseIdx++;
     EnumWindows(FillWinGroups, (LPARAM)windowData);
+    SortWinGroupsByRecency(pWinGroups);
 
     const bool invert = GetAsyncKeyState((SHORT)windowData->StaticData->Config->Key.Invert) & 0x8000;
     windowData->Selection = Modulo(windowData->Selection + (invert ? -1 : 1), (int)windowData->WinGroups.Size);

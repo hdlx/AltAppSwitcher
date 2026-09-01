@@ -322,6 +322,8 @@ int StartAltAppSwitcher(HINSTANCE instance)
 
     CommonInit(instance);
     AAS_MSG("CommonInit");
+    MruTrackerInit();
+    AAS_MSG("MruTrackerInit");
     AppModeInit(instance, &appData.Config, appData.VDM);
     AAS_MSG("AppModeInit");
     WinModeInit(instance, &appData.Config, appData.VDM);
@@ -419,6 +421,7 @@ int StartAltAppSwitcher(HINSTANCE instance)
     }
 
     CommonDeinit(instance);
+    MruTrackerDeinit();
     AppModeDeinit();
     WinModeDeinit();
 
