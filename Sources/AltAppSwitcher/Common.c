@@ -100,7 +100,7 @@ int Modulo(int a, int b)
     return (a % b + b) % b;
 }
 
-bool IsEligibleWindow(HWND hwnd, const struct Config* cfg, HMONITOR mouseMonitor, bool ignoreMinimizedWindows, IVirtualDesktopManager* vdm)
+static bool IsEligibleWindowStatic(HWND hwnd)
 {
     if (hwnd == GetShellWindow()) // Desktop
         return false;
@@ -127,9 +127,6 @@ bool IsEligibleWindow(HWND hwnd, const struct Config* cfg, HMONITOR mouseMonitor
     if ((isOwned) && !(wi.dwExStyle & WS_EX_APPWINDOW))
         return false;
 
-    if (cfg->DesktopFilter == DesktopFilterCurrent && !BelongsToCurrentDesktop(hwnd, vdm))
-        return false;
-
     if (!IsWindowVisible(hwnd))
         return false;
 
@@ -143,6 +140,17 @@ bool IsEligibleWindow(HWND hwnd, const struct Config* cfg, HMONITOR mouseMonitor
     if (!strcmp(buf, "ApplicationFrameWindow"))
         DwmGetWindowAttribute(hwnd, (DWORD)DWMWA_CLOAKED, (PVOID)&cloaked, (DWORD)sizeof(cloaked));
     if (cloaked)
+        return false;
+
+    return true;
+}
+
+bool IsEligibleWindow(HWND hwnd, const struct Config* cfg, HMONITOR mouseMonitor, bool ignoreMinimizedWindows, IVirtualDesktopManager* vdm)
+{
+    if (!IsEligibleWindowStatic(hwnd))
+        return false;
+
+    if (cfg->DesktopFilter == DesktopFilterCurrent && !BelongsToCurrentDesktop(hwnd, vdm))
         return false;
 
     // Filter apps by monitor if enabled
@@ -290,10 +298,7 @@ static void MruTrackerRecord(HWND hwnd)
     if (!hwnd)
         return;
 
-    // Ignore our own popup windows so they never pollute the MRU list.
-    DWORD pid = 0;
-    GetWindowThreadProcessId(hwnd, &pid);
-    if (pid == GetCurrentProcessId())
+    if (!IsEligibleWindowStatic(hwnd))
         return;
 
     uint32_t existingIdx = MruCount;
