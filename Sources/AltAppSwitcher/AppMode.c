@@ -79,9 +79,11 @@ typedef struct Metrics {
     uint32_t WinY;
     uint32_t ColCount;
     float Container;
+    float TileWidth;
     float Icon;
     float Pad;
     float AppNameHeight;
+    float NameFontSize;
     float DigitBoxHeight;
     float DigitBoxPad;
     float PathThickness;
@@ -1386,15 +1388,15 @@ static int Clamp(int x, int y, int z)
 
 static uint32_t PosToIdx(const Metrics* m, int x, int y, int count)
 {
-    x = Clamp(x - (int)m->Pad, 0, (int)m->Container * (int)m->ColCount);
-    int i = ((x - (int)m->Pad) / (int)m->Container) % (int)m->ColCount;
+    x = Clamp(x - (int)m->Pad, 0, (int)m->TileWidth * (int)m->ColCount);
+    int i = ((x - (int)m->Pad) / (int)m->TileWidth) % (int)m->ColCount;
     i += ((y - (int)m->Pad) / (int)(m->Container + m->AppNameHeight)) * (int)m->ColCount;
     return (uint32_t)min(max(0, i), (int)(count - 1));
 }
 
 static void IdxToPos(const Metrics* m, int idx, int* outX, int* outY)
 {
-    *outX = (int)m->Pad + (int)m->Container * (idx % (int)m->ColCount);
+    *outX = (int)m->Pad + (int)m->TileWidth * (idx % (int)m->ColCount);
     *outY = (int)m->Pad + (int)(m->Container + m->AppNameHeight) * (idx / (int)m->ColCount);
 }
 
@@ -1422,16 +1424,31 @@ static void ComputeMetrics(uint32_t iconCount, Metrics* metrics, const struct Co
     const int centerX = monitorSize[0] / 2;
     const int screenWidth = monitorSize[0];
     const float containerRatio = 1.25f;
+    const float tileWidthRatio = max(cfg->TileWidth, containerRatio); // Tiles may be wider than the icon container
     float iconSize = (float)GetSystemMetrics(SM_CXICON) * scale;
     const float appNameHeightRatio = max(0.25 * iconSize, 16.0f) / iconSize; // Keep room for app name
     const float padRatio = max(0.25, appNameHeightRatio);
-    const int sizeX = min(iconSize * ((int)dimX * containerRatio + 2.0f * padRatio), screenWidth * 0.9);
-    iconSize = ((float)sizeX / ((((float)dimX * containerRatio) + (2.0f * padRatio))));
+    const int sizeX = min(iconSize * ((int)dimX * tileWidthRatio + 2.0f * padRatio), screenWidth * 0.9);
+    iconSize = ((float)sizeX / ((((float)dimX * tileWidthRatio) + (2.0f * padRatio))));
+
+    // Name zone. Default (one line, automatic size): font is 60% of the zone height.
+    // With several lines or a fixed font size, the zone grows to fit the text.
+    const float autoNameHeight = iconSize * appNameHeightRatio;
+    const int nameLines = max(cfg->NameLines, 1);
+    const float nameFontSize = cfg->NameFontSize > 0 ? (float)cfg->NameFontSize : autoNameHeight * 0.6f;
+    float nameHeight = autoNameHeight;
+    if (nameLines > 1 || cfg->NameFontSize > 0) {
+        const float lineHeight = nameFontSize * (nameLines > 1 ? 1.35f : 1.0f);
+        const float margin = nameFontSize / 3.0f; // Same 20% top and bottom margins as default
+        nameHeight = max(autoNameHeight, ((float)nameLines * lineHeight) + (2.0f * margin));
+    }
+    const float nameHeightRatio = nameHeight / iconSize;
+
     const uint32_t halfSizeX = sizeX / 2;
     const uint32_t sizeY = 0
-        + dimY * (uint32_t)(iconSize * (containerRatio + appNameHeightRatio)) // tile + name
+        + dimY * (uint32_t)(iconSize * (containerRatio + nameHeightRatio)) // tile + name
         + (uint32_t)(padRatio * iconSize) // top win padding
-        + (uint32_t)((padRatio - appNameHeightRatio) * iconSize); // bottom padding: only if bigger than app name zone
+        + (uint32_t)(max(padRatio - nameHeightRatio, 0.0f) * iconSize); // bottom padding: only if bigger than app name zone
     const uint32_t halfSizeY = sizeY / 2;
     metrics->ColCount = dimX;
     metrics->WinPosX = centerX - halfSizeX + monitorOffset[0];
@@ -1440,8 +1457,10 @@ static void ComputeMetrics(uint32_t iconCount, Metrics* metrics, const struct Co
     metrics->WinY = sizeY;
     metrics->Icon = iconSize;
     metrics->Container = iconSize * containerRatio;
+    metrics->TileWidth = iconSize * tileWidthRatio;
     metrics->Pad = iconSize * padRatio;
-    metrics->AppNameHeight = iconSize * appNameHeightRatio;
+    metrics->AppNameHeight = iconSize * nameHeightRatio;
+    metrics->NameFontSize = nameFontSize;
     metrics->DigitBoxHeight = min(max(metrics->Container * 0.15f, 16.0f), metrics->Container * 0.5f); // Min size of 16 for text
     metrics->PathThickness = 2.0f;
     metrics->DigitBoxPad = (0.15f * metrics->DigitBoxHeight) + metrics->PathThickness;
@@ -1712,7 +1731,7 @@ static void CloseButtonRect(float* outRect, const Metrics* m, uint32_t idx)
     int y;
     IdxToPos(m, (int)idx, &x, &y);
     RectF r = {
-        (float)x + m->Container - w - p,
+        (float)x + m->TileWidth - w - p,
         (float)y + p,
         w,
         w
@@ -1750,17 +1769,21 @@ static void Draw(struct WindowData* windowData, RECT clientRect)
     GdipSetTextRenderingHint(pGraphics, TextRenderingHintClearTypeGridFit);
 
     const float containerSize = windowData->Metrics.Container;
+    const float tileWidth = windowData->Metrics.TileWidth;
     const float iconSize = windowData->Metrics.Icon;
-    const float selectSize = containerSize;
-    const float padSelect = (containerSize - selectSize) * 0.5f;
+    const bool multiLineNames = windowData->StaticData->Config->NameLines > 1;
+    // With multi-line names, the selection box also covers the name zone
+    const float selectHeight = multiLineNames ? containerSize + windowData->Metrics.AppNameHeight : containerSize;
     const float padIcon = (containerSize - iconSize) * 0.5f;
+    const float padIconX = (tileWidth - iconSize) * 0.5f;
     const float digitHeight = windowData->Metrics.DigitBoxHeight * 0.75f;
-    const float nameHeight = windowData->Metrics.AppNameHeight * 0.6f;
-    const float namePad = windowData->Metrics.AppNameHeight * 0.2f;
+    const float nameHeight = windowData->Metrics.NameFontSize;
+    const float namePad = multiLineNames ? nameHeight / 3.0f : windowData->Metrics.AppNameHeight * 0.2f;
 
     // Resources
     GpFont* fontName = NULL;
     GpFontFamily* pFontFamily = NULL;
+    GpStringFormat* pNameFormat = NULL;
     {
         GpFontCollection* fc = NULL;
         ASSERT(Ok == GdipNewInstalledFontCollection(&fc));
@@ -1768,7 +1791,24 @@ static void Draw(struct WindowData* windowData, RECT clientRect)
         //     ASSERT(Ok == GdipCreateFontFamilyFromName(L"Segoe UI", fc, &pFontFamily));
         // }
         ASSERT(Ok == GdipCreateFontFamilyFromName(L"Segoe UI", fc, &pFontFamily));
-        ASSERT(Ok == GdipCreateFont(pFontFamily, nameHeight, FontStyleRegular, (int)MetafileFrameUnitPixel, &fontName));
+        if (windowData->StaticData->Config->NameSystemFont) {
+            // System UI font (face and weight), at the computed pixel size
+            NONCLIENTMETRICSW ncm = { .cbSize = sizeof(NONCLIENTMETRICSW) };
+            SystemParametersInfoW(SPI_GETNONCLIENTMETRICS, sizeof(ncm), &ncm, 0);
+            LOGFONTW lf = ncm.lfMessageFont;
+            lf.lfHeight = -(LONG)nameHeight;
+            if (Ok != GdipCreateFontFromLogfontW(windowData->DC, &lf, &fontName))
+                fontName = NULL;
+        }
+        if (fontName == NULL)
+            ASSERT(Ok == GdipCreateFont(pFontFamily, nameHeight, FontStyleRegular, (int)MetafileFrameUnitPixel, &fontName));
+        if (multiLineNames) {
+            // Wrap, only draw whole lines, ellipsis at the end of the last one
+            ASSERT(Ok == GdipCloneStringFormat(pGraphRes->pFormat, &pNameFormat));
+            ASSERT(Ok == GdipSetStringFormatFlags(pNameFormat, StringFormatFlagsLineLimit));
+            ASSERT(Ok == GdipSetStringFormatTrimming(pNameFormat, StringTrimmingEllipsisCharacter));
+            ASSERT(Ok == GdipSetStringFormatLineAlign(pNameFormat, StringAlignmentNear));
+        }
     }
 
     // Selection box
@@ -1780,7 +1820,7 @@ static void Draw(struct WindowData* windowData, RECT clientRect)
             int tileX = 0;
             int tileY = 0;
             IdxToPos(&windowData->Metrics, (int)mouseSelIdx, &tileX, &tileY);
-            RectF selRect = { (float)tileX, (float)tileY, selectSize, selectSize };
+            RectF selRect = { (float)tileX, (float)tileY, tileWidth, selectHeight };
             DrawRoundedRect(pGraphics, NULL, pGraphRes->pBrushBgHighlight, &selRect, 10);
         }
 
@@ -1788,7 +1828,7 @@ static void Draw(struct WindowData* windowData, RECT clientRect)
             int tileX = 0;
             int tileY = 0;
             IdxToPos(&windowData->Metrics, (int)selIdx, &tileX, &tileY);
-            RectF selRect = { (float)tileX, (float)tileY, selectSize, selectSize };
+            RectF selRect = { (float)tileX, (float)tileY, tileWidth, selectHeight };
             COLORREF cr = pGraphRes->TextColor;
             ARGB gdipColor = cr | 0xFF000000;
             GpPen* pPen;
@@ -1825,11 +1865,11 @@ static void Draw(struct WindowData* windowData, RECT clientRect)
                 unsigned int targetIconSize = ratio * bitmapWidth;
                 float extraPad = (iconSize - (float)targetIconSize) / 2.0f;
                 GdipDrawImageRectI(
-                    pGraphics, pWinGroup->IconBitmap, (INT)(x + padIcon + extraPad),
+                    pGraphics, pWinGroup->IconBitmap, (INT)(x + padIconX + extraPad),
                     (INT)(y + padIcon + extraPad), (INT)targetIconSize, (INT)targetIconSize);
                 GdipSetInterpolationMode(pGraphics, backupInterpMode);
             } else
-                GdipDrawImageRectI(pGraphics, pWinGroup->IconBitmap, (INT)(x + padIcon), (INT)(y + padIcon), (INT)iconSize, (INT)iconSize);
+                GdipDrawImageRectI(pGraphics, pWinGroup->IconBitmap, (INT)(x + padIconX), (INT)(y + padIcon), (INT)iconSize, (INT)iconSize);
         }
 
         // Digit
@@ -1841,8 +1881,8 @@ static void Draw(struct WindowData* windowData, RECT clientRect)
             const float h = windowData->Metrics.DigitBoxHeight;
             const float p = windowData->Metrics.DigitBoxPad;
             RectF r = {
-                (x + padSelect + selectSize - p - w), // (x + padSelect + selectSize - p - w - (closeButton ? p + w : 0)),
-                (y + padSelect + selectSize - p - w),
+                (x + tileWidth - p - w), // (x + tileWidth - p - w - (closeButton ? p + w : 0)),
+                (y + containerSize - p - w),
                 (w),
                 (h)
             };
@@ -1885,9 +1925,9 @@ static void Draw(struct WindowData* windowData, RECT clientRect)
             || (latestSelected && windowData->StaticData->Config->DisplayName == DisplayNameSelFull)
             || windowData->StaticData->Config->DisplayName == DisplayNameAll) {
             // https://learn.microsoft.com/en-us/windows/win32/gdiplus/-gdiplus-obtaining-font-metrics-use
-            const float h = nameHeight;
             const float p = namePad;
-            const float w = containerSize - (2.0f * p);
+            const float h = multiLineNames ? windowData->Metrics.AppNameHeight - (2.0f * p) : nameHeight;
+            const float w = tileWidth - (2.0f * p);
             RectF r = {
                 (float)(int)(x + p),
                 (float)(int)(y + containerSize + p),
@@ -1907,7 +1947,9 @@ static void Draw(struct WindowData* windowData, RECT clientRect)
             static wchar_t name[MAX_PATH];
             const wchar_t* displayName = wcslen(pWinGroup->Caption) > 0 ? pWinGroup->Caption : pWinGroup->AppName;
             int count = (int)wcslen(displayName);
-            if (count != 0) {
+            if (count != 0 && multiLineNames) {
+                GdipDrawString(pGraphics, displayName, count, fontName, &r, pNameFormat, pGraphRes->pBrushText);
+            } else if (count != 0) {
                 RectF rout;
                 int maxCount = 0;
                 GdipMeasureString(pGraphics, displayName, count, fontName, &r, pGraphRes->pFormat, &rout, &maxCount, 0);
@@ -1973,6 +2015,8 @@ static void Draw(struct WindowData* windowData, RECT clientRect)
     // Delete res.
     GdipDeleteFont(fontName);
     GdipDeleteFontFamily(pFontFamily);
+    if (pNameFormat)
+        GdipDeleteStringFormat(pNameFormat);
 
     GdipDeleteGraphics(pGraphics);
 }
@@ -2245,11 +2289,12 @@ static void Init(struct WindowData* windowData)
 
     for (uint32_t i = 0; i < windowData->WinGroups.Size; i++) {
         const int iconContainerSize = (int)windowData->Metrics.Container;
+        const int tileWidth = (int)windowData->Metrics.TileWidth;
         const int pad = (int)windowData->Metrics.Pad;
-        int x = pad + (int)(i * iconContainerSize);
+        int x = pad + (int)(i * tileWidth);
         windowData->FocusWindows[i] = CreateWindowEx(0, FOCUS_CLASS_NAME, NULL,
             WS_CHILD /* | WS_VISIBLE */,
-            x, pad, iconContainerSize, iconContainerSize,
+            x, pad, tileWidth, iconContainerSize,
             windowData->MainWin, NULL, windowData->StaticData->Instance, windowData);
         windowData->FocusWindowCount++;
     }

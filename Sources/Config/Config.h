@@ -60,6 +60,10 @@ typedef struct Config {
     DesktopFilter DesktopFilter;
     int IconsPerRow;
     bool AskForElevation;
+    int NameLines; // Max number of text lines for the name under each icon.
+    float TileWidth; // Tile width relative to icon size.
+    int NameFontSize; // Name font size in pixels, 0 for automatic (relative to icon size).
+    bool NameSystemFont; // Use the system UI font for names instead of Segoe UI.
 } Config;
 
 typedef struct EnumString {

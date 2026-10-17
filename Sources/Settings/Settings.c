@@ -72,6 +72,17 @@ static void SetupGUI(gui_window_data* gui, void* userData)
     CreateText("Icons per row:", "0 for no limit (single row layout)", gui);
     CreateIntField("",
         &cfg->IconsPerRow, gui);
+    CreateText("Name lines:", "Maximum number of text lines for the name under each icon.", gui);
+    CreateIntField("",
+        &cfg->NameLines, gui);
+    CreateText("Tile width (\%):", "Tile width relative to icon size, 125 being the default. Wider tiles show longer names.", gui);
+    CreatePercentField("",
+        &cfg->TileWidth, gui);
+    CreateText("Name font size (px):", "0 for automatic (relative to icon size).", gui);
+    CreateIntField("",
+        &cfg->NameFontSize, gui);
+    CreateText("System font for names:", "Use the system UI font (face and weight) instead of Segoe UI.", gui);
+    CreateBoolControl("", &cfg->NameSystemFont, gui);
 
     GridLayout(1, gui);
     SetBoldFont(gui);
