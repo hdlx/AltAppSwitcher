@@ -123,6 +123,7 @@ struct WindowData {
     HWND MainWin;
     int Selection;
     int MouseSelection;
+    int LastSelection;
     bool CloseHover;
     SWinGroupArr WinGroups;
     Metrics Metrics;
@@ -1878,8 +1879,11 @@ static void Draw(struct WindowData* windowData, RECT clientRect)
         // Name
         const bool selected = i == (uint32_t)windowData->Selection;
         const bool mouseSelected = i == (uint32_t)windowData->MouseSelection;
+        const bool latestSelected = i == (uint32_t)windowData->LastSelection;
 
-        if (((selected || mouseSelected) && windowData->StaticData->Config->DisplayName == DisplayNameSel) || windowData->StaticData->Config->DisplayName == DisplayNameAll) {
+        if (((selected || mouseSelected) && windowData->StaticData->Config->DisplayName == DisplayNameSel)
+            || (latestSelected && windowData->StaticData->Config->DisplayName == DisplayNameSelFull)
+            || windowData->StaticData->Config->DisplayName == DisplayNameAll) {
             // https://learn.microsoft.com/en-us/windows/win32/gdiplus/-gdiplus-obtaining-font-metrics-use
             const float h = nameHeight;
             const float p = namePad;
@@ -1890,6 +1894,16 @@ static void Draw(struct WindowData* windowData, RECT clientRect)
                 (float)(int)(w),
                 (float)(int)(h)
             };
+            if (windowData->StaticData->Config->DisplayName == DisplayNameSelFull) {
+                r = (RectF) {
+                    (float)(int)(0.0f + namePad),
+                    (float)(int)(0.0f + (float)windowData->Metrics.WinY - nameHeight - namePad),
+                    (float)(int)(windowData->Metrics.WinX),
+                    (float)(int)(nameHeight)
+                };
+            }
+            printf("%i %i %i %i", (int)r.X, (int)r.Y, (int)r.Width, (int)r.Height);
+
             static wchar_t name[MAX_PATH];
             const wchar_t* displayName = wcslen(pWinGroup->Caption) > 0 ? pWinGroup->Caption : pWinGroup->AppName;
             int count = (int)wcslen(displayName);
@@ -1981,8 +1995,10 @@ static void MoveSelection(struct WindowData* windowData, int x)
     ASSERT(windowData->StaticData);
     ASSERT(windowData->StaticData->Config);
     windowData->Selection = Modulo(windowData->Selection + x, (int)windowData->WinGroups.Size);
-    if (windowData->StaticData->Config->MouseKbCommonSel)
+    windowData->LastSelection = windowData->Selection;
+    if (windowData->StaticData->Config->MouseKbCommonSel) {
         windowData->MouseSelection = windowData->Selection;
+    }
     SetFocus(windowData->FocusWindows[windowData->Selection]);
     InvalidateRect(windowData->MainWin, 0, FALSE);
     UpdateWindow(windowData->MainWin);
@@ -2287,6 +2303,7 @@ static LRESULT CALLBACK MainWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPAR
         const int x = GET_X_LPARAM(lParam);
         const int y = GET_Y_LPARAM(lParam);
         windowData.MouseSelection = (int)PosToIdx(&windowData.Metrics, x, y, (int)windowData.WinGroups.Size);
+        windowData.LastSelection = windowData.MouseSelection;
         if (windowData.StaticData->Config->MouseKbCommonSel)
             windowData.Selection = windowData.MouseSelection;
         float r[4];
@@ -2341,6 +2358,7 @@ static LRESULT CALLBACK MainWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPAR
 #endif
         windowData.Selection = 0;
         windowData.MouseSelection = 0;
+        windowData.LastSelection = 0;
         windowData.CloseHover = false;
         DestroyWin(&windowData.MainWin);
         ClearWinGroupArr(&windowData.WinGroups);
@@ -2367,6 +2385,8 @@ static LRESULT CALLBACK MainWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPAR
         // }
 
         windowData.Selection = 0;
+        windowData.MouseSelection = 0;
+        windowData.LastSelection = 0;
         ClearWinGroupArr(&windowData.WinGroups);
         DeleteDC(windowData.DC);
         DeleteObject(windowData.Bitmap);

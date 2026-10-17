@@ -21,7 +21,8 @@ typedef enum ThemeMode {
 typedef enum DisplayName {
     DisplayNameSel,
     DisplayNameAll,
-    DisplayNameNone
+    DisplayNameNone,
+    DisplayNameSelFull
 } DisplayName;
 
 typedef enum AppSwitcherMode {
@@ -69,7 +70,7 @@ typedef struct EnumString {
 extern const EnumString keyES[17];
 extern const EnumString themeES[4];
 extern const EnumString appSwitcherModeES[3];
-extern const EnumString displayNameES[4];
+extern const EnumString displayNameES[5];
 extern const EnumString multipleMonitorModeES[3];
 extern const EnumString appFilterModeES[3];
 extern const EnumString desktopFilterES[3];

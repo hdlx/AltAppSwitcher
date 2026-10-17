@@ -13,6 +13,13 @@
 		},
 		{
 			"type": "lldb",
+			"request": "attach",
+			"name": "Attach",
+			"pid": "${command:pickProcess}",
+			"expressions": "simple"
+		},
+		{
+			"type": "lldb",
 			"request": "launch",
 			"name": "AAS x86_64 Release",
 			"program": "${workspaceFolder}/Output/Release_x86_64/AAS/AltAppSwitcher.exe",

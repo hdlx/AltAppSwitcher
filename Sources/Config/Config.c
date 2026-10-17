@@ -48,10 +48,11 @@ const EnumString appSwitcherModeES[3] = {
     { "end", 0xFFFFFFFF }
 };
 
-const EnumString displayNameES[4] = {
+const EnumString displayNameES[5] = {
     { "selected", DisplayNameSel },
     { "all", DisplayNameAll },
     { "none", DisplayNameNone },
+    { "selected centered", DisplayNameSelFull },
     { "end", 0xFFFFFFFF }
 };
 
