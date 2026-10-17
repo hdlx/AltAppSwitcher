@@ -85,6 +85,7 @@ typedef struct Metrics {
     float DigitBoxHeight;
     float DigitBoxPad;
     float PathThickness;
+    float TileAndNameHeight;
 } Metrics;
 
 typedef enum Mode {
@@ -1388,14 +1389,14 @@ static uint32_t PosToIdx(const Metrics* m, int x, int y, int count)
 {
     x = Clamp(x - (int)m->Pad, 0, (int)m->Container * (int)m->ColCount);
     int i = ((x - (int)m->Pad) / (int)m->Container) % (int)m->ColCount;
-    i += ((y - (int)m->Pad) / (int)(m->Container + m->AppNameHeight)) * (int)m->ColCount;
+    i += ((y - (int)m->Pad) / (int)(m->TileAndNameHeight)) * (int)m->ColCount;
     return (uint32_t)min(max(0, i), (int)(count - 1));
 }
 
 static void IdxToPos(const Metrics* m, int idx, int* outX, int* outY)
 {
     *outX = (int)m->Pad + (int)m->Container * (idx % (int)m->ColCount);
-    *outY = (int)m->Pad + (int)(m->Container + m->AppNameHeight) * (idx / (int)m->ColCount);
+    *outY = (int)m->Pad + (int)(m->TileAndNameHeight) * (idx / (int)m->ColCount);
 }
 
 static void ComputeMetrics(uint32_t iconCount, Metrics* metrics, const struct Config* cfg)
@@ -1428,10 +1429,18 @@ static void ComputeMetrics(uint32_t iconCount, Metrics* metrics, const struct Co
     const int sizeX = min(iconSize * ((int)dimX * containerRatio + 2.0f * padRatio), screenWidth * 0.9);
     iconSize = ((float)sizeX / ((((float)dimX * containerRatio) + (2.0f * padRatio))));
     const uint32_t halfSizeX = sizeX / 2;
-    const uint32_t sizeY = 0
-        + dimY * (uint32_t)(iconSize * (containerRatio + appNameHeightRatio)) // tile + name
-        + (uint32_t)(padRatio * iconSize) // top win padding
-        + (uint32_t)((padRatio - appNameHeightRatio) * iconSize); // bottom padding: only if bigger than app name zone
+    uint32_t sizeY = 0
+        + dimY * (uint32_t)(iconSize * containerRatio) // tiles
+        + (uint32_t)(padRatio * iconSize); // top win padding
+    if (cfg->DisplayName == DisplayNameNone)
+        sizeY += (uint32_t)(padRatio * iconSize); // bot win padding
+    else
+        sizeY += (uint32_t)((padRatio - appNameHeightRatio) * iconSize); // bot padding: only if bigger than app name zone
+    if (cfg->DisplayName == DisplayNameAll || cfg->DisplayName == DisplayNameSel)
+        sizeY += dimY * (uint32_t)(iconSize * appNameHeightRatio); // names
+    else if (cfg->DisplayName == DisplayNameSelFull)
+        sizeY += (uint32_t)(iconSize * appNameHeightRatio); // name
+
     const uint32_t halfSizeY = sizeY / 2;
     metrics->ColCount = dimX;
     metrics->WinPosX = centerX - halfSizeX + monitorOffset[0];
@@ -1445,6 +1454,8 @@ static void ComputeMetrics(uint32_t iconCount, Metrics* metrics, const struct Co
     metrics->DigitBoxHeight = min(max(metrics->Container * 0.15f, 16.0f), metrics->Container * 0.5f); // Min size of 16 for text
     metrics->PathThickness = 2.0f;
     metrics->DigitBoxPad = (0.15f * metrics->DigitBoxHeight) + metrics->PathThickness;
+    metrics->TileAndNameHeight = metrics->Container
+        + (cfg->DisplayName == DisplayNameAll || cfg->DisplayName == DisplayNameSel ? metrics->AppNameHeight : 0.0f);
 }
 
 static const char MAIN_CLASS_NAME[] = "AltAppSwitcher";
@@ -1898,11 +1909,10 @@ static void Draw(struct WindowData* windowData, RECT clientRect)
                 r = (RectF) {
                     (float)(int)(0.0f + namePad),
                     (float)(int)(0.0f + (float)windowData->Metrics.WinY - nameHeight - namePad),
-                    (float)(int)(windowData->Metrics.WinX),
+                    (float)(int)((float)windowData->Metrics.WinX - (namePad * 2.0f)),
                     (float)(int)(nameHeight)
                 };
             }
-            printf("%i %i %i %i", (int)r.X, (int)r.Y, (int)r.Width, (int)r.Height);
 
             static wchar_t name[MAX_PATH];
             const wchar_t* displayName = wcslen(pWinGroup->Caption) > 0 ? pWinGroup->Caption : pWinGroup->AppName;
