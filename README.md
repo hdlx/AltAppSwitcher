@@ -15,17 +15,21 @@ Get the archive from the [release page](https://github.com/hdlx/AltAppSwitcher/r
 
 **x86_64** and **ARM64** (AArch64) architectures are available. Please note that I was not able to test the ARM64 one myself.
 
-**Run the `AltAppSwitcher.exe` (preferably as an administator).**
+**Run `AltAppSwitcher.exe` (preferably as an administator).**
 
-Close the application using `CloseAltAppSwitcher.bat` file.
+A can be closed from its tray icon.
 
 ## Run at startup:
-Run `AddToStartup.bat` to add AltAppSwitcher to Windows startup apps.
+From the tray icon:
 
-Run `RemoveFromStartup.bat` to revert this.
+Click "Add to startup" to add to Windows startup apps.
+Click "Remove from startup" to add to revert this.
+
+**Startup task will be added with the current elevation settings.**
 
 ## Customization
-**"Settings"** executable lets you change settings such as **key bindings**, **theme**, **scale** and **mouse support**.
+**"Settings"** (executable or from tray icon) lets you change settings such as **key bindings**, **theme**, **scale** and **mouse support**.
+Restore default settings by removing `AltAppSwitcherConfig.txt`.
 
 ## Known issues
 - Alt tab popup is behind start menu.
