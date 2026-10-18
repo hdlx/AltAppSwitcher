@@ -360,7 +360,7 @@ void LoadConfig(Config* config)
     JSONReadEnum(j, "app_filter_mode", &config->AppFilterMode, appFilterModeES);
     JSONReadEnum(j, "desktop_filter", &config->DesktopFilter, desktopFilterES);
 
-    JSONReadBool(j, "restore minimized windows", &config->RestoreMinimizedWindows);
+    JSONReadBool(j, "restore_minimized_windows", &config->RestoreMinimizedWindows);
 
     JSONReadBool(j, "allow_mouse", &config->Mouse);
     JSONReadBool(j, "mouse_keyboard_common_selection", &config->MouseKbCommonSel);

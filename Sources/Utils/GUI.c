@@ -298,7 +298,7 @@ void CreateBoolControl(const char* tooltip, bool* value, gui_window_data* guiDat
     HWND button = CreateWindow(WC_BUTTON, "",
         WS_VISIBLE | WS_CHILD | BS_AUTOCHECKBOX | BS_FLAT | BS_CENTER,
         guiData->Cell.X, guiData->Cell.Y, guiData->Cell.W, guiData->Cell.H,
-        guiData->ContainerWin, (HMENU)0, inst, NULL);
+        guiData->ContainerWin, (HMENU)0xFFFFFFFF, inst, NULL);
     SendMessage(button, BM_SETCHECK, (WPARAM)*value ? BST_CHECKED : BST_UNCHECKED, true);
     SIZE size = { };
     Button_GetIdealSize(button, &size);
@@ -551,7 +551,7 @@ static LRESULT gui_win_proc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp)
         if (!win_data)
             return 0;
         UINT button_id = LOWORD(wp);
-        if (HIWORD(wp) == BN_CLICKED)
+        if (button_id != LOWORD(0xFFFFFFFF) && HIWORD(wp) == BN_CLICKED)
             win_data->but_bindings[button_id].fn(win_data->but_bindings[button_id].data);
         if (win_data->Close)
             PostQuitMessage(0);
