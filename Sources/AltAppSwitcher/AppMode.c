@@ -1782,6 +1782,15 @@ static void Draw(struct WindowData* windowData, RECT clientRect)
         ASSERT(Ok == GdipCreateFont(pFontFamily, nameHeight, FontStyleRegular, (int)MetafileFrameUnitPixel, &fontName));
     }
 
+    float tree_dots_width = 0.0f;
+    {
+        RectF rout;
+        RectF rin = { 0, 0, 1000.0f, 1000.0f };
+        int maxCount = 0;
+        GdipMeasureString(pGraphics, L"...", 3, fontName, &rin, pGraphRes->pFormat, &rout, &maxCount, 0);
+        tree_dots_width = rout.Width;
+    }
+
     // Selection box
     {
         const uint32_t selIdx = (uint32_t)windowData->Selection;
@@ -1897,19 +1906,20 @@ static void Draw(struct WindowData* windowData, RECT clientRect)
             || windowData->StaticData->Config->DisplayName == DisplayNameAll) {
             // https://learn.microsoft.com/en-us/windows/win32/gdiplus/-gdiplus-obtaining-font-metrics-use
             const float h = nameHeight;
-            const float p = namePad;
-            const float w = containerSize - (2.0f * p);
+            const float py = namePad;
+            const float px = namePad * 0.25f;
+            const float w = containerSize - (2.0f * px);
             RectF r = {
-                (float)(int)(x + p),
-                (float)(int)(y + containerSize + p),
+                (float)(int)(x + px),
+                (float)(int)(y + containerSize + py),
                 (float)(int)(w),
                 (float)(int)(h)
             };
             if (windowData->StaticData->Config->DisplayName == DisplayNameSelFull) {
                 r = (RectF) {
-                    (float)(int)(0.0f + namePad),
-                    (float)(int)(0.0f + (float)windowData->Metrics.WinY - nameHeight - namePad),
-                    (float)(int)((float)windowData->Metrics.WinX - (namePad * 2.0f)),
+                    (float)(int)(0.0f + px),
+                    (float)(int)(0.0f + (float)windowData->Metrics.WinY - nameHeight - py),
+                    (float)(int)((float)windowData->Metrics.WinX - (px * 2.0f)),
                     (float)(int)(nameHeight)
                 };
             }
@@ -1918,14 +1928,14 @@ static void Draw(struct WindowData* windowData, RECT clientRect)
             const wchar_t* displayName = wcslen(pWinGroup->Caption) > 0 ? pWinGroup->Caption : pWinGroup->AppName;
             int count = (int)wcslen(displayName);
             if (count != 0) {
+                RectF rin = { 0, 0, r.Width - tree_dots_width, r.Height };
                 RectF rout;
                 int maxCount = 0;
-                GdipMeasureString(pGraphics, displayName, count, fontName, &r, pGraphRes->pFormat, &rout, &maxCount, 0);
+                GdipMeasureString(pGraphics, displayName, count, fontName, &rin, pGraphRes->pFormat, &rout, &maxCount, 0);
                 wcsncpy(name, displayName, min(maxCount, count));
                 if (count > maxCount) {
-                    if (maxCount >= 3)
-                        wcscpy(&name[maxCount - 3], L"...");
-                    count = maxCount;
+                    wcscpy(&name[maxCount], L"...");
+                    count = maxCount + 3;
                 }
                 GdipDrawString(pGraphics, name, count, fontName, &r, pGraphRes->pFormat, pGraphRes->pBrushText);
             }
