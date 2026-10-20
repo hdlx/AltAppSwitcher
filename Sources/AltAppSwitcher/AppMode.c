@@ -276,14 +276,38 @@ static BOOL GetWindowAUMI(HWND window, wchar_t* outUMI)
     return false;
 }
 
-#if false
+static GpBitmap* BitmapToGpBitmap(HBITMAP hbm);
+
+#if 0
+static bool GetLiveWindowIconPath(HWND window, GpBitmap** out_bitmap)
+{
+    HICON icon = (HICON)SendMessageW(window, WM_GETICON, ICON_BIG, 0);
+    if (!icon)
+        icon = (HICON)GetClassLongPtrW(window, GCLP_HICON);
+    if (!icon)
+        return false;
+    ICONINFOEXW info = { .cbSize = sizeof(info) };
+    if (!GetIconInfoExW(icon, &info))
+        return false;
+    *out_bitmap = NULL;
+    if (info.hbmColor)
+        *out_bitmap = BitmapToGpBitmap(info.hbmColor);
+    if (info.hbmColor)
+        DeleteObject(info.hbmColor);
+    if (info.hbmMask)
+        DeleteObject(info.hbmMask);
+    return *out_bitmap != NULL;
+}
+#endif
+
+#if 0
 static BOOL GetWindowIconFromPropStore(HWND window, char* outIconPath)
 {
     IPropertyStore* propertyStore;
     HRESULT res = SHGetPropertyStoreForWindow(window, &IID_IPropertyStore, (void**)&propertyStore);
     if (!SUCCEEDED(res))
         return false;
-    PROPVARIANT pv = {};
+    PROPVARIANT pv = { };
     PropVariantInit(&pv);
     res = IPropertyStore_GetValue(propertyStore, &PKEY_AppUserModel_RelaunchIconResource, &pv);
     IPropertyStore_Release(propertyStore);
@@ -1194,7 +1218,68 @@ static GpBitmap* BitmapToGpBitmap(HBITMAP hbm)
     return out;
 }
 
-void GetAppInfos(DWORD PID, struct StaticData* staticData, const wchar_t* aumid, GpBitmap** outIcon, wchar_t* outAppName)
+static bool BitsEqual(HICON a, HICON b)
+{
+    ICONINFO ia, ib;
+    if (!GetIconInfo(a, &ia) || !GetIconInfo(b, &ib))
+        return false;
+    BITMAP ba, bb;
+    GetObject(ia.hbmColor, sizeof(ba), &ba);
+    GetObject(ib.hbmColor, sizeof(bb), &bb);
+    bool same = false;
+    if (ba.bmWidth == bb.bmWidth && ba.bmHeight == bb.bmHeight) {
+        size_t n = (size_t)ba.bmWidthBytes * ba.bmHeight;
+        void* pa = malloc(n);
+        void* pb = malloc(n);
+        GetBitmapBits(ia.hbmColor, (LONG)n, pa);
+        GetBitmapBits(ib.hbmColor, (LONG)n, pb);
+        same = memcmp(pa, pb, n) == 0;
+        free(pa);
+        free(pb);
+    }
+    DeleteObject(ia.hbmColor);
+    DeleteObject(ia.hbmMask);
+    DeleteObject(ib.hbmColor);
+    DeleteObject(ib.hbmMask);
+    return same;
+}
+
+static HICON LoadExeIconOfSize(const wchar_t* exePath, int size)
+{
+    HMODULE module = LoadLibraryExW(exePath, NULL, LOAD_LIBRARY_AS_DATAFILE);
+    if (!module)
+        return NULL;
+    char nameBuf[256];
+    struct GetIconGroupNameData data = { .outName = nameBuf, .inIdx = 0 };
+    EnumResourceNames(module, RT_GROUP_ICON, GetIconGroupName, (LONG_PTR)&data);
+    HRSRC group = FindResource(module, data.outName, RT_GROUP_ICON);
+    if (!group) {
+        FreeLibrary(module);
+        return NULL;
+    }
+    GRPICONDIR* dir = (GRPICONDIR*)LockResource(LoadResource(module, group));
+    WORD id = 0;
+    for (WORD i = 0; i < dir->idCount; i++) {
+        int w = dir->idEntries[i].bWidth ? dir->idEntries[i].bWidth : 256;
+        int h = dir->idEntries[i].bHeight ? dir->idEntries[i].bHeight : 256;
+        if (w == size && h == size) {
+            id = dir->idEntries[i].nID;
+            break;
+        }
+    }
+    if (!id) {
+        FreeLibrary(module);
+        return NULL;
+    }
+    HRSRC resInfo = FindResource(module, MAKEINTRESOURCE(id), RT_ICON);
+    BYTE* bytes = LockResource(LoadResource(module, resInfo));
+    DWORD n = SizeofResource(module, resInfo);
+    HICON icon = CreateIconFromResourceEx(bytes, n, TRUE, 0x00030000, 0, 0, LR_DEFAULTCOLOR);
+    FreeLibrary(module);
+    return icon;
+}
+
+void GetAppInfos(DWORD PID, HWND win, struct StaticData* staticData, const wchar_t* aumid, GpBitmap** outIcon, wchar_t* outAppName)
 {
     ASSERT(*outIcon == NULL);
     ASSERT(outAppName[0] == L'\0');
@@ -1241,6 +1326,21 @@ void GetAppInfos(DWORD PID, struct StaticData* staticData, const wchar_t* aumid,
         found = *outIcon != NULL && wcslen(outAppName) > 0;
     }
 
+#if 0
+    // From prop store
+    if (!found) {
+        static char iconPath[512] = { };
+        iconPath[0] = L'\0';
+        if (GetWindowIconFromPropStore(win, iconPath)) {
+            static wchar_t wiconPath[512] = { };
+            CharToWChar(wiconPath, iconPath);
+            *outIcon = LoadBitmapFromFile(wiconPath, 0);
+            wcscpy_s(outAppName, MAX_PATH, L"toto");
+            found = true;
+        }
+    }
+#endif
+
     // From exe
     if (!found) {
         const HANDLE process = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, FALSE, PID);
@@ -1253,7 +1353,33 @@ void GetAppInfos(DWORD PID, struct StaticData* staticData, const wchar_t* aumid,
         outAppName[0] = L'\0';
         GetAppName(exePath, outAppName);
         *outIcon = LoadBitmapFromFile(iconPath, 0);
-        // found = *outIcon != NULL && wcslen(outAppName) > 0;
+
+        ICONINFOEXW info = { .cbSize = sizeof(info) };
+        HICON exeIcon = NULL;
+        do {
+            HICON icon = (HICON)SendMessageW(win, WM_GETICON, ICON_BIG, 0);
+            if (!icon)
+                icon = (HICON)GetClassLongPtrW(win, GCLP_HICON);
+            if (!icon)
+                break;
+            if (!GetIconInfoExW(icon, &info))
+                break;
+            if (wcscmp(info.szModName, exePath) == 0)
+                break;
+            BITMAP bm;
+            GetObject(info.hbmColor, sizeof(bm), &bm);
+            exeIcon = LoadExeIconOfSize(exePath, bm.bmWidth);
+            if (BitsEqual(icon, exeIcon)) {
+                break;
+            }
+            *outIcon = BitmapToGpBitmap(info.hbmColor);
+        } while (false);
+        if (info.hbmColor)
+            DeleteObject(info.hbmColor);
+        if (info.hbmMask)
+            DeleteObject(info.hbmMask);
+        if (exeIcon)
+            DestroyIcon(exeIcon);
     }
 
     // Default icon
@@ -1296,7 +1422,7 @@ static BOOL WarmCache(HWND hwnd, LPARAM lParam)
     GpBitmap* appIcon = NULL;
     static wchar_t appName[MAX_PATH];
     appName[0] = L'\0';
-    GetAppInfos(PID, staticData, AUMID, &appIcon, appName);
+    GetAppInfos(PID, hwnd, staticData, AUMID, &appIcon, appName);
     return true;
 }
 
@@ -1369,7 +1495,7 @@ static BOOL FillWinGroups(HWND hwnd, LPARAM lParam)
         // Icon
         ASSERT(group->IconBitmap == NULL);
 
-        GetAppInfos(PID, windowData->StaticData, group->AUMID, &group->IconBitmap, group->AppName);
+        GetAppInfos(PID, hwnd, windowData->StaticData, group->AUMID, &group->IconBitmap, group->AppName);
         {
             group->Caption[0] = L'\0';
             GetWindowTextW(hwnd, group->Caption, MAX_PATH);
