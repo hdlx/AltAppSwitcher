@@ -2211,6 +2211,7 @@ static void Init(struct WindowData* windowData)
     windowData->Selection = Modulo(windowData->Selection + (invert ? -1 : 1), (int)windowData->WinGroups.Size);
     if (windowData->StaticData->Config->MouseKbCommonSel)
         windowData->MouseSelection = windowData->Selection;
+    windowData->LastSelection = windowData->Selection;
 
     if (windowData->WinGroups.Size == 0)
         return;
