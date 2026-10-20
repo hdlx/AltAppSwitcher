@@ -1471,6 +1471,12 @@ static void Draw(struct WindowData* windowData, RECT clientRect);
 
 static LRESULT FocusWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam);
 
+void AppModeRefreshGraphicsResources()
+{
+    DeinitGraphicsResources(&StaticData.GraphicsResources);
+    InitGraphicsResources(&StaticData.GraphicsResources, StaticData.Config);
+}
+
 void AppModeInit(HINSTANCE instance, const struct Config* cfg, IVirtualDesktopManager* VDM)
 {
     StaticData.Instance = instance;

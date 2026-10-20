@@ -5,3 +5,4 @@ HWND AppModeCreateWindow();
 void AppModeInit(HINSTANCE instance, const struct Config* cfg, IVirtualDesktopManager* VDM);
 void AppModeDeinit();
 void AppModeDestroyWindow(HWND window);
+void AppModeRefreshGraphicsResources();

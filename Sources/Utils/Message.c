@@ -35,6 +35,11 @@ void RestartAAS()
     PostAASMsg(MSG_RESTART_AAS);
 }
 
+void aas_reload_config()
+{
+    PostAASMsg(MSG_RELOAD_CONFIG);
+}
+
 void CloseAAS()
 {
     PostAASMsg(MSG_CLOSE_AAS);

@@ -407,6 +407,11 @@ int StartAltAppSwitcher(HINSTANCE instance)
             closeAAS = true;
             break;
         }
+        case MSG_RELOAD_CONFIG: {
+            LoadConfig(&appData.Config);
+            AppModeRefreshGraphicsResources();
+            break;
+        }
         case MSG_RESTORE_KEY: {
             ASSERT(false);
             break;

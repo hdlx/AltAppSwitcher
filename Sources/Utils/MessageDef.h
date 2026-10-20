@@ -1,2 +1,3 @@
 #define MSG_RESTART_AAS (WM_USER + 10)
 #define MSG_CLOSE_AAS (WM_USER + 11)
+#define MSG_RELOAD_CONFIG (WM_USER + 12)
