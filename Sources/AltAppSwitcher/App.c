@@ -134,8 +134,6 @@ static LRESULT KbProc(int nCode, WPARAM wParam, LPARAM lParam)
     const bool winHoldKey = scan == Cfg->Key.WinHold;
     const bool nextWinKey = scan == Cfg->Key.WinSwitch;
     const bool isWatchedKey = appHoldKey || nextAppKey || prevAppKey || winHoldKey || nextWinKey; // NOLINT
-    if (!isWatchedKey)
-        return CallNextHookEx(NULL, nCode, wParam, lParam);
 
     static enum Mode mode = ModeNone;
 
@@ -145,6 +143,31 @@ static LRESULT KbProc(int nCode, WPARAM wParam, LPARAM lParam)
         mode = ModeNone;
 
     const bool rel = (kbStrut.flags & LLKHF_UP) != 0;
+
+    // Window mode: the selected window has the focus, so navigation keys are
+    // handled here. Alt + f4 is emulated as the hold key has been released for
+    // the system (see RestoreKey).
+    if (mode == ModeWin) {
+        const DWORD vk = kbStrut.vkCode;
+        int direction = 0;
+        if (nextWinKey || vk == 'L' || vk == 'J' || vk == VK_RIGHT || vk == VK_DOWN)
+            direction = 1;
+        else if (vk == 'H' || vk == 'K' || vk == VK_LEFT || vk == VK_UP)
+            direction = -1;
+        if (direction != 0) {
+            if (!rel)
+                PostThreadMessage(MainThread, MSG_WIN_NAV, (WPARAM)(INT_PTR)direction, 0);
+            return 1;
+        }
+        if (vk == VK_F4) {
+            if (!rel)
+                PostMessage(GetForegroundWindow(), WM_SYSCOMMAND, SC_CLOSE, 0);
+            return 1;
+        }
+    }
+
+    if (!isWatchedKey)
+        return CallNextHookEx(NULL, nCode, wParam, lParam);
 
     // Update target app state
     bool bypassMsg = false;
@@ -401,6 +424,11 @@ int StartAltAppSwitcher(HINSTANCE instance)
                 appData.app_mode_window = NULL;
             }
             appData.win_mode_window = WinModeCreateWindow();
+            break;
+        }
+        case MSG_WIN_NAV: {
+            if (IsWindow(appData.win_mode_window))
+                WinModeNavigate(appData.win_mode_window, (int)(INT_PTR)msg.wParam);
             break;
         }
         case MSG_DEINIT: {

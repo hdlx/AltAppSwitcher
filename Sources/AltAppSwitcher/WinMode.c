@@ -279,15 +279,12 @@ static void NextWin(void* windowDataVoidPtr)
     if (windowData->Selection >= (int)windowData->CurrentWinGroup.WindowCount)
         return;
     HWND win = windowData->CurrentWinGroup.Windows[windowData->Selection];
-    DWORD targetWinThread = GetWindowThreadProcessId(win, NULL);
-    AttachThreadInput(targetWinThread, GetCurrentThreadId(), TRUE);
-
+    if (!IsWindow(win))
+        return;
     if (windowData->StaticData->Config->RestoreMinimizedWindows)
-        RestoreWin(windowData->CurrentWinGroup.Windows[windowData->Selection]);
-    WINBOOL r = SetWindowPos(windowData->CurrentWinGroup.Windows[windowData->Selection], HWND_TOP, 0, 0, 0, 0, SWP_NOSIZE | SWP_NOMOVE | SWP_NOACTIVATE);
-    ASSERT(r != 0);
-    AttachThreadInput(targetWinThread, GetCurrentThreadId(), FALSE);
-    SetForegroundWindow(windowData->MainWin);
+        RestoreWin(win);
+    // Focus right away, so the window can be acted on (e.g. alt + f4) while switching.
+    SetForegroundWindow(win);
 }
 
 static void ApplyWin(void* windowDataVoidPtr)
@@ -295,6 +292,9 @@ static void ApplyWin(void* windowDataVoidPtr)
     struct WindowData* windowData = windowDataVoidPtr;
     ASSERT(windowData);
     HWND win = windowData->CurrentWinGroup.Windows[windowData->Selection];
+    // Closed while switching
+    if (!IsWindow(win))
+        return;
     // DWORD targetWinThread = GetWindowThreadProcessId(win, NULL);
     // AttachThreadInput(targetWinThread, GetCurrentThreadId(), TRUE);
     // UIASetFocus(windowData->CurrentWinGroup.Windows[windowData->Selection]);
@@ -328,8 +328,30 @@ struct MainWindowArg {
 };
 
 // False if the foreground window's app has no other window: the switcher then
-// leaves the foreground window alone (no focus change).
+// leaves the foreground window alone (no focus change, no navigation).
 static bool HasWindowsToSwitch = false;
+
+// Selects and focuses the next (x = 1) or previous (x = -1) window, inverted
+// if the invert key is down. Skips windows closed meanwhile (e.g. alt + f4).
+static void MoveSelection(struct WindowData* windowData, int x)
+{
+    if (!HasWindowsToSwitch)
+        return;
+    UINT inv_scan = windowData->StaticData->Config->Key.Invert;
+    UINT inv_vk = MapVirtualKey((inv_scan & 0xFF) | (inv_scan >> 8 ? 0xE000 : 0), MAPVK_VSC_TO_VK_EX);
+    const bool invert = GetAsyncKeyState((int)inv_vk) & 0x8000;
+    const int count = (int)windowData->CurrentWinGroup.WindowCount;
+    for (int i = 0; i < count; i++) {
+        windowData->Selection = Modulo(windowData->Selection + (invert ? -x : x), count);
+        if (IsWindow(windowData->CurrentWinGroup.Windows[windowData->Selection]))
+            break;
+    }
+#ifdef ASYNC
+    ApplyWithTimeout(NextWin, windowData, StaticData.Instance);
+#else
+    NextWin(windowData);
+#endif
+}
 
 static LRESULT MainWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lp)
 {
@@ -343,21 +365,12 @@ static LRESULT MainWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lp)
         windowData.StaticData = arg->StaticData;
         InitializeSwitchWin(arg->ForegroundWindow, &windowData);
         HasWindowsToSwitch = windowData.CurrentWinGroup.WindowCount > 1;
-        if (!HasWindowsToSwitch)
-            return 0;
         windowData.Selection = 0;
-        UINT inv_scan = windowData.StaticData->Config->Key.Invert;
-        UINT inv_vk = MapVirtualKey((inv_scan & 0xFF) | (inv_scan >> 8 ? 0xE000 : 0), MAPVK_VSC_TO_VK_EX);
-        const bool invert = GetAsyncKeyState((int)inv_vk) & 0x8000;
-        windowData.Selection += invert ? -1 : 1;
-        windowData.Selection = Modulo(windowData.Selection, (int)windowData.CurrentWinGroup.WindowCount);
-        SetFocus(hwnd);
-        SetForegroundWindow(hwnd);
-#ifdef ASYNC
-        ApplyWithTimeout(NextWin, &windowData, StaticData.Instance);
-#else
-        NextWin(&windowData);
-#endif
+        MoveSelection(&windowData, 1);
+        return 0;
+    }
+    case MSG_WIN_NAV: {
+        MoveSelection(&windowData, (int)(INT_PTR)wParam);
         return 0;
     }
     case WM_SYSKEYDOWN:
@@ -383,17 +396,8 @@ static LRESULT MainWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lp)
             || wParam == VK_UP) {
             x = -1;
         }
-        if (x != 0 && HasWindowsToSwitch) {
-            UINT inv_scan = windowData.StaticData->Config->Key.Invert;
-            UINT inv_vk = MapVirtualKey((inv_scan & 0xFF) | (inv_scan >> 8 ? 0xE000 : 0), MAPVK_VSC_TO_VK_EX);
-            const bool invert = GetAsyncKeyState((int)inv_vk) & 0x8000;
-            windowData.Selection += invert ? -x : x;
-            windowData.Selection = Modulo(windowData.Selection, (int)windowData.CurrentWinGroup.WindowCount);
-#ifdef ASYNC
-            ApplyWithTimeout(NextWin, &windowData, StaticData.Instance);
-#else
-            NextWin(&windowData);
-#endif
+        if (x != 0) {
+            MoveSelection(&windowData, x);
             return 0;
         }
         break;
@@ -451,8 +455,7 @@ HWND WinModeCreateWindow()
     HWND hwnd = CreateWindowEx(WS_EX_TOPMOST, MAIN_CLASS_NAME, NULL, WS_POPUP,
         0, 0, 0, 0, HWND_MESSAGE, NULL, StaticData.Instance, &arg);
     ASSERT(hwnd);
-    if (HasWindowsToSwitch) // Set by WM_CREATE
-        SetForegroundWindow(hwnd);
+    // No focus for this window: the selected window gets it (see NextWin).
     if (fgwinthread) // Detach
         AttachThreadInput(GetCurrentThreadId(), fgwinthread, FALSE);
     return hwnd;
@@ -461,4 +464,9 @@ HWND WinModeCreateWindow()
 void WinModeDestroyWindow(HWND window)
 {
     SendMessage(window, WM_CLOSE, (WPARAM)0, (LPARAM)0);
+}
+
+void WinModeNavigate(HWND window, int direction)
+{
+    SendMessage(window, MSG_WIN_NAV, (WPARAM)(INT_PTR)direction, 0);
 }

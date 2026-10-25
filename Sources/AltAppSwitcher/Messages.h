@@ -3,6 +3,8 @@
 #define MSG_INIT_WIN (WM_USER + 7)
 #define MSG_DEINIT (WM_USER + 8)
 #define MSG_RESTORE_KEY (WM_USER + 9)
+// Window mode navigation, wParam: direction (int, 1 or -1). Also sent to the window mode window.
+#define MSG_WIN_NAV (WM_USER + 13)
 
 // Apply thread
 #define MSG_NEXT_WIN (WM_USER + 10)
