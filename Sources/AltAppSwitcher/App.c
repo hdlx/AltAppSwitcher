@@ -139,6 +139,11 @@ static LRESULT KbProc(int nCode, WPARAM wParam, LPARAM lParam)
 
     static enum Mode mode = ModeNone;
 
+    // Switcher closed by a click or escape: a new one can be opened without
+    // releasing the hold key first.
+    if (AppModeTakeSelfClosed() && mode == ModeApp)
+        mode = ModeNone;
+
     const bool rel = (kbStrut.flags & LLKHF_UP) != 0;
 
     // Update target app state

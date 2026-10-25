@@ -1100,6 +1100,21 @@ static void DestroyWin(HWND* win)
     *win = NULL;
 }
 
+static volatile LONG SelfClosed = 0;
+
+// Closes the switcher on its own input (mouse click, escape). The keyboard hook
+// otherwise only learns the switcher is closed when the hold key is released.
+static void SelfClose(HWND* win)
+{
+    DestroyWin(win);
+    InterlockedExchange(&SelfClosed, 1);
+}
+
+bool AppModeTakeSelfClosed(void)
+{
+    return InterlockedExchange(&SelfClosed, 0) != 0;
+}
+
 static void Draw(struct WindowData* windowData, RECT clientRect);
 
 static LRESULT FocusWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam);
@@ -1687,7 +1702,7 @@ static int ProcessKeys(struct WindowData* windowData, UINT uMsg, WPARAM wParam, 
         ASSERT(windowData->StaticData)
         ASSERT(windowData->StaticData->Config)
         if (vkCode == VK_ESCAPE) {
-            DestroyWin(&windowData->MainWin);
+            SelfClose(&windowData->MainWin);
             ClearWinGroupArr(&windowData->WinGroups);
             return 0;
         }
@@ -2024,7 +2039,7 @@ static LRESULT CALLBACK MainWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPAR
         ASSERT(windowData.StaticData);
         ASSERT(windowData.StaticData->Config);
         if (!IsInside(GET_X_LPARAM(lParam), GET_Y_LPARAM(lParam), hwnd)) {
-            DestroyWin(&windowData.MainWin);
+            SelfClose(&windowData.MainWin);
             ClearWinGroupArr(&windowData.WinGroups);
             return 0;
         }
@@ -2049,7 +2064,7 @@ static LRESULT CALLBACK MainWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPAR
         windowData.MouseSelection = -1;
         windowData.LastSelection = 0;
         windowData.CloseHover = false;
-        DestroyWin(&windowData.MainWin);
+        SelfClose(&windowData.MainWin);
         ClearWinGroupArr(&windowData.WinGroups);
         return 0;
     }
