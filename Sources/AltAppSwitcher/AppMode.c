@@ -596,6 +596,66 @@ static void GetAppName(const wchar_t* exePath, wchar_t* out)
     wcscpy(out, lastSlash + 1);
 }
 
+// Copies an icon to a GDI+ bitmap. Icons are not always square.
+static GpBitmap* IconToGpBitmap(HICON icon)
+{
+    ICONINFO ii = { };
+    if (!GetIconInfo(icon, &ii))
+        return NULL;
+    // Monochrome icons (no color bitmap) are not handled.
+    if (ii.hbmColor == NULL) {
+        DeleteObject(ii.hbmMask);
+        return NULL;
+    }
+    BITMAP bm = { };
+    GetObject(ii.hbmColor, sizeof(BITMAP), &bm);
+    const int width = bm.bmWidth;
+    const int height = bm.bmHeight;
+    if (width <= 0 || height <= 0) {
+        DeleteObject(ii.hbmColor);
+        DeleteObject(ii.hbmMask);
+        return NULL;
+    }
+    const uint32_t pixelCount = (uint32_t)(width * height);
+
+    // Read as 32bpp top-down, whatever the bitmap format.
+    BITMAPINFO bi = { };
+    bi.bmiHeader.biSize = sizeof(BITMAPINFOHEADER);
+    bi.bmiHeader.biWidth = width;
+    bi.bmiHeader.biHeight = -height;
+    bi.bmiHeader.biPlanes = 1;
+    bi.bmiHeader.biBitCount = 32;
+    bi.bmiHeader.biCompression = BI_RGB;
+    HDC dc = GetDC(NULL);
+
+    GpBitmap* out = NULL;
+    GdipCreateBitmapFromScan0(width, height, 0, PixelFormat32bppARGB, NULL, &out);
+    GpRect r = { 0, 0, width, height };
+    BitmapData dstData = { };
+    GdipBitmapLockBits(out, &r, ImageLockModeWrite, PixelFormat32bppARGB, &dstData);
+    uint32_t* pixels = (uint32_t*)dstData.Scan0;
+    GetDIBits(dc, ii.hbmColor, 0, (UINT)height, pixels, &bi, DIB_RGB_COLORS);
+
+    // Check if color has non zero alpha (is there an alternative)
+    bool noAlpha = true;
+    for (uint32_t i = 0; i < pixelCount && noAlpha; i++)
+        noAlpha = (pixels[i] >> 24u) == 0;
+    // If no alpha, use the mask: white is transparent.
+    uint32_t* mask = noAlpha && ii.hbmMask ? (uint32_t*)malloc(sizeof(uint32_t) * pixelCount) : NULL;
+    if (mask != NULL) {
+        GetDIBits(dc, ii.hbmMask, 0, (UINT)height, mask, &bi, DIB_RGB_COLORS);
+        for (uint32_t i = 0; i < pixelCount; i++)
+            pixels[i] |= (mask[i] & 0xFFFFFFu) ? 0u : 0xFF000000u;
+        free(mask);
+    }
+    GdipBitmapUnlockBits(out, &dstData);
+
+    ReleaseDC(NULL, dc);
+    DeleteObject(ii.hbmColor);
+    DeleteObject(ii.hbmMask);
+    return out;
+}
+
 static GpBitmap* GetIconFromBinary(const wchar_t* binPath, int iconIdx)
 {
     HMODULE module = LoadLibraryExW(binPath, NULL, LOAD_LIBRARY_AS_DATAFILE);
@@ -633,9 +693,7 @@ static GpBitmap* GetIconFromBinary(const wchar_t* binPath, int iconIdx)
         FreeResource(iconGrp);
     }
 
-    // Loads a bitmap from icon resource (bitmap must be freed later)
-    HBITMAP hbm = NULL;
-    HBITMAP hbmMask = NULL;
+    GpBitmap* out = NULL;
     {
         HRSRC iconResInfo = FindResource(module, MAKEINTRESOURCE(iconResID), RT_ICON);
         ASSERT(iconResInfo);
@@ -647,59 +705,14 @@ static GpBitmap* GetIconFromBinary(const wchar_t* binPath, int iconIdx)
         ASSERT(icon);
         UnlockResource(iconRes);
         FreeResource(iconRes);
-        ICONINFO ii;
-        GetIconInfo(icon, &ii);
-        hbm = ii.hbmColor;
-        hbmMask = ii.hbmMask;
+        out = IconToGpBitmap(icon);
         DestroyIcon(icon);
     }
 
-    // Module not needed anymore
     FreeLibrary(module);
-    module = NULL;
-
-    // Creates a gdi bitmap from the win base api bitmap
-    GpBitmap* out;
-    {
-        BITMAP bm = { };
-        GetObject(hbm, sizeof(BITMAP), &bm);
-        const int iconSize = bm.bmWidth;
-        GdipCreateBitmapFromScan0(iconSize, iconSize, 4 * iconSize, PixelFormat32bppARGB, NULL, &out);
-        GpRect r = { 0, 0, iconSize, iconSize };
-        BitmapData dstData = { };
-        GdipBitmapLockBits(out, &r, 0, PixelFormat32bppARGB, &dstData);
-        GetBitmapBits(hbm, (LONG)sizeof(uint32_t) * iconSize * iconSize, dstData.Scan0);
-        // Check if color has non zero alpha (is there an alternative)
-        unsigned int* ptr = (unsigned int*)dstData.Scan0;
-        bool noAlpha = true;
-        for (int i = 0; i < iconSize * iconSize; i++) {
-            if (ptr[i] & 0xFF000000) {
-                noAlpha = false;
-                break;
-            }
-        }
-        // If no alpha, init
-        if (noAlpha && hbmMask != NULL && iconSize <= 256) {
-            BITMAP bitmapMask = { };
-            GetObject(hbmMask, sizeof(bitmapMask), (LPVOID)&bitmapMask);
-            unsigned int maskByteSize = bitmapMask.bmWidthBytes * bitmapMask.bmHeight;
-            static char maskData[256 * 256 * 1 / 8] = { };
-            GetBitmapBits(hbmMask, (LONG)maskByteSize, maskData);
-            for (int i = 0; i < iconSize * iconSize; i++) {
-                unsigned int aFromMask = (0x1 & (maskData[i / 8] >> (7 - i % 8))) ? 0 : 0xFF000000;
-                ptr[i] = ptr[i] | aFromMask;
-            }
-        }
-        GdipBitmapUnlockBits(out, &dstData);
-    }
-
-    // Bitmap not needed anymore
-    DeleteObject(hbm);
-    DeleteObject(hbmMask);
-    hbm = NULL;
-
     return out;
 }
+
 static BOOL IsRunWindow(HWND hwnd)
 {
     {
@@ -801,27 +814,34 @@ static bool GetAppInfoFromShell(const wchar_t* aumid, GpBitmap** outIcon, wchar_
     return true;
 }
 
-static GpBitmap* BitmapToGpBitmap(HBITMAP hbm)
+// Gets icon and title of a window, from the icon it sets or its class icon.
+static bool GetAppInfoFromWindow(HWND hwnd, GpBitmap** outIcon, wchar_t* outAppName)
 {
-    // Creates a gdi bitmap from the win base api bitmap
-    GpBitmap* out;
-    {
-        BITMAP bm = { };
-        GetObject(hbm, sizeof(BITMAP), &bm);
-        const uint32_t iconSize = bm.bmWidth;
-        GdipCreateBitmapFromScan0((int)iconSize, (int)iconSize, (int)(4 * iconSize), PixelFormat32bppARGB, NULL, &out);
-        GpRect r = { 0, 0, (int)iconSize, (int)iconSize };
-        BitmapData dstData = { };
-        GdipBitmapLockBits(out, &r, 0, PixelFormat32bppARGB, &dstData);
-        GetBitmapBits(hbm, (LONG)(sizeof(uint32_t) * iconSize * iconSize), dstData.Scan0);
-        GdipBitmapUnlockBits(out, &dstData);
+    HICON icon = NULL;
+    const WPARAM iconTypes[] = { ICON_BIG, ICON_SMALL2 };
+    for (uint32_t i = 0; i < sizeof(iconTypes) / sizeof(iconTypes[0]) && icon == NULL; i++) {
+        DWORD_PTR res = 0;
+        if (SendMessageTimeoutW(hwnd, WM_GETICON, iconTypes[i], 0, SMTO_ABORTIFHUNG, 50, &res))
+            icon = (HICON)res;
     }
-    return out;
+    if (icon == NULL)
+        icon = (HICON)GetClassLongPtrW(hwnd, GCLP_HICON);
+    if (icon == NULL)
+        icon = (HICON)GetClassLongPtrW(hwnd, GCLP_HICONSM);
+    if (icon == NULL)
+        return false;
+    // The icon belongs to the window, do not destroy it.
+    *outIcon = IconToGpBitmap(icon);
+    if (*outIcon == NULL)
+        return false;
+    outAppName[0] = L'\0';
+    GetWindowTextW(hwnd, outAppName, MAX_PATH);
+    return true;
 }
 
 static bool GettingAppInfos = false;
 
-void GetAppInfos(DWORD PID, struct StaticData* staticData, const wchar_t* aumid, GpBitmap** outIcon, wchar_t* outAppName)
+void GetAppInfos(HWND hwnd, DWORD PID, struct StaticData* staticData, const wchar_t* aumid, GpBitmap** outIcon, wchar_t* outAppName)
 {
     ASSERT(*outIcon == NULL);
     ASSERT(outAppName[0] == L'\0');
@@ -830,12 +850,18 @@ void GetAppInfos(DWORD PID, struct StaticData* staticData, const wchar_t* aumid,
         return;
     GettingAppInfos = true;
 
+    // Windows of host processes are apps of their own, see GetWindowAppID.
+    if (wcschr(aumid, L'|') != NULL)
+        found = GetAppInfoFromWindow(hwnd, outIcon, outAppName);
     // Win32 apps without explicit AUMID are identified by their exe path, see GetProcessAUMI.
-    if (wcschr(aumid, L'\\') == NULL)
+    else if (wcschr(aumid, L'\\') == NULL)
         found = GetAppInfoFromShell(aumid, outIcon, outAppName);
 
     // From exe
     if (!found) {
+        if (*outIcon != NULL)
+            GdipDisposeImage(*outIcon);
+        *outIcon = NULL;
         outAppName[0] = L'\0';
         const HANDLE process = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, FALSE, PID);
         static wchar_t exePath[512] = { };
@@ -850,27 +876,39 @@ void GetAppInfos(DWORD PID, struct StaticData* staticData, const wchar_t* aumid,
 
     // Default icon
     if (*outIcon == NULL) {
-        // Loads a bitmap from icon resource (bitmap must be freed later)
-        HBITMAP hbm = NULL;
-        {
-            HICON hi = NULL;
-            (void)hi;
-            LoadIconWithScaleDown(NULL, (PCWSTR)IDI_APPLICATION, 256, 256, &hi);
-            ICONINFO iconinfo;
-            GetIconInfo(hi, &iconinfo);
-            hbm = iconinfo.hbmColor;
-            DestroyIcon(hi);
-        }
-
-        // Creates a gdi bitmap from the win base api bitmap
-        GpBitmap* out = BitmapToGpBitmap(hbm);
-
-        DeleteObject(hbm);
-        *outIcon = out;
+        HICON hi = NULL;
+        LoadIconWithScaleDown(NULL, (PCWSTR)IDI_APPLICATION, 256, 256, &hi);
+        *outIcon = IconToGpBitmap(hi);
+        DestroyIcon(hi);
     }
 
     StoreAppInfoToMap(&staticData->UWPIconMap, aumid, *outIcon, outAppName);
     GettingAppInfos = false;
+}
+
+// Processes hosting windows of different apps (control panel applets, snap-ins...).
+static bool IsHostProcess(const wchar_t* exePath)
+{
+    static const wchar_t* hosts[] = { L"rundll32.exe", L"dllhost.exe", L"mmc.exe" };
+    const wchar_t* name = wcsrchr(exePath, L'\\');
+    name = name ? name + 1 : exePath;
+    for (uint32_t i = 0; i < sizeof(hosts) / sizeof(hosts[0]); i++) {
+        if (_wcsicmp(name, hosts[i]) == 0)
+            return true;
+    }
+    return false;
+}
+
+// Identifies the app of a window: its AUMID, or its exe path for win32 apps
+// without one. As in the taskbar, each window of a host process is an app of
+// its own: "<exe path>|<window>".
+static void GetWindowAppID(HWND hwnd, DWORD PID, wchar_t* outID)
+{
+    if (GetWindowAUMI(hwnd, outID))
+        return;
+    GetProcessAUMI(PID, outID);
+    if (IsHostProcess(outID))
+        (void)swprintf_s(outID + wcslen(outID), 32, L"|%p", (void*)hwnd);
 }
 
 static BOOL WarmCache(HWND hwnd, LPARAM lParam)
@@ -881,15 +919,11 @@ static BOOL WarmCache(HWND hwnd, LPARAM lParam)
     DWORD PID = 0;
     FindActualPID(hwnd, &PID);
     static wchar_t AUMID[512];
-    {
-        BOOL found = GetWindowAUMI(hwnd, AUMID);
-        if (!found)
-            GetProcessAUMI(PID, AUMID);
-    }
+    GetWindowAppID(hwnd, PID, AUMID);
     GpBitmap* appIcon = NULL;
     static wchar_t appName[MAX_PATH];
     appName[0] = L'\0';
-    GetAppInfos(PID, staticData, AUMID, &appIcon, appName);
+    GetAppInfos(hwnd, PID, staticData, AUMID, &appIcon, appName);
     return true;
 }
 
@@ -932,11 +966,7 @@ static BOOL FillWinGroups(HWND hwnd, LPARAM lParam)
 
     FindActualPID(hwnd, &PID);
     static wchar_t AUMID[512];
-    {
-        BOOL found = GetWindowAUMI(hwnd, AUMID);
-        if (!found)
-            GetProcessAUMI(PID, AUMID);
-    }
+    GetWindowAppID(hwnd, PID, AUMID);
 
     ATOM winClass = IsRunWindow(hwnd) ? 0x8002 : 0; // Run
 
@@ -990,7 +1020,7 @@ static BOOL FillWinGroups(HWND hwnd, LPARAM lParam)
         // Icon
         ASSERT(group->IconBitmap == NULL);
 
-        GetAppInfos(PID, windowData->StaticData, group->AUMID, &group->IconBitmap, group->AppName);
+        GetAppInfos(hwnd, PID, windowData->StaticData, group->AUMID, &group->IconBitmap, group->AppName);
         {
             group->Caption[0] = L'\0';
             GetWindowTextW(hwnd, group->Caption, MAX_PATH);
