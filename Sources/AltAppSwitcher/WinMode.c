@@ -326,6 +326,11 @@ struct MainWindowArg {
     HWND ForegroundWindow;
     struct StaticData* StaticData;
 };
+
+// False if the foreground window's app has no other window: the switcher then
+// leaves the foreground window alone (no focus change).
+static bool HasWindowsToSwitch = false;
+
 static LRESULT MainWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lp)
 {
     static struct WindowData windowData = { };
@@ -337,6 +342,9 @@ static LRESULT MainWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lp)
         windowData.MainWin = hwnd;
         windowData.StaticData = arg->StaticData;
         InitializeSwitchWin(arg->ForegroundWindow, &windowData);
+        HasWindowsToSwitch = windowData.CurrentWinGroup.WindowCount > 1;
+        if (!HasWindowsToSwitch)
+            return 0;
         windowData.Selection = 0;
         UINT inv_scan = windowData.StaticData->Config->Key.Invert;
         UINT inv_vk = MapVirtualKey((inv_scan & 0xFF) | (inv_scan >> 8 ? 0xE000 : 0), MAPVK_VSC_TO_VK_EX);
@@ -375,7 +383,7 @@ static LRESULT MainWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lp)
             || wParam == VK_UP) {
             x = -1;
         }
-        if (x != 0) {
+        if (x != 0 && HasWindowsToSwitch) {
             UINT inv_scan = windowData.StaticData->Config->Key.Invert;
             UINT inv_vk = MapVirtualKey((inv_scan & 0xFF) | (inv_scan >> 8 ? 0xE000 : 0), MAPVK_VSC_TO_VK_EX);
             const bool invert = GetAsyncKeyState((int)inv_vk) & 0x8000;
@@ -391,11 +399,13 @@ static LRESULT MainWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lp)
         break;
     }
     case WM_CLOSE: {
+        if (HasWindowsToSwitch) {
 #ifdef ASYNC
-        ApplyWithTimeout(ApplyWin, &windowData, StaticData.Instance);
+            ApplyWithTimeout(ApplyWin, &windowData, StaticData.Instance);
 #else
-        ApplyWin(&windowData);
+            ApplyWin(&windowData);
 #endif
+        }
         DestroyWindow(hwnd);
         return 0;
     }
@@ -441,7 +451,8 @@ HWND WinModeCreateWindow()
     HWND hwnd = CreateWindowEx(WS_EX_TOPMOST, MAIN_CLASS_NAME, NULL, WS_POPUP,
         0, 0, 0, 0, HWND_MESSAGE, NULL, StaticData.Instance, &arg);
     ASSERT(hwnd);
-    SetForegroundWindow(hwnd);
+    if (HasWindowsToSwitch) // Set by WM_CREATE
+        SetForegroundWindow(hwnd);
     if (fgwinthread) // Detach
         AttachThreadInput(GetCurrentThreadId(), fgwinthread, FALSE);
     return hwnd;
