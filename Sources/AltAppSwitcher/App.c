@@ -173,8 +173,9 @@ static LRESULT KbProc(int nCode, WPARAM wParam, LPARAM lParam)
             bypassMsg = true;
         }
 
-        // Init
-        if (prevMode == ModeNone && isAppHold && nextApp) {
+        // Init. The app switcher can also take over from the window switcher
+        // without releasing the hold key (the main thread closes it first).
+        if ((prevMode == ModeNone || prevMode == ModeWin) && isAppHold && nextApp) {
             HANDLE ht = CreateThread(NULL, 0, ThreadFnRestoreKey, (LPVOID)(UINT_PTR)Cfg->Key.AppHold, CREATE_SUSPENDED, NULL);
             SetThreadPriority(ht, THREAD_PRIORITY_TIME_CRITICAL);
             ResumeThread(ht);
