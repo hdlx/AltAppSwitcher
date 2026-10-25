@@ -123,9 +123,11 @@ static struct StaticData StaticData = { };
 struct WindowData {
     HWND MainWin;
     int Selection;
-    int MouseSelection;
+    int MouseSelection; // -1 if no tile is hovered
     int LastSelection;
     bool CloseHover;
+    POINT InitCursorPos;
+    bool MouseMoved;
     SWinGroupArr WinGroups;
     Metrics Metrics;
     HMONITOR MouseMonitor;
@@ -1011,6 +1013,18 @@ static uint32_t PosToIdx(const Metrics* m, int x, int y, int count)
     i += ((y - (int)m->Pad) / (int)(m->TileAndNameHeight)) * (int)m->ColCount;
     return (uint32_t)min(max(0, i), (int)(count - 1));
 }
+// Index of the tile (icon and name) under x, y, or -1.
+static int TileAtPos(const Metrics* m, int x, int y, uint32_t count)
+{
+    if (x < (int)m->Pad || y < (int)m->Pad)
+        return -1;
+    const int col = (x - (int)m->Pad) / (int)m->Container;
+    const int row = (y - (int)m->Pad) / (int)m->TileAndNameHeight;
+    if (col >= (int)m->ColCount)
+        return -1;
+    const int idx = (row * (int)m->ColCount) + col;
+    return idx < (int)count ? idx : -1;
+}
 
 static void IdxToPos(const Metrics* m, int idx, int* outX, int* outY)
 {
@@ -1430,12 +1444,11 @@ static void Draw(struct WindowData* windowData, RECT clientRect)
     // Selection box
     {
         const uint32_t selIdx = (uint32_t)windowData->Selection;
-        const uint32_t mouseSelIdx = (uint32_t)windowData->MouseSelection;
 
-        {
+        if (windowData->MouseSelection >= 0) {
             int tileX = 0;
             int tileY = 0;
-            IdxToPos(&windowData->Metrics, (int)mouseSelIdx, &tileX, &tileY);
+            IdxToPos(&windowData->Metrics, windowData->MouseSelection, &tileX, &tileY);
             RectF selRect = { (float)tileX, (float)tileY, selectSize, selectSize };
             DrawRoundedRect(pGraphics, NULL, pGraphRes->pBrushBgHighlight, &selRect, 10);
         }
@@ -1534,7 +1547,7 @@ static void Draw(struct WindowData* windowData, RECT clientRect)
 
         // Name
         const bool selected = i == (uint32_t)windowData->Selection;
-        const bool mouseSelected = i == (uint32_t)windowData->MouseSelection;
+        const bool mouseSelected = windowData->MouseSelection >= 0 && i == (uint32_t)windowData->MouseSelection;
         const bool latestSelected = i == (uint32_t)windowData->LastSelection;
 
         if (((selected || mouseSelected) && windowData->StaticData->Config->DisplayName == DisplayNameSel)
@@ -1579,7 +1592,7 @@ static void Draw(struct WindowData* windowData, RECT clientRect)
     }
 
     // Close button
-    if (windowData->StaticData->Config->Mouse) {
+    if (windowData->StaticData->Config->Mouse && windowData->MouseSelection >= 0) {
         const uint32_t mouseSelIdx = (uint32_t)windowData->MouseSelection;
         float r0[4];
         CloseButtonRect(r0, &windowData->Metrics, mouseSelIdx);
@@ -1845,9 +1858,10 @@ static void Init(struct WindowData* windowData)
 
     const bool invert = GetAsyncKeyState((SHORT)windowData->StaticData->Config->Key.Invert) & 0x8000;
     windowData->Selection = Modulo(windowData->Selection + (invert ? -1 : 1), (int)windowData->WinGroups.Size);
-    if (windowData->StaticData->Config->MouseKbCommonSel)
-        windowData->MouseSelection = windowData->Selection;
+    // Without common selection, a tile is only highlighted when hovered.
+    windowData->MouseSelection = windowData->StaticData->Config->MouseKbCommonSel ? windowData->Selection : -1;
     windowData->LastSelection = windowData->Selection;
+    GetCursorPos(&windowData->InitCursorPos);
 
     if (windowData->WinGroups.Size == 0)
         return;
@@ -1959,13 +1973,28 @@ static LRESULT CALLBACK MainWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPAR
         }
         const int x = GET_X_LPARAM(lParam);
         const int y = GET_Y_LPARAM(lParam);
-        windowData.MouseSelection = (int)PosToIdx(&windowData.Metrics, x, y, (int)windowData.WinGroups.Size);
-        windowData.LastSelection = windowData.MouseSelection;
-        if (windowData.StaticData->Config->MouseKbCommonSel)
+        if (windowData.StaticData->Config->MouseKbCommonSel) {
+            windowData.MouseSelection = (int)PosToIdx(&windowData.Metrics, x, y, (int)windowData.WinGroups.Size);
             windowData.Selection = windowData.MouseSelection;
-        float r[4];
-        CloseButtonRect(r, &windowData.Metrics, windowData.MouseSelection);
-        windowData.CloseHover = x < (int)r[2] && x > (int)r[0] && y > (int)r[1] && y < (int)r[3];
+        } else {
+            // Windows sends a mouse move when the switcher appears under the
+            // cursor: only hover once the mouse has actually moved.
+            if (!windowData.MouseMoved) {
+                POINT cursorPos;
+                GetCursorPos(&cursorPos);
+                if (cursorPos.x == windowData.InitCursorPos.x && cursorPos.y == windowData.InitCursorPos.y)
+                    return 0;
+                windowData.MouseMoved = true;
+            }
+            windowData.MouseSelection = TileAtPos(&windowData.Metrics, x, y, windowData.WinGroups.Size);
+        }
+        windowData.CloseHover = false;
+        if (windowData.MouseSelection >= 0) {
+            windowData.LastSelection = windowData.MouseSelection;
+            float r[4];
+            CloseButtonRect(r, &windowData.Metrics, (uint32_t)windowData.MouseSelection);
+            windowData.CloseHover = x < (int)r[2] && x > (int)r[0] && y > (int)r[1] && y < (int)r[3];
+        }
         InvalidateRect(windowData.MainWin, 0, FALSE);
         UpdateWindow(windowData.MainWin);
         return 0;
@@ -2001,6 +2030,9 @@ static LRESULT CALLBACK MainWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPAR
         }
         if (!windowData.StaticData->Config->Mouse)
             return 0;
+        // Click inside the switcher but not on a tile.
+        if (windowData.MouseSelection < 0)
+            return 0;
 
         if (windowData.CloseHover) {
             const SWinGroup* winGroup = &windowData.WinGroups.Data[windowData.MouseSelection];
@@ -2014,7 +2046,7 @@ static LRESULT CALLBACK MainWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPAR
         ApplySwitchApp(&appData->WinGroups.Data[appData->MouseSelection]);
 #endif
         windowData.Selection = 0;
-        windowData.MouseSelection = 0;
+        windowData.MouseSelection = -1;
         windowData.LastSelection = 0;
         windowData.CloseHover = false;
         DestroyWin(&windowData.MainWin);
@@ -2042,7 +2074,7 @@ static LRESULT CALLBACK MainWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPAR
         // }
 
         windowData.Selection = 0;
-        windowData.MouseSelection = 0;
+        windowData.MouseSelection = -1;
         windowData.LastSelection = 0;
         ClearWinGroupArr(&windowData.WinGroups);
         DeleteDC(windowData.DC);
