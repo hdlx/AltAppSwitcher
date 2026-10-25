@@ -1194,6 +1194,8 @@ static GpBitmap* BitmapToGpBitmap(HBITMAP hbm)
     return out;
 }
 
+static bool GettingAppInfos = false;
+
 void GetAppInfos(DWORD PID, struct StaticData* staticData, const wchar_t* aumid, GpBitmap** outIcon, wchar_t* outAppName)
 {
     ASSERT(*outIcon == NULL);
@@ -1201,6 +1203,7 @@ void GetAppInfos(DWORD PID, struct StaticData* staticData, const wchar_t* aumid,
     bool found = GetAppInfoFromMap(&staticData->UWPIconMap, aumid, outIcon, outAppName);
     if (found)
         return;
+    GettingAppInfos = true;
 
     // From link
     found = GetAppInfoFromLnk(aumid, outIcon, outAppName);
@@ -1278,6 +1281,7 @@ void GetAppInfos(DWORD PID, struct StaticData* staticData, const wchar_t* aumid,
     }
 
     StoreAppInfoToMap(&staticData->UWPIconMap, aumid, *outIcon, outAppName);
+    GettingAppInfos = false;
 }
 
 static BOOL WarmCache(HWND hwnd, LPARAM lParam)
@@ -1298,6 +1302,34 @@ static BOOL WarmCache(HWND hwnd, LPARAM lParam)
     appName[0] = L'\0';
     GetAppInfos(PID, staticData, AUMID, &appIcon, appName);
     return true;
+}
+
+// Resolve app infos as soon as a window is shown, uncloaked (UWP) or activated,
+// so apps launched after startup are not resolved when the switcher is invoked.
+static HWINEVENTHOOK WarmCacheHooks[3] = { };
+
+#ifndef EVENT_OBJECT_UNCLOAKED
+#define EVENT_OBJECT_UNCLOAKED 0x8018 // Win 8+, guarded by _WIN32_WINNT in winuser.h
+#endif
+
+static void CALLBACK WarmCacheWinEventProc(HWINEVENTHOOK hook, DWORD event, HWND hwnd, LONG idObject, LONG idChild, DWORD idEventThread, DWORD idEventTime)
+{
+    (void)hook;
+    (void)event;
+    (void)idEventThread;
+    (void)idEventTime;
+    // COM calls made while resolving app infos can pump messages and
+    // dispatch win events: don't reenter.
+    static bool busy = false;
+    if (busy || GettingAppInfos)
+        return;
+    if (!hwnd || idObject != OBJID_WINDOW || idChild != CHILDID_SELF)
+        return;
+    if (GetAncestor(hwnd, GA_ROOT) != hwnd)
+        return;
+    busy = true;
+    WarmCache(hwnd, (LPARAM)&StaticData);
+    busy = false;
 }
 
 static BOOL FillWinGroups(HWND hwnd, LPARAM lParam)
@@ -1526,10 +1558,21 @@ void AppModeInit(HINSTANCE instance, const struct Config* cfg, IVirtualDesktopMa
     }
 
     EnumWindows(WarmCache, (LPARAM)&StaticData);
+    WarmCacheHooks[0] = SetWinEventHook(EVENT_SYSTEM_FOREGROUND, EVENT_SYSTEM_FOREGROUND, NULL,
+        WarmCacheWinEventProc, 0, 0, WINEVENT_OUTOFCONTEXT | WINEVENT_SKIPOWNPROCESS);
+    WarmCacheHooks[1] = SetWinEventHook(EVENT_OBJECT_SHOW, EVENT_OBJECT_SHOW, NULL,
+        WarmCacheWinEventProc, 0, 0, WINEVENT_OUTOFCONTEXT | WINEVENT_SKIPOWNPROCESS);
+    WarmCacheHooks[2] = SetWinEventHook(EVENT_OBJECT_UNCLOAKED, EVENT_OBJECT_UNCLOAKED, NULL,
+        WarmCacheWinEventProc, 0, 0, WINEVENT_OUTOFCONTEXT | WINEVENT_SKIPOWNPROCESS);
 }
 
 void AppModeDeinit()
 {
+    for (uint32_t i = 0; i < sizeof(WarmCacheHooks) / sizeof(WarmCacheHooks[0]); i++) {
+        if (WarmCacheHooks[i])
+            UnhookWinEvent(WarmCacheHooks[i]);
+        WarmCacheHooks[i] = NULL;
+    }
     for (uint32_t i = 0; i < UWPICONMAPSIZE; i++) {
         if (StaticData.UWPIconMap.Data[i].Icon)
             GdipDisposeImage(StaticData.UWPIconMap.Data[i].Icon);
