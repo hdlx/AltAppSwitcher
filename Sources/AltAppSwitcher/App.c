@@ -238,6 +238,15 @@ static void ClearInitMsgs()
 int StartAltAppSwitcher(HINSTANCE instance)
 {
     AAS_MSG("Starting AAS instance %u", instance);
+    // Debug builds have a console. With quick edit mode, a click in it puts it
+    // in selection mode, which blocks any thread writing to it (e.g. ASSError)
+    // and freezes the switcher.
+    {
+        HANDLE conIn = GetStdHandle(STD_INPUT_HANDLE);
+        DWORD conMode = 0;
+        if (GetConsoleMode(conIn, &conMode))
+            SetConsoleMode(conIn, (conMode & ~(DWORD)ENABLE_QUICK_EDIT_MODE) | (DWORD)ENABLE_EXTENDED_FLAGS);
+    }
     SetLastError(0);
     AssertSingleInstance();
     ASSERT(SetPriorityClass(GetCurrentProcess(), REALTIME_PRIORITY_CLASS));
