@@ -1,8 +1,13 @@
 #include <stdbool.h>
+#include <wchar.h>
 #include <windef.h>
 struct Config;
 typedef struct IVirtualDesktopManager IVirtualDesktopManager;
 bool IsEligibleWindow(HWND hwnd, const struct Config* cfg, HMONITOR mouseMonitor, bool ignoreMinimizedWindows, IVirtualDesktopManager* vdm);
+// Identifies the app of a window (outID: 512 wchar_t): its AUMID, or its exe
+// path for win32 apps without one. As in the taskbar, each window of a host
+// process (rundll32...) is an app of its own.
+void GetWindowAppID(HWND hwnd, DWORD PID, wchar_t* outID);
 int Modulo(int a, int b);
 void CommonInit(HINSTANCE instance);
 void CommonDeinit(HINSTANCE instance);

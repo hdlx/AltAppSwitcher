@@ -241,43 +241,6 @@ void wcharToChar(char* dst, const wchar_t* src)
     *dst = '\0';
 }
 
-static void CharToWChar(wchar_t* dst, const char* src)
-{
-    while (*src != '\0') {
-        *dst = (wchar_t)*src;
-        dst++;
-        src++;
-    }
-    *dst = L'\0';
-}
-
-static BOOL GetWindowAUMI(HWND window, wchar_t* outUMI)
-{
-    PCWSTR aumid = (PCWSTR)GetPropW(window, L"AppUserModelID");
-    (void)aumid;
-    IPropertyStore* propertyStore;
-    HRESULT res = SHGetPropertyStoreForWindow(window, &IID_IPropertyStore, (void**)&propertyStore);
-    if (!SUCCEEDED(res))
-        return false;
-    PROPVARIANT pv = { };
-    PropVariantInit(&pv);
-    res = IPropertyStore_GetValue(propertyStore, &PKEY_AppUserModel_ID, &pv);
-    IPropertyStore_Release(propertyStore);
-    if (!SUCCEEDED(res)) {
-        ASSERT(false);
-        return false;
-    }
-    if (pv.vt == VT_LPWSTR) {
-        wcscpy_s(outUMI, 512 * sizeof(char), pv.pwszVal);
-        return true;
-    }
-    if (pv.vt == VT_LPSTR) {
-        CharToWChar(outUMI, pv.pcVal);
-        return true;
-    }
-    return false;
-}
-
 #if false
 static BOOL GetWindowIconFromPropStore(HWND window, char* outIconPath)
 {
@@ -326,20 +289,6 @@ static BOOL GetProcessAUMI_dbg(DWORD PID, char* outFileName)
     return true;
 }
 */
-
-static BOOL GetProcessAUMI(DWORD PID, wchar_t* outAUMID)
-{
-    const HANDLE process = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, FALSE, PID);
-    uint32_t size = 512;
-    LONG res = GetApplicationUserModelId(process, &size, outAUMID);
-    if (res == ERROR_SUCCESS) {
-        CloseHandle(process);
-        return true;
-    }
-    GetModuleFileNameExW(process, NULL, outAUMID, 512);
-    CloseHandle(process);
-    return true;
-}
 
 static BOOL CALLBACK FindIMEWin(HWND hwnd, LPARAM lParam)
 {
@@ -853,7 +802,7 @@ void GetAppInfos(HWND hwnd, DWORD PID, struct StaticData* staticData, const wcha
     // Windows of host processes are apps of their own, see GetWindowAppID.
     if (wcschr(aumid, L'|') != NULL)
         found = GetAppInfoFromWindow(hwnd, outIcon, outAppName);
-    // Win32 apps without explicit AUMID are identified by their exe path, see GetProcessAUMI.
+    // Win32 apps without explicit AUMID are identified by their exe path, see GetWindowAppID.
     else if (wcschr(aumid, L'\\') == NULL)
         found = GetAppInfoFromShell(aumid, outIcon, outAppName);
 
@@ -884,31 +833,6 @@ void GetAppInfos(HWND hwnd, DWORD PID, struct StaticData* staticData, const wcha
 
     StoreAppInfoToMap(&staticData->UWPIconMap, aumid, *outIcon, outAppName);
     GettingAppInfos = false;
-}
-
-// Processes hosting windows of different apps (control panel applets, snap-ins...).
-static bool IsHostProcess(const wchar_t* exePath)
-{
-    static const wchar_t* hosts[] = { L"rundll32.exe", L"dllhost.exe", L"mmc.exe" };
-    const wchar_t* name = wcsrchr(exePath, L'\\');
-    name = name ? name + 1 : exePath;
-    for (uint32_t i = 0; i < sizeof(hosts) / sizeof(hosts[0]); i++) {
-        if (_wcsicmp(name, hosts[i]) == 0)
-            return true;
-    }
-    return false;
-}
-
-// Identifies the app of a window: its AUMID, or its exe path for win32 apps
-// without one. As in the taskbar, each window of a host process is an app of
-// its own: "<exe path>|<window>".
-static void GetWindowAppID(HWND hwnd, DWORD PID, wchar_t* outID)
-{
-    if (GetWindowAUMI(hwnd, outID))
-        return;
-    GetProcessAUMI(PID, outID);
-    if (IsHostProcess(outID))
-        (void)swprintf_s(outID + wcslen(outID), 32, L"|%p", (void*)hwnd);
 }
 
 static BOOL WarmCache(HWND hwnd, LPARAM lParam)

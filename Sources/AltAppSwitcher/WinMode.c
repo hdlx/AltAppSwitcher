@@ -29,7 +29,7 @@ static const char MAIN_CLASS_NAME[] = "WindowModeMain";
 #define MAX_WIN_GROUPS 64u
 
 typedef struct SWinGroup {
-    char ModuleFileName[MAX_PATH];
+    wchar_t AppID[512];
     ATOM WinClass;
     HWND Windows[MAX_WIN_GROUPS];
     uint32_t WindowCount;
@@ -51,14 +51,6 @@ struct WindowData {
     HMONITOR MouseMonitor;
     struct StaticData* StaticData;
 };
-
-static BOOL GetProcessFileName(DWORD PID, char* outFileName)
-{
-    const HANDLE process = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, FALSE, PID);
-    GetModuleFileNameEx(process, NULL, outFileName, 512);
-    CloseHandle(process);
-    return true;
-}
 
 static BOOL CALLBACK FindIMEWin(HWND hwnd, LPARAM lParam)
 {
@@ -206,10 +198,10 @@ static BOOL FillCurrentWinGroup(HWND hwnd, LPARAM lParam)
     DWORD PID = 0;
     FindActualPID(hwnd, &PID);
     SWinGroup* currentWinGroup = &windowData->CurrentWinGroup;
-    static char moduleFileName[512];
-    GetProcessFileName(PID, moduleFileName);
+    static wchar_t appID[512];
+    GetWindowAppID(hwnd, PID, appID);
     ATOM winClass = IsRunWindow(hwnd) ? 0x8002 : 0; // Run
-    if (0 != strcmp(moduleFileName, currentWinGroup->ModuleFileName) || currentWinGroup->WinClass != winClass)
+    if (0 != wcscmp(appID, currentWinGroup->AppID) || currentWinGroup->WinClass != winClass)
         return true;
     currentWinGroup->Windows[currentWinGroup->WindowCount] = hwnd;
     currentWinGroup->WindowCount++;
@@ -230,7 +222,7 @@ static void InitializeSwitchWin(HWND foregroundWindow, struct WindowData* window
     DWORD PID;
     FindActualPID(win, &PID);
     SWinGroup* pWinGroup = &(windowData->CurrentWinGroup);
-    GetProcessFileName(PID, pWinGroup->ModuleFileName);
+    GetWindowAppID(win, PID, pWinGroup->AppID);
     pWinGroup->WinClass = IsRunWindow(win) ? 0x8002 : 0; // Run
     pWinGroup->WindowCount = 0;
     if (windowData->StaticData->Config->AppSwitcherMode == AppSwitcherModeApp)
