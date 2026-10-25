@@ -1529,8 +1529,9 @@ static void Draw(struct WindowData* windowData, RECT clientRect)
         if (pWinGroup->IconBitmap) {
             unsigned int bitmapWidth;
             GdipGetImageWidth(pWinGroup->IconBitmap, &bitmapWidth);
+            const bool smallIcon = bitmapWidth < 64;
             // If very low res, use nearest neighbor upscale
-            if (bitmapWidth < 64) {
+            if (smallIcon && !windowData->StaticData->Config->SmoothSmallIcons) {
                 InterpolationMode backupInterpMode = InterpolationModeInvalid;
                 GdipGetInterpolationMode(pGraphics, &backupInterpMode);
                 GdipSetInterpolationMode(pGraphics, InterpolationModeNearestNeighbor); // InterpolationModeHighQualityBicubic
@@ -1541,6 +1542,13 @@ static void Draw(struct WindowData* windowData, RECT clientRect)
                 GdipDrawImageRectI(
                     pGraphics, pWinGroup->IconBitmap, (INT)(x + padIcon + extraPad),
                     (INT)(y + padIcon + extraPad), (INT)targetIconSize, (INT)targetIconSize);
+                GdipSetInterpolationMode(pGraphics, backupInterpMode);
+            } else if (smallIcon) {
+                // Smooth upscale to full size
+                InterpolationMode backupInterpMode = InterpolationModeInvalid;
+                GdipGetInterpolationMode(pGraphics, &backupInterpMode);
+                GdipSetInterpolationMode(pGraphics, InterpolationModeHighQualityBicubic);
+                GdipDrawImageRectI(pGraphics, pWinGroup->IconBitmap, (INT)(x + padIcon), (INT)(y + padIcon), (INT)iconSize, (INT)iconSize);
                 GdipSetInterpolationMode(pGraphics, backupInterpMode);
             } else
                 GdipDrawImageRectI(pGraphics, pWinGroup->IconBitmap, (INT)(x + padIcon), (INT)(y + padIcon), (INT)iconSize, (INT)iconSize);

@@ -60,6 +60,7 @@ typedef struct Config {
     DesktopFilter DesktopFilter;
     int IconsPerRow;
     bool AskForElevation;
+    bool SmoothSmallIcons;
 } Config;
 
 typedef struct EnumString {

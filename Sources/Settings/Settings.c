@@ -72,6 +72,8 @@ static void SetupGUI(gui_window_data* gui, void* userData)
     CreateText("Icons per row:", "0 for no limit (single row layout)", gui);
     CreateIntField("",
         &cfg->IconsPerRow, gui);
+    CreateText("Smooth small icons:", "Scale low resolution icons smoothly to full size,\ninstead of keeping them sharp but smaller.", gui);
+    CreateBoolControl("", &cfg->SmoothSmallIcons, gui);
 
     GridLayout(1, gui);
     SetBoldFont(gui);

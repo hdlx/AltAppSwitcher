@@ -164,6 +164,7 @@ void DefaultConfig(Config* config)
     config->DesktopFilter = DesktopFilterCurrent;
     config->IconsPerRow = 0;
     config->AskForElevation = true;
+    config->SmoothSmallIcons = false;
 }
 
 // Init config from old (non json) file.
@@ -366,6 +367,7 @@ void LoadConfig(Config* config)
     JSONReadBool(j, "mouse_keyboard_common_selection", &config->MouseKbCommonSel);
     JSONReadBool(j, "check_for_updates", &config->CheckForUpdates);
     JSONReadBool(j, "ask_for_elevation", &config->AskForElevation);
+    JSONReadBool(j, "smooth_small_icons", &config->SmoothSmallIcons);
 
     JSONReadFloat(j, "scale", &config->Scale);
 
@@ -397,6 +399,7 @@ void WriteConfig(const Config* config)
     JSONWriteBool(j, "mouse_keyboard_common_selection", config->MouseKbCommonSel);
     JSONWriteBool(j, "check_for_updates", config->CheckForUpdates);
     JSONWriteBool(j, "ask_for_elevation", config->AskForElevation);
+    JSONWriteBool(j, "smooth_small_icons", config->SmoothSmallIcons);
 
     JSONWriteFloat(j, "scale", config->Scale);
 
