@@ -1,6 +1,7 @@
 #define COBJMACROS
 #include "AppMode.h"
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include <wchar.h>
 #include <windows.h>
@@ -25,7 +26,6 @@
 #include <Shobjidl.h>
 #include <shlobj.h>
 #include <math.h>
-#include "AppxPackaging.h"
 #undef COBJMACROS
 #include "Config/Config.h"
 #include "Utils/Error.h"
@@ -455,31 +455,6 @@ static void FindActualPID(HWND hwnd, DWORD* PID)
     }
 }
 
-static void LoadIndirectString(const wchar_t* packagePath, const wchar_t* packageName, const wchar_t* resource, wchar_t* output)
-{
-    static wchar_t indirectStr[512];
-    indirectStr[0] = L'\0';
-    wcscat(indirectStr, L"@{");
-    wcscat(indirectStr, packagePath);
-    wcscat(indirectStr, L"\\resources.pri? ms-resource://");
-    wcscat(indirectStr, packageName);
-    wcscat(indirectStr, L"/");
-    wcscat(indirectStr, resource);
-    wcscat(indirectStr, L"}");
-    if (S_OK == SHLoadIndirectString(indirectStr, output, 512, NULL))
-        return;
-
-    indirectStr[0] = L'\0';
-    wcscat(indirectStr, L"@{");
-    wcscat(indirectStr, packagePath);
-    wcscat(indirectStr, L"\\resources.pri? ms-resource://");
-    wcscat(indirectStr, packageName);
-    wcscat(indirectStr, L"/resources/"); // Seems needed in some case.
-    wcscat(indirectStr, resource);
-    wcscat(indirectStr, L"}");
-    SHLoadIndirectString(indirectStr, output, 512, NULL);
-}
-
 static bool GetAppInfoFromMap(struct UWPIconMap* map, const wchar_t* aumid, GpBitmap** outIcon, wchar_t* outAppName)
 {
     for (uint32_t i = 0; i < UWPICONMAPSIZE; i++) {
@@ -531,355 +506,6 @@ static void StoreAppInfoToMap(struct UWPIconMap* map, const wchar_t* aumid, GpBi
     wcscpy(map->Data[storeIdx].AppName, appName);
     map->Data[storeIdx].Icon = icon;
     map->Data[storeIdx].UseIdx = map->UseIdx;
-}
-
-static BOOL EndsWithW(const wchar_t* x, const wchar_t* y)
-{
-    return wcscmp(x + wcslen(x) - wcslen(y), y) == 0;
-}
-
-static bool FindLnk(wchar_t* dirpath, const wchar_t* userModelID, wchar_t* outName, wchar_t* outIcon, int* outIconIdx)
-{
-    const uint32_t dirPathLen = wcslen(dirpath);
-    wcscat(dirpath, L"\\*");
-    WIN32_FIND_DATAW findData = { };
-    HANDLE hFind = FindFirstFileW(dirpath, &findData);
-    if (hFind == INVALID_HANDLE_VALUE) {
-        dirpath[dirPathLen] = L'\0';
-        FindClose(hFind);
-        return false;
-    }
-
-    bool found = false;
-    do {
-        // wprintf(L"File: %s\n", findData.cFileName);
-        if (wcscmp(findData.cFileName, L"..") == 0 || wcscmp(findData.cFileName, L".") == 0)
-            continue;
-        dirpath[dirPathLen] = L'\0';
-        wcscat(dirpath, L"\\");
-        wcscat(dirpath, findData.cFileName);
-        // wprintf(L"File/dir: %s\n", dirpath);
-        DWORD ftyp = GetFileAttributesW(dirpath);
-        if (ftyp == INVALID_FILE_ATTRIBUTES)
-            continue;
-        if (ftyp & FILE_ATTRIBUTE_DIRECTORY) {
-            found = FindLnk(dirpath, userModelID, outName, outIcon, outIconIdx);
-            if (found)
-                break;
-            continue;
-        }
-        if (!EndsWithW(findData.cFileName, L".lnk"))
-            continue;
-        {
-            // wprintf(L"Link: %s\n", filePath);
-            IShellLinkW* shellLink;
-            {
-                HRESULT hr = CoCreateInstance(&CLSID_ShellLink, 0, CLSCTX_INPROC_SERVER, &IID_IShellLinkW, (void**)&shellLink);
-                ASSERT(SUCCEEDED(hr));
-            }
-            IPersistFile* persistFile;
-            {
-                HRESULT hr = IShellLinkW_QueryInterface(shellLink, &IID_IPersistFile, (void**)&persistFile);
-                ASSERT(SUCCEEDED(hr));
-            }
-            {
-                HRESULT hr = IPersistFile_Load(persistFile, dirpath, STGM_READ);
-                ASSERT(SUCCEEDED(hr));
-            }
-            if (EndsWithW(userModelID, L".exe") || EndsWithW(userModelID, L".EXE")) {
-                static wchar_t linkPath[512];
-                IShellLinkW_GetPath(shellLink, linkPath, 512, NULL, 0);
-                if (!wcscmp(linkPath, userModelID)) {
-                    *outIconIdx = 0;
-                    outIcon[0] = L'\0';
-                    HRESULT hr = IShellLinkW_GetIconLocation(shellLink, outIcon, 512, outIconIdx);
-                    if (SUCCEEDED(hr)) {
-                        if (outIcon[0] == L'\0') {
-                            // Success but no out path: it means it uses icon
-                            // from the link target (actual .exe)
-                            wcscpy(outIcon, linkPath);
-                        }
-                        wcscpy(outName, findData.cFileName);
-                        // Strip ".lnk"
-                        outName[wcslen(outName) - 4] = L'\0';
-                        found = true;
-                    }
-                }
-            } else {
-                IPropertyStore* propertyStore;
-                {
-                    HRESULT hr = IShellLinkW_QueryInterface(shellLink, &IID_IPropertyStore, (void**)&propertyStore);
-                    ASSERT(SUCCEEDED(hr));
-                }
-                PROPVARIANT pv = { };
-                {
-                    PropVariantInit(&pv);
-                    HRESULT hr = IPropertyStore_GetValue(propertyStore, &PKEY_AppUserModel_ID, &pv);
-                    ASSERT(SUCCEEDED(hr));
-                }
-                {
-                    HRESULT hr = IPropertyStore_Release(propertyStore);
-                    ASSERT(SUCCEEDED(hr));
-                }
-                static wchar_t foundAUMID[512] = { };
-                if (pv.vt == VT_LPWSTR)
-                    wcscpy_s(foundAUMID, 512 * sizeof(char), pv.pwszVal);
-                if (pv.vt == VT_LPSTR)
-                    CharToWChar(foundAUMID, pv.pcVal);
-                if (!wcscmp(foundAUMID, userModelID)) {
-                    *outIconIdx = 0;
-                    HRESULT hr = IShellLinkW_GetIconLocation(shellLink, outIcon, 512, outIconIdx);
-                    if (SUCCEEDED(hr)) {
-                        if (outIcon[0] == L'\0') {
-                            // Success but no out path: it means it uses icon
-                            // from the link target (actual .exe)
-                            static wchar_t linkPath[512];
-                            IShellLinkW_GetPath(shellLink, linkPath, 512, NULL, 0);
-                            wcscpy(outIcon, linkPath);
-                        }
-                        wcscpy(outName, findData.cFileName);
-                        // Strip ".lnk"
-                        outName[wcslen(outName) - 4] = L'\0';
-                        found = true;
-                    }
-                }
-                {
-                    HRESULT hr = IPersistFile_Release(persistFile);
-                    ASSERT(SUCCEEDED(hr));
-                }
-            }
-            {
-                HRESULT hr = IShellLinkW_Release(shellLink);
-                ASSERT(SUCCEEDED(hr));
-            }
-            if (found)
-                break;
-        }
-    } while (FindNextFileW(hFind, &findData));
-    dirpath[dirPathLen] = L'\0';
-    FindClose(hFind);
-    return found;
-}
-
-static GpBitmap* GetIconFromBinary(const wchar_t* binPath, int iconIdx);
-
-static GpBitmap* LoadBitmapFromFile(const wchar_t* path, int iconIdx)
-{
-    if (wcslen(path) == 0)
-        return NULL;
-    static wchar_t pathExpanded[MAX_PATH] = { };
-    ExpandEnvironmentStringsW(path, pathExpanded, MAX_PATH - 1);
-    if (EndsWithW(pathExpanded, L".exe") || EndsWithW(pathExpanded, L".EXE"))
-        return GetIconFromBinary(pathExpanded, iconIdx);
-    GpBitmap* out = NULL;
-    GdipLoadImageFromFile(pathExpanded, &out);
-    if (out != NULL)
-        return out;
-    // Icon path can be a binary without .exe extension (p4v)
-    return GetIconFromBinary(pathExpanded, iconIdx);
-}
-
-static bool GetAppInfoFromLnk(const wchar_t* userModelID, GpBitmap** outIcon, wchar_t* outAppName)
-{
-    CoInitializeEx(NULL, COINIT_APARTMENTTHREADED);
-    static wchar_t* startMenu;
-    static wchar_t workPath[512] = { };
-    static wchar_t iconPath[512] = { };
-    int iconIdx = 0;
-    bool found = false;
-    {
-        SHGetKnownFolderPath(&FOLDERID_StartMenu, 0, 0, &startMenu);
-        workPath[0] = L'\0';
-        wcscpy(workPath, startMenu);
-        found = FindLnk(workPath, userModelID, outAppName, iconPath, &iconIdx);
-    }
-    if (!found) {
-        SHGetKnownFolderPath(&FOLDERID_CommonStartMenu, 0, 0, &startMenu);
-        workPath[0] = L'\0';
-        wcscpy(workPath, startMenu);
-        found = FindLnk(workPath, userModelID, outAppName, iconPath, &iconIdx);
-    }
-    CoUninitialize();
-    if (found) {
-        *outIcon = LoadBitmapFromFile(iconPath, iconIdx);
-    }
-    return found;
-}
-
-// https://github.com/microsoft/Windows-classic-samples/blob/main/Samples/AppxPackingDescribeAppx/cpp/DescribeAppx.cpp
-static void GetAppInfoFromManifest(HANDLE process, const wchar_t* userModelID, wchar_t* outIconPath, wchar_t* outAppName, bool lightTheme)
-{
-    CoInitializeEx(NULL, COINIT_APARTMENTTHREADED);
-
-    PACKAGE_ID pid[32];
-    uint32_t pidSize = sizeof(pid);
-    LONG r = GetPackageId(process, &pidSize, (BYTE*)pid);
-    if (r != ERROR_SUCCESS)
-        return;
-    static wchar_t packagePath[MAX_PATH];
-    uint32_t packagePathLength = MAX_PATH;
-    GetPackagePath(pid, 0, &packagePathLength, packagePath);
-    static wchar_t packageFullName[MAX_PATH];
-    uint32_t packageFullNameLength = MAX_PATH;
-    PackageFullNameFromId(pid, &packageFullNameLength, packageFullName);
-
-    static wchar_t manifestPath[MAX_PATH];
-    wcscpy(manifestPath, packagePath);
-    wcscat(manifestPath, L"/AppXManifest.xml");
-    // {
-    //     wchar_t* src = pid[0].name; wchar_t* dst = outAppName;
-    //     while (*src != L'\0' && *src != L'.' )
-    //     {
-    //         *dst = *src; dst++; src++;
-    //     }
-    //     *dst = L'\0';
-    // }
-
-    wchar_t* logoProp = NULL;
-    wchar_t* displayName = NULL;
-    {
-        // Stream
-        IStream* inputStream = NULL;
-        HRESULT res = SHCreateStreamOnFileEx(
-            manifestPath,
-            STGM_READ | STGM_SHARE_EXCLUSIVE,
-            0, // default file attributes
-            FALSE, // do not create new file
-            NULL, // no template
-            &inputStream);
-        if (!SUCCEEDED(res))
-            return;
-
-        IAppxFactory* appxfac = NULL;
-        // Appxfactory:
-        // CLSID_AppxFactory and IID_IAppxFactory are declared as extern in "AppxPackaging.h"
-        // I don't know where the symbols are defined, thus the hardcoded GUIDs here.
-        GUID clsid;
-        CLSIDFromString(L"{5842a140-ff9f-4166-8f5c-62f5b7b0c781}", &clsid);
-        GUID iid;
-        IIDFromString(L"{beb94909-e451-438b-b5a7-d79e767b75d8}", &iid);
-        res = CoCreateInstance(&clsid, NULL, CLSCTX_INPROC_SERVER, &iid, (void**)&appxfac);
-        if (!SUCCEEDED(res))
-            return;
-
-        // Manifest reader
-        IAppxManifestReader* reader = NULL;
-        res = IAppxFactory_CreateManifestReader(appxfac, inputStream, (IAppxManifestReader**)&reader);
-        if (!SUCCEEDED(res))
-            return;
-
-        // App enumerator
-        IAppxManifestApplicationsEnumerator* appEnum = NULL;
-        res = IAppxManifestReader_GetApplications(reader, &appEnum);
-        if (!SUCCEEDED(res))
-            return;
-
-        IAppxManifestApplication* app = NULL;
-        BOOL hasApp = false;
-        IAppxManifestApplicationsEnumerator_GetHasCurrent(appEnum, &hasApp);
-        while (hasApp) {
-            static wchar_t* aumid = NULL;
-            IAppxManifestApplicationsEnumerator_GetCurrent(appEnum, &app);
-            IAppxManifestApplication_GetAppUserModelId(app, &aumid);
-            if (!wcscmp(aumid, userModelID)) {
-                IAppxManifestApplication_GetStringValue(app, L"Square44x44Logo", &logoProp);
-                IAppxManifestApplication_GetStringValue(app, L"DisplayName", &displayName);
-                break;
-            }
-            IAppxManifestApplicationsEnumerator_MoveNext(appEnum, &hasApp);
-        }
-
-        IAppxManifestApplicationsEnumerator_Release(appEnum);
-        IAppxManifestReader_Release(reader);
-        IAppxFactory_Release(appxfac);
-        IStream_Release(inputStream);
-        VERIFY(logoProp != NULL);
-        VERIFY(displayName != NULL);
-        if (logoProp == NULL || displayName == NULL) {
-            CoUninitialize();
-            return;
-        }
-    }
-    for (uint32_t i = 0; logoProp[i] != L'\0'; i++) {
-        if (logoProp[i] == L'\\')
-            logoProp[i] = L'/';
-    }
-
-    {
-        if (wcsstr(displayName, L"ms-resource:") == displayName) {
-            LoadIndirectString(packagePath, pid[0].name, &displayName[12], outAppName);
-        } else
-            wcscpy(outAppName, displayName);
-    }
-    wchar_t logoPath[MAX_PATH];
-    wcscpy(logoPath, packagePath);
-    wcscat(logoPath, L"/");
-    wcscat(logoPath, logoProp);
-
-    wchar_t parentDir[MAX_PATH];
-    wcscpy(parentDir, logoPath);
-    *wcsrchr(parentDir, L'/') = L'\0';
-
-    wchar_t parentDirStar[MAX_PATH];
-    wcscpy(parentDirStar, parentDir);
-    wcscat(parentDirStar, L"/*");
-
-    wchar_t logoNoExt[MAX_PATH];
-    wchar_t* atLastSlash = wcsrchr(logoProp, L'/');
-    wcscpy(logoNoExt, atLastSlash ? atLastSlash + 1 : logoProp);
-    wcsrchr(logoNoExt, L'.')[0] = L'\0';
-
-    wchar_t ext[16];
-    wcscpy(ext, wcsrchr(logoProp, L'.'));
-
-    WIN32_FIND_DATAW findData;
-    HANDLE hFind = INVALID_HANDLE_VALUE;
-    hFind = FindFirstFileW(parentDirStar, &findData);
-
-    if (hFind == INVALID_HANDLE_VALUE) {
-        CoUninitialize();
-        return;
-    }
-
-    uint32_t maxSize = 0;
-    bool foundAny = false;
-
-    // https://learn.microsoft.com/en-us/windows/apps/design/style/iconography/app-icon-construction
-    while (FindNextFileW(hFind, &findData) != 0) {
-        const wchar_t* postLogoName = NULL;
-        {
-            const wchar_t* at = wcsstr(findData.cFileName, logoNoExt);
-            if (at != findData.cFileName) // "StartsWith" rather than "Contains" (contains is incorrect why latest outlook)
-                continue;
-            postLogoName = at + wcslen(logoNoExt);
-        }
-
-        uint32_t targetsize = 0;
-        {
-            const wchar_t* at = wcsstr(postLogoName, L"targetsize-");
-            if (at != NULL) {
-                at += (sizeof(L"targetsize-") / sizeof(wchar_t)) - 1;
-                targetsize = wcstol(at, NULL, 10);
-            }
-        }
-
-        const bool lightUnplated = wcsstr(postLogoName, L"altform-lightunplated") != NULL;
-        const bool unplated = wcsstr(postLogoName, L"altform-unplated") != NULL;
-        const bool constrast = wcsstr(postLogoName, L"contrast") != NULL;
-        const bool matchingTheme = !constrast
-            && ((lightTheme && lightUnplated)
-                || (!lightTheme && unplated));
-
-        if (targetsize > maxSize || !foundAny || (targetsize == maxSize && matchingTheme)) {
-            maxSize = targetsize;
-            foundAny = true;
-            wcscpy(outIconPath, parentDir);
-            wcscat(outIconPath, L"/");
-            wcscat(outIconPath, findData.cFileName);
-        }
-    }
-
-    CoUninitialize();
 }
 
 #pragma pack(push)
@@ -1097,83 +723,80 @@ static BOOL IsRunWindow(HWND hwnd)
     return true;
 }
 
-HBITMAP LoadShellItemIcon(IShellItem* pItem)
+// Copies a 32bpp shell image to a GDI+ bitmap.
+static GpBitmap* ShellImageToGpBitmap(HBITMAP hbm)
 {
-    IShellItemImageFactory* factory = NULL;
-    {
-        HRESULT hr = IShellItem_QueryInterface(pItem, &IID_IShellItemImageFactory, (void**)&factory);
-        ASSERT(SUCCEEDED(hr));
-    }
+    BITMAP bm = { };
+    GetObject(hbm, sizeof(BITMAP), &bm);
+    const uint32_t pixelCount = (uint32_t)(bm.bmWidth * bm.bmHeight);
+    uint32_t* pixels = (uint32_t*)malloc(sizeof(uint32_t) * pixelCount);
+    if (pixels == NULL)
+        return NULL;
+    BITMAPINFO bi = { };
+    bi.bmiHeader.biSize = sizeof(BITMAPINFOHEADER);
+    bi.bmiHeader.biWidth = bm.bmWidth;
+    bi.bmiHeader.biHeight = -bm.bmHeight; // Top-down, as GDI+
+    bi.bmiHeader.biPlanes = 1;
+    bi.bmiHeader.biBitCount = 32;
+    bi.bmiHeader.biCompression = BI_RGB;
+    HDC dc = GetDC(NULL);
+    GetDIBits(dc, hbm, 0, (UINT)bm.bmHeight, pixels, &bi, DIB_RGB_COLORS);
+    ReleaseDC(NULL, dc);
 
-    HBITMAP img = NULL;
-    SIZE size = { 512, 512 };
-    HRESULT hr = IShellItemImageFactory_GetImage(factory, size, SIIGBF_BIGGERSIZEOK | SIIGBF_CROPTOSQUARE | SIIGBF_SCALEUP, &img);
-    (void)hr;
-    IShellItemImageFactory_Release(factory);
-    return img;
+    // Images from packaged apps are premultiplied, images from icons
+    // are not. Premultiplied colors cannot exceed alpha.
+    bool premultiplied = true;
+    for (uint32_t i = 0; i < pixelCount && premultiplied; i++) {
+        const uint32_t a = pixels[i] >> 24u;
+        premultiplied = ((pixels[i] >> 16u) & 0xFFu) <= a && ((pixels[i] >> 8u) & 0xFFu) <= a && (pixels[i] & 0xFFu) <= a;
+    }
+    const PixelFormat format = premultiplied ? PixelFormat32bppPARGB : PixelFormat32bppARGB;
+
+    GpBitmap* out = NULL;
+    GdipCreateBitmapFromScan0(bm.bmWidth, bm.bmHeight, 0, format, NULL, &out);
+    GpRect r = { 0, 0, bm.bmWidth, bm.bmHeight };
+    BitmapData dstData = { };
+    GdipBitmapLockBits(out, &r, ImageLockModeWrite, format, &dstData);
+    memcpy_s(dstData.Scan0, sizeof(uint32_t) * pixelCount, pixels, sizeof(uint32_t) * pixelCount);
+    GdipBitmapUnlockBits(out, &dstData);
+    free(pixels);
+    return out;
 }
 
-IShellItem* GetShellItemFromAUMID(const wchar_t* aumid)
+// Gets icon and name of a packaged app (or an app registered with an explicit
+// AUMID) from the shell's apps folder, as the start menu and taskbar do. It is
+// backed by the system icon cache.
+static bool GetAppInfoFromShell(const wchar_t* aumid, GpBitmap** outIcon, wchar_t* outAppName)
 {
-    IShellItem* appsFolder = NULL;
-    {
-        HRESULT res = SHCreateItemInKnownFolder(
-            &FOLDERID_AppsFolder,
-            0,
-            NULL,
-            &IID_IShellItem, (void**)&appsFolder);
-        ASSERT(SUCCEEDED(res));
-    }
-
-    IEnumShellItems* enumItems = NULL;
-    {
-        HRESULT res = IShellItem_BindToHandler(appsFolder, NULL, &BHID_EnumItems, &IID_IEnumShellItems, (void**)&enumItems);
-        ASSERT(SUCCEEDED(res));
-    }
-#if 0
-    {
-        HRESULT res = SHCreateShellItemArrayFromShellItem(
-            appsFolder,
-            &IID_IEnumShellItems,
-            (void**)&enumItems);
-        ASSERT(SUCCEEDED(res));
-    }
-#endif
-
     IShellItem* item = NULL;
-    while (IEnumShellItems_Next(enumItems, 1, &item, NULL) == S_OK) {
-        bool found = false;
-        IPropertyStore* pStore = NULL;
-        {
-            HRESULT res = IShellItem_BindToHandler(item, NULL, &BHID_PropertyStore, &IID_IPropertyStore, (void**)&pStore);
-            ASSERT(SUCCEEDED(res));
-        }
-        PROPVARIANT pv = { };
-        PropVariantInit(&pv);
-        HRESULT res = IPropertyStore_GetValue(pStore, &PKEY_AppUserModel_ID, &pv);
-        IPropertyStore_Release(pStore);
-        if (SUCCEEDED(res)) {
-            if (pv.vt == VT_LPWSTR) {
-                found = !wcscmp(aumid, pv.pwszVal);
-            }
-            if (pv.vt == VT_LPSTR) {
-                static wchar_t aswcs[256] = { };
-                CharToWChar(aswcs, pv.pcVal);
-                found = !wcscmp(aumid, aswcs);
-            }
-        }
-        // if (found) {
-        //     printf("FOUND!\n");
-        //     wprintf(L"%s\n", name);
-        // }
-        if (found)
-            break;
+    HRESULT hr = SHCreateItemInKnownFolder(&FOLDERID_AppsFolder, 0, aumid, &IID_IShellItem, (void**)&item);
+    if (FAILED(hr))
+        return false;
+    wchar_t* name = NULL;
+    hr = IShellItem_GetDisplayName(item, SIGDN_NORMALDISPLAY, &name);
+    if (FAILED(hr)) {
         IShellItem_Release(item);
-        item = NULL;
+        return false;
     }
-    IEnumShellItems_Release(enumItems);
-    IShellItem_Release(appsFolder);
-    return item;
+    wcsncpy(outAppName, name, MAX_PATH - 1);
+    outAppName[MAX_PATH - 1] = L'\0';
+    CoTaskMemFree(name);
+
+    IShellItemImageFactory* factory = NULL;
+    hr = IShellItem_QueryInterface(item, &IID_IShellItemImageFactory, (void**)&factory);
+    IShellItem_Release(item);
+    if (FAILED(hr))
+        return false;
+    HBITMAP hbm = NULL;
+    const SIZE size = { 256, 256 };
+    const SIIGBF flags = (SIIGBF)((unsigned int)SIIGBF_ICONONLY | (unsigned int)SIIGBF_BIGGERSIZEOK);
+    hr = IShellItemImageFactory_GetImage(factory, size, flags, &hbm);
+    IShellItemImageFactory_Release(factory);
+    if (FAILED(hr) || hbm == NULL)
+        return false;
+    *outIcon = ShellImageToGpBitmap(hbm);
+    DeleteObject(hbm);
+    return true;
 }
 
 static GpBitmap* BitmapToGpBitmap(HBITMAP hbm)
@@ -1202,58 +825,22 @@ void GetAppInfos(DWORD PID, struct StaticData* staticData, const wchar_t* aumid,
     if (found)
         return;
 
-    // From link
-    found = GetAppInfoFromLnk(aumid, outIcon, outAppName);
-
-    // From manifest
-    if (!found) {
-        const HANDLE process = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, FALSE, PID);
-        static wchar_t iconPath[512] = { };
-        iconPath[0] = L'\0';
-        GetAppInfoFromManifest(process, aumid, iconPath, outAppName, staticData->GraphicsResources.LightTheme);
-        CloseHandle(process);
-        *outIcon = LoadBitmapFromFile(iconPath, 0);
-        found = *outIcon != NULL && wcslen(outAppName) > 0;
-    }
-
-    // From shellapi
-    if (!found) {
-        IShellItem* si = GetShellItemFromAUMID(aumid);
-        HBITMAP hbm = si ? LoadShellItemIcon(si) : NULL;
-        if (hbm) {
-            // Creates a gdi bitmap from the win base api bitmap
-            GpBitmap* out = BitmapToGpBitmap(hbm);
-            DeleteObject(hbm);
-            if (*outIcon)
-                GdipDisposeImage(*outIcon);
-            *outIcon = out;
-        }
-        if (si) {
-            wchar_t* pszName = NULL;
-            IShellItem_GetDisplayName(si, SIGDN_NORMALDISPLAY, &pszName);
-            if (pszName) {
-                wcscpy(outAppName, pszName);
-                CoTaskMemFree(pszName);
-            }
-        }
-        if (si)
-            IShellItem_Release(si);
-        found = *outIcon != NULL && wcslen(outAppName) > 0;
-    }
+    // Win32 apps without explicit AUMID are identified by their exe path, see GetProcessAUMI.
+    if (wcschr(aumid, L'\\') == NULL)
+        found = GetAppInfoFromShell(aumid, outIcon, outAppName);
 
     // From exe
     if (!found) {
+        outAppName[0] = L'\0';
         const HANDLE process = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, FALSE, PID);
         static wchar_t exePath[512] = { };
+        exePath[0] = L'\0';
         GetModuleFileNameExW(process, NULL, exePath, 512);
         CloseHandle(process);
-        static wchar_t iconPath[512] = { };
-        iconPath[0] = L'\0';
-        wcscpy(iconPath, exePath);
-        outAppName[0] = L'\0';
-        GetAppName(exePath, outAppName);
-        *outIcon = LoadBitmapFromFile(iconPath, 0);
-        // found = *outIcon != NULL && wcslen(outAppName) > 0;
+        if (exePath[0] != L'\0') {
+            GetAppName(exePath, outAppName);
+            *outIcon = GetIconFromBinary(exePath, 0);
+        }
     }
 
     // Default icon
