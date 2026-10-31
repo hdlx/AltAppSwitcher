@@ -222,13 +222,15 @@ static HWND GetFirstChild(HWND win)
 }
 #endif
 
-static HANDLE singleInstanceMutex = NULL;
+static HANDLE single_instance_mutex = NULL;
 
-static void AssertSingleInstance()
+static void assert_single_instance()
 {
-    singleInstanceMutex = CreateMutexA(NULL, TRUE, "Global\\AltAppSwitcher{4fb3d3f7-9f35-41ce-b4d2-83c18eac3f54}");
-    if (GetLastError() == ERROR_ALREADY_EXISTS) {
-        CloseHandle(singleInstanceMutex);
+    SetLastError(0);
+    single_instance_mutex = NULL;
+    single_instance_mutex = CreateMutexA(NULL, FALSE, "Global\\AltAppSwitcher");
+    if (single_instance_mutex == NULL || GetLastError() != 0) {
+        CloseHandle(single_instance_mutex);
         ExitProcess(1);
     }
 }
@@ -243,7 +245,7 @@ int StartAltAppSwitcher(HINSTANCE instance)
 {
     AAS_MSG("Starting AAS instance %u", instance);
     SetLastError(0);
-    AssertSingleInstance();
+    assert_single_instance();
     ASSERT(SetPriorityClass(GetCurrentProcess(), REALTIME_PRIORITY_CLASS));
     SetThreadPriority(GetCurrentThread(), THREAD_PRIORITY_TIME_CRITICAL);
 
@@ -438,8 +440,7 @@ int StartAltAppSwitcher(HINSTANCE instance)
         IVirtualDesktopManager_Release(appData.VDM);
     CoUninitialize();
 
-    ReleaseMutex(singleInstanceMutex);
-    CloseHandle(singleInstanceMutex);
+    CloseHandle(single_instance_mutex);
 
     if (restartAAS) {
         STARTUPINFO si = { };
