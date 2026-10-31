@@ -69,6 +69,7 @@ static void RestoreKey(uint32_t scancode)
         input.type = INPUT_KEYBOARD;
         input.ki.wScan = Cfg->Key.Invert;
         input.ki.dwFlags = KEYEVENTF_SCANCODE | KEYEVENTF_KEYUP | (Cfg->Key.Invert >> 8 != 0 ? KEYEVENTF_EXTENDEDKEY : 0);
+        input.ki.dwExtraInfo = 1994;
         const UINT uSent = SendInput(1, &input, sizeof(INPUT));
         ASSERT(uSent == 1);
     }
@@ -77,6 +78,7 @@ static void RestoreKey(uint32_t scancode)
         input.type = INPUT_KEYBOARD;
         input.ki.wScan = scancode & 0xFF;
         input.ki.dwFlags = KEYEVENTF_SCANCODE | KEYEVENTF_KEYUP | (scancode >> 8 != 0 ? KEYEVENTF_EXTENDEDKEY : 0);
+        input.ki.dwExtraInfo = 1994;
         const UINT uSent = SendInput(1, &input, sizeof(INPUT));
         ASSERT(uSent == 1);
     }
@@ -88,6 +90,7 @@ static void RestoreKey(uint32_t scancode)
         input.type = INPUT_KEYBOARD;
         input.ki.wVk = VK_RCONTROL;
         input.ki.dwFlags = KEYEVENTF_KEYUP;
+        input.ki.dwExtraInfo = 1994;
         const UINT uSent = SendInput(1, &input, sizeof(INPUT));
         ASSERT(uSent == 1);
     }
@@ -99,6 +102,7 @@ static void RestoreKey(uint32_t scancode)
         input.type = INPUT_KEYBOARD;
         input.ki.wVk = VK_RCONTROL;
         input.ki.dwFlags = KEYEVENTF_KEYUP;
+        input.ki.dwExtraInfo = 1994;
         const UINT uSent = SendInput(1, &input, sizeof(INPUT));
         ASSERT(uSent == 1);
     }
@@ -122,7 +126,7 @@ static LRESULT KbProc(int nCode, WPARAM wParam, LPARAM lParam)
     const struct Config* Cfg = HookData->cfg;
 
     const KBDLLHOOKSTRUCT kbStrut = *(KBDLLHOOKSTRUCT*)lParam;
-    if (kbStrut.flags & LLKHF_INJECTED)
+    if (kbStrut.flags & LLKHF_INJECTED && kbStrut.dwExtraInfo == 1994)
         return CallNextHookEx(NULL, nCode, wParam, lParam);
 
     UINT scan = kbStrut.scanCode & 0xFF;
