@@ -1,6 +1,7 @@
 #include "tray_window.h"
 #include "Utils/GUI.h"
 #include "Utils/Message.h"
+#include "Utils/MessageDef.h"
 #include "Utils/File.h"
 #include "Utils/Version.h"
 #include <winuser.h>
@@ -81,7 +82,8 @@ static LRESULT win_proc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp)
     case WM_COMMAND: {
         switch (LOWORD(wp)) {
         case 14:
-            CloseAAS();
+            // Do not use CloseAAS(), it ignores self.
+            PostThreadMessage(GetCurrentThreadId(), MSG_CLOSE_AAS, 0, 0);
             break;
         case 10: {
             char settings[MAX_PATH] = { };
@@ -155,6 +157,12 @@ static LRESULT win_proc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp)
 
 void tray_deinit(struct aas_tray* tray)
 {
+    NOTIFYICONDATA nid = {
+        .cbSize = sizeof(nid),
+        .hWnd = tray->tray_window,
+        .uID = ID_TRAYICON,
+    };
+    Shell_NotifyIcon(NIM_DELETE, &nid);
     HINSTANCE inst = get_instance(tray->tray_window);
     DestroyWindow(tray->tray_window);
     UnregisterClass(class_name, inst);

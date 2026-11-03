@@ -334,7 +334,7 @@ int StartAltAppSwitcher(HINSTANCE instance)
     AAS_MSG("AppModeInit");
     WinModeInit(instance, &appData.Config, appData.VDM);
     AAS_MSG("WinModeInit");
-    tray_init(instance);
+    struct aas_tray* tray = tray_init(instance);
 
     HANDLE threadKbHook = CreateThread(NULL, 0, KbHookCb, (void*)&appData, CREATE_SUSPENDED, NULL);
     (void)threadKbHook;
@@ -431,6 +431,7 @@ int StartAltAppSwitcher(HINSTANCE instance)
             break;
     }
 
+    tray_deinit(tray);
     CommonDeinit(instance);
     MruTrackerDeinit();
     AppModeDeinit();

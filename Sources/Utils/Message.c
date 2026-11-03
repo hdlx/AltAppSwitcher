@@ -14,8 +14,10 @@ static void PostAASMsg(int msg)
             procRes = Process32Next(procSnap, &procEntry);
             continue;
         }
-        if (self_pid == procEntry.th32ProcessID)
+        if (self_pid == procEntry.th32ProcessID) {
+            procRes = Process32Next(procSnap, &procEntry);
             continue;
+        }
         {
             HANDLE threadSnap = CreateToolhelp32Snapshot((DWORD)TH32CS_SNAPTHREAD, (DWORD)0);
             THREADENTRY32 threadEntry = { };
