@@ -20,7 +20,7 @@ struct aas_tray {
     HMENU menu;
 };
 
-static void NotifyTaskBar(HWND win)
+static bool NotifyTaskBar(HWND win)
 {
     NOTIFYICONDATA nid = {
         .cbSize = sizeof(nid),
@@ -34,11 +34,12 @@ static void NotifyTaskBar(HWND win)
     int a = sprintf_s(title, sizeof(title), "AltAppSwitcher - v%u.%u", AAS_MAJOR, AAS_MINOR);
     (void)a;
     lstrcpy(nid.szTip, TEXT(title));
-    bool ok0 = Shell_NotifyIcon(NIM_ADD, &nid);
+    if (!Shell_NotifyIcon(NIM_ADD, &nid))
+        return false;
     nid.uVersion = NOTIFYICON_VERSION_4;
-    bool ok1 = Shell_NotifyIcon(NIM_SETVERSION, &nid);
-    (void)ok0;
-    (void)ok1;
+    if (!Shell_NotifyIcon(NIM_SETVERSION, &nid))
+        return false;
+    return true;
 }
 
 static LRESULT win_proc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp)
@@ -47,7 +48,6 @@ static LRESULT win_proc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp)
     case WM_CREATE: {
         set_win_data(hwnd, ((CREATESTRUCT*)lp)->lpCreateParams);
         struct aas_tray* tray = (struct aas_tray*)get_win_data(hwnd);
-        tray->taskbar_msg = RegisterWindowMessage(TEXT("TaskbarCreated"));
         tray->menu = CreatePopupMenu();
         AppendMenu(tray->menu, MF_STRING, 10, TEXT("Settings"));
         AppendMenu(tray->menu, MF_STRING, 11, TEXT("Check updates"));
@@ -132,10 +132,20 @@ static LRESULT win_proc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp)
         }
         return 0;
     }
+    case WM_TIMER: {
+        if (wp == 21) {
+            if (NotifyTaskBar(hwnd))
+                KillTimer(hwnd, 21);
+            return 0;
+        }
+    }
     default: {
         struct aas_tray* tray = (struct aas_tray*)get_win_data(hwnd);
         if (tray && msg == tray->taskbar_msg) {
-            NotifyTaskBar(hwnd);
+            if (!NotifyTaskBar(hwnd)) {
+                SetTimer(hwnd, 21, 1000, NULL);
+            }
+            return 0;
         }
         break;
     }
@@ -153,6 +163,7 @@ void tray_deinit(struct aas_tray* tray)
 struct aas_tray* tray_init(HINSTANCE instance)
 {
     static struct aas_tray tray = { }; // Works only if singleton.
+    tray.taskbar_msg = RegisterWindowMessage(TEXT("TaskbarCreated"));
     WNDCLASS wc = {
         .lpfnWndProc = win_proc,
         .hInstance = instance,
@@ -173,6 +184,7 @@ struct aas_tray* tray_init(HINSTANCE instance)
         NULL,
         instance,
         &tray);
-    NotifyTaskBar(tray.tray_window);
+    if (!NotifyTaskBar(tray.tray_window))
+        SetTimer(tray.tray_window, 21, 1000, NULL);
     return &tray;
 }

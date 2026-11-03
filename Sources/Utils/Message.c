@@ -8,11 +8,14 @@ static void PostAASMsg(int msg)
     PROCESSENTRY32 procEntry = { };
     procEntry.dwSize = sizeof(procEntry);
     BOOL procRes = Process32First(procSnap, &procEntry);
+    DWORD self_pid = GetCurrentProcessId();
     while (procRes) {
         if (0 != strcmp(procEntry.szExeFile, "AltAppSwitcher.exe")) {
             procRes = Process32Next(procSnap, &procEntry);
             continue;
         }
+        if (self_pid == procEntry.th32ProcessID)
+            continue;
         {
             HANDLE threadSnap = CreateToolhelp32Snapshot((DWORD)TH32CS_SNAPTHREAD, (DWORD)0);
             THREADENTRY32 threadEntry = { };
