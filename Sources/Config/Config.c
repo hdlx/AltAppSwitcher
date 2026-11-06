@@ -8,7 +8,7 @@
 #include "Utils/File.h"
 
 #define AAS_NONE_VK 0xFFFFFFFE
-const EnumString keyES[15] = {
+const EnumString keyES[16] = {
     { "left alt", VK_LMENU },
     { "right alt", VK_RMENU },
     { "alt", VK_MENU },
@@ -21,6 +21,7 @@ const EnumString keyES[15] = {
     { "right control", VK_RCONTROL },
     { "left shift", VK_LSHIFT },
     { "right shift", VK_RSHIFT },
+    { "shift", VK_SHIFT },
     { "tab", VK_TAB },
     { "none", AAS_NONE_VK },
     { "end", 0xFFFFFFFF }
@@ -132,7 +133,7 @@ void DefaultConfig(Config* config)
     config->_Key._AppSwitch = VK_TAB;
     config->_Key._WinHold = VK_LMENU;
     config->_Key._WinSwitch = VK_OEM_3;
-    config->_Key._Invert = VK_LSHIFT;
+    config->_Key._Invert = VK_SHIFT;
     config->_Key._PrevApp = VK_OEM_3;
     config->_Mouse = true;
     config->_CheckForUpdates = true;

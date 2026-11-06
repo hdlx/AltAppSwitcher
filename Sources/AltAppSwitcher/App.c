@@ -1593,7 +1593,7 @@ static LRESULT KbProc(int nCode, WPARAM wParam, LPARAM lParam)
     const bool isWinSwitch = kbStrut.vkCode == _KeyConfig->_WinSwitch;
     const bool isInvert = kbStrut.vkCode == _KeyConfig->_Invert;
     const bool isTab = kbStrut.vkCode == VK_TAB;
-    const bool isShift = kbStrut.vkCode == VK_LSHIFT;
+    const bool isShift = kbStrut.vkCode == VK_SHIFT;
     const bool isEscape = kbStrut.vkCode == VK_ESCAPE;
     const bool isWatchedKey =
         isAppHold ||
