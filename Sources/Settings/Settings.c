@@ -63,8 +63,10 @@ static void SetupGUI(gui_window_data* gui, void* userData)
     CreateText("Scale (\%):", "Scale controls icon size, expressed as percentage, 100 being Windows default icon size.", gui);
     CreatePercentField("",
         &cfg->Scale, gui);
-    CreateText("Display app name:", "", gui);
-    CreateComboBox("Display app name.", &cfg->DisplayName, displayNameES, gui);
+    CreateText("Display entry name:", "Window mode displays each window's title. App mode may group windows under an app label.", gui);
+    CreateComboBox("Display entry name.", &cfg->DisplayName, displayNameES, gui);
+    CreateText("Full screen width:", "Spread entries across the full width of the selected display.", gui);
+    CreateBoolControl("Use the full display width for the switcher.", &cfg->FullWidth, gui);
     CreateText("Multiple monitor:", "Multiple monitor display mode.", gui);
     CreateComboBox("", &cfg->MultipleMonitorMode, multipleMonitorModeES, gui);
     CreateText("Restore minimized windows:", "", gui);
@@ -88,6 +90,9 @@ static void SetupGUI(gui_window_data* gui, void* userData)
     CreateText("App switcher mode:", "App: MacOS-like, one entry per application.\nWindow: Windows-like, one entry per window (each window is considered an independent application)", gui);
     CreateComboBox("",
         &cfg->AppSwitcherMode, appSwitcherModeES, gui);
+    CreateText("Window order:", "Most recently used follows activation order. Creation order keeps entries in the order their windows were created.", gui);
+    CreateComboBox("",
+        &cfg->WindowOrder, windowOrderES, gui);
     CreateText("App filter mode:", "All: show apps from all monitors.\nmouse monitor: show only apps from the monitor where mouse cursor is located.", gui);
     CreateComboBox("",
         &cfg->AppFilterMode, appFilterModeES, gui);

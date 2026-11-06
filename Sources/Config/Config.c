@@ -48,6 +48,12 @@ const EnumString appSwitcherModeES[3] = {
     { "end", 0xFFFFFFFF }
 };
 
+const EnumString windowOrderES[3] = {
+    { "recent", WindowOrderRecent },
+    { "creation", WindowOrderCreation },
+    { "end", 0xFFFFFFFF }
+};
+
 const EnumString displayNameES[5] = {
     { "selected", DisplayNameSel },
     { "all", DisplayNameAll },
@@ -156,7 +162,9 @@ void DefaultConfig(Config* config)
     config->CheckForUpdates = true;
     config->ThemeMode = ThemeModeAuto;
     config->AppSwitcherMode = AppSwitcherModeApp;
+    config->WindowOrder = WindowOrderRecent;
     config->Scale = 2.5f;
+    config->FullWidth = false;
     config->DisplayName = DisplayNameSel;
     config->MultipleMonitorMode = MultipleMonitorModeMouse;
     config->AppFilterMode = AppFilterModeAll;
@@ -355,6 +363,7 @@ void LoadConfig(Config* config)
 
     JSONReadEnum(j, "theme", &config->ThemeMode, themeES);
     JSONReadEnum(j, "app_switcher_mode", &config->AppSwitcherMode, appSwitcherModeES);
+    JSONReadEnum(j, "window_order", &config->WindowOrder, windowOrderES);
     JSONReadEnum(j, "display_name", &config->DisplayName, displayNameES);
     JSONReadEnum(j, "multiple_monitor_mode", &config->MultipleMonitorMode, multipleMonitorModeES);
     JSONReadEnum(j, "app_filter_mode", &config->AppFilterMode, appFilterModeES);
@@ -368,6 +377,7 @@ void LoadConfig(Config* config)
     JSONReadBool(j, "ask_for_elevation", &config->AskForElevation);
 
     JSONReadFloat(j, "scale", &config->Scale);
+    JSONReadBool(j, "full_width", &config->FullWidth);
 
     JSONReadInt(j, "icons_per_row", &config->IconsPerRow);
 }
@@ -386,6 +396,7 @@ void WriteConfig(const Config* config)
 
     JSONWriteEnum(j, "theme", config->ThemeMode, themeES);
     JSONWriteEnum(j, "app_switcher_mode", config->AppSwitcherMode, appSwitcherModeES);
+    JSONWriteEnum(j, "window_order", config->WindowOrder, windowOrderES);
     JSONWriteEnum(j, "display_name", config->DisplayName, displayNameES);
     JSONWriteEnum(j, "multiple_monitor_mode", config->MultipleMonitorMode, multipleMonitorModeES);
     JSONWriteEnum(j, "app_filter_mode", config->AppFilterMode, appFilterModeES);
@@ -399,6 +410,7 @@ void WriteConfig(const Config* config)
     JSONWriteBool(j, "ask_for_elevation", config->AskForElevation);
 
     JSONWriteFloat(j, "scale", config->Scale);
+    JSONWriteBool(j, "full_width", config->FullWidth);
 
     JSONWriteInt(j, "icons_per_row", config->IconsPerRow);
 

@@ -47,6 +47,7 @@ typedef struct SWinGroup {
     wchar_t Caption[MAX_PATH];
     HWND Windows[MAX_WIN_GROUPS];
     uint32_t WindowCount;
+    uint32_t CreationRank;
     GpBitmap* IconBitmap;
 } SWinGroup;
 
@@ -78,6 +79,8 @@ typedef struct Metrics {
     uint32_t WinX;
     uint32_t WinY;
     uint32_t ColCount;
+    float ColumnWidth;
+    float PadX;
     float Container;
     float Icon;
     float Pad;
@@ -1365,6 +1368,7 @@ static BOOL FillWinGroups(HWND hwnd, LPARAM lParam)
                     // If caption differs, set group caption to null string
                     group->Caption[0] = L'\0';
                 }
+                group->CreationRank = min(group->CreationRank, MruTrackerGetCreationRank(hwnd));
                 group->Windows[group->WindowCount++] = hwnd;
                 return true;
             }
@@ -1396,6 +1400,7 @@ static BOOL FillWinGroups(HWND hwnd, LPARAM lParam)
         group = &winAppGroupArr->Data[winAppGroupArr->Size++];
         wcscpy_s(group->AUMID, sizeof(group->AUMID), AUMID);
         group->WinClass = winClass;
+        group->CreationRank = MruTrackerGetCreationRank(hwnd);
         ASSERT(group->WindowCount == 0);
 
         // Icon
@@ -1419,15 +1424,17 @@ static int Clamp(int x, int y, int z)
 
 static uint32_t PosToIdx(const Metrics* m, int x, int y, int count)
 {
-    x = Clamp(x - (int)m->Pad, 0, (int)m->Container * (int)m->ColCount);
-    int i = ((x - (int)m->Pad) / (int)m->Container) % (int)m->ColCount;
+    const int maxX = max(0, (int)(m->ColumnWidth * (float)m->ColCount) - 1);
+    x = Clamp(x - (int)m->PadX, 0, maxX);
+    int i = (int)((float)x / m->ColumnWidth);
     i += ((y - (int)m->Pad) / (int)(m->TileAndNameHeight)) * (int)m->ColCount;
     return (uint32_t)min(max(0, i), (int)(count - 1));
 }
 
 static void IdxToPos(const Metrics* m, int idx, int* outX, int* outY)
 {
-    *outX = (int)m->Pad + (int)m->Container * (idx % (int)m->ColCount);
+    const float cellX = m->PadX + (m->ColumnWidth * (float)(idx % (int)m->ColCount));
+    *outX = (int)(cellX + ((m->ColumnWidth - m->Container) * 0.5f));
     *outY = (int)m->Pad + (int)(m->TileAndNameHeight) * (idx / (int)m->ColCount);
 }
 
@@ -1458,8 +1465,16 @@ static void ComputeMetrics(uint32_t iconCount, Metrics* metrics, const struct Co
     float iconSize = (float)GetSystemMetrics(SM_CXICON) * scale;
     const float appNameHeightRatio = max(0.25 * iconSize, 16.0f) / iconSize; // Keep room for app name
     const float padRatio = max(0.25, appNameHeightRatio);
-    const int sizeX = min(iconSize * ((int)dimX * containerRatio + 2.0f * padRatio), screenWidth * 0.9);
-    iconSize = ((float)sizeX / ((((float)dimX * containerRatio) + (2.0f * padRatio))));
+    const bool fullWidth = cfg->FullWidth;
+    const int sizeX = fullWidth
+        ? screenWidth
+        : (int)min(iconSize * ((int)dimX * containerRatio + 2.0f * padRatio), screenWidth * 0.9);
+    if (fullWidth) {
+        const float maxIconSize = ((float)sizeX / (float)dimX) * 0.9f / containerRatio;
+        iconSize = min(iconSize, maxIconSize);
+    } else {
+        iconSize = ((float)sizeX / ((((float)dimX * containerRatio) + (2.0f * padRatio))));
+    }
     const uint32_t halfSizeX = sizeX / 2;
     uint32_t sizeY = 0
         + dimY * (uint32_t)(iconSize * containerRatio) // tiles
@@ -1479,6 +1494,8 @@ static void ComputeMetrics(uint32_t iconCount, Metrics* metrics, const struct Co
     metrics->WinPosY = centerY - halfSizeY + monitorOffset[1];
     metrics->WinX = sizeX;
     metrics->WinY = sizeY;
+    metrics->ColumnWidth = fullWidth ? (float)sizeX / (float)dimX : iconSize * containerRatio;
+    metrics->PadX = fullWidth ? 0.0f : padRatio * iconSize;
     metrics->Icon = iconSize;
     metrics->Container = iconSize * containerRatio;
     metrics->Pad = iconSize * padRatio;
@@ -1957,9 +1974,11 @@ static void Draw(struct WindowData* windowData, RECT clientRect)
             const float h = nameHeight;
             const float py = namePad;
             const float px = namePad * 0.25f;
-            const float w = containerSize - (2.0f * px);
+            const float cellX = windowData->Metrics.PadX
+                + windowData->Metrics.ColumnWidth * (float)(i % windowData->Metrics.ColCount);
+            const float w = windowData->Metrics.ColumnWidth - (2.0f * px);
             RectF r = {
-                (float)(int)(x + px),
+                (float)(int)(cellX + px),
                 (float)(int)(y + containerSize + py),
                 (float)(int)(w),
                 (float)(int)(h)
@@ -1974,7 +1993,33 @@ static void Draw(struct WindowData* windowData, RECT clientRect)
             }
 
             static wchar_t name[MAX_PATH];
-            const wchar_t* displayName = wcslen(pWinGroup->Caption) > 0 ? pWinGroup->Caption : pWinGroup->AppName;
+            const wchar_t* displayName = windowData->StaticData->Config->AppSwitcherMode == AppSwitcherModeWindow
+                ? pWinGroup->Caption
+                : (wcslen(pWinGroup->Caption) > 0 ? pWinGroup->Caption : pWinGroup->AppName);
+            wchar_t numberedDisplayName[MAX_PATH] = { };
+            if (windowData->StaticData->Config->AppSwitcherMode == AppSwitcherModeWindow && displayName[0]) {
+                uint32_t duplicateCount = 0;
+                uint32_t duplicateRank = 1;
+                for (uint32_t j = 0; j < windowData->WinGroups.Size; j++) {
+                    const SWinGroup* other = &windowData->WinGroups.Data[j];
+                    if (wcscmp(displayName, other->Caption) == 0) {
+                        duplicateCount++;
+                        if (other->CreationRank < pWinGroup->CreationRank
+                            || (other->CreationRank == pWinGroup->CreationRank && j < i))
+                            duplicateRank++;
+                    }
+                }
+                if (duplicateCount > 1) {
+                    wchar_t suffix[16] = { };
+                    const int suffixLength = swprintf_s(suffix, sizeof(suffix) / sizeof(suffix[0]), L" (%u)", duplicateRank);
+                    if (suffixLength > 0) {
+                        const size_t titleLength = min(wcslen(displayName), MAX_PATH - (size_t)suffixLength - 1);
+                        wcsncpy_s(numberedDisplayName, MAX_PATH, displayName, titleLength);
+                        wcscat_s(numberedDisplayName, MAX_PATH, suffix);
+                        displayName = numberedDisplayName;
+                    }
+                }
+            }
             int count = (int)wcslen(displayName);
             if (count != 0) {
                 RectF rin = { 0, 0, r.Width - tree_dots_width, r.Height };
@@ -2177,34 +2222,32 @@ static void DeinitApp(struct WindowData* windowData)
 #endif
 }
 
-// Windows sends minimized windows to the bottom of the raw Z-order that
-// EnumWindows() returns, which used to make them jump to the very end of
-// the switcher regardless of how recently they were actually used.
-// Re-order the groups by real activation recency (tracked independently
-// via MruTrackerGetRank) instead, so a minimized window keeps the slot it
-// had before being minimized. A group with no MRU history yet (e.g. right
-// after AAS starts) keeps its relative Z-order position, since insertion
-// sort is stable and unknown ranks all compare equal.
-static void SortWinGroupsByRecency(SWinGroupArr* winGroups)
+static uint32_t GetWinGroupOrderRank(const SWinGroup* group, WindowOrderMode order)
+{
+    if (order == WindowOrderCreation)
+        return group->CreationRank;
+
+    uint32_t rank = UINT32_MAX;
+    for (uint32_t w = 0; w < group->WindowCount; w++) {
+        const int recentRank = MruTrackerGetRank(group->Windows[w]);
+        if (recentRank >= 0 && (uint32_t)recentRank < rank)
+            rank = (uint32_t)recentRank;
+    }
+    return rank;
+}
+
+// Stable insertion sort keeps the EnumWindows order for ties or windows
+// that have not yet been seen by the selected ordering tracker.
+static void SortWinGroups(SWinGroupArr* winGroups, WindowOrderMode order)
 {
     for (uint32_t i = 1; i < winGroups->Size; i++) {
         const SWinGroup key = winGroups->Data[i];
-        int keyRank = INT_MAX;
-        for (uint32_t w = 0; w < key.WindowCount; w++) {
-            const int rank = MruTrackerGetRank(key.Windows[w]);
-            if (rank >= 0 && rank < keyRank)
-                keyRank = rank;
-        }
+        const uint32_t keyRank = GetWinGroupOrderRank(&key, order);
 
         uint32_t j = i;
         while (j > 0) {
             const SWinGroup* prev = &winGroups->Data[j - 1];
-            int prevRank = INT_MAX;
-            for (uint32_t w = 0; w < prev->WindowCount; w++) {
-                const int rank = MruTrackerGetRank(prev->Windows[w]);
-                if (rank >= 0 && rank < prevRank)
-                    prevRank = rank;
-            }
+            const uint32_t prevRank = GetWinGroupOrderRank(prev, order);
             if (prevRank <= keyRank)
                 break;
             winGroups->Data[j] = winGroups->Data[j - 1];
@@ -2254,7 +2297,7 @@ static void Init(struct WindowData* windowData)
     }
     StaticData.UWPIconMap.UseIdx++;
     EnumWindows(FillWinGroups, (LPARAM)windowData);
-    SortWinGroupsByRecency(pWinGroups);
+    SortWinGroups(pWinGroups, windowData->StaticData->Config->WindowOrder);
 
     const bool invert = GetAsyncKeyState((SHORT)windowData->StaticData->Config->Key.Invert) & 0x8000;
     windowData->Selection = Modulo(windowData->Selection + (invert ? -1 : 1), (int)windowData->WinGroups.Size);
@@ -2315,11 +2358,12 @@ static void Init(struct WindowData* windowData)
 
     for (uint32_t i = 0; i < windowData->WinGroups.Size; i++) {
         const int iconContainerSize = (int)windowData->Metrics.Container;
-        const int pad = (int)windowData->Metrics.Pad;
-        int x = pad + (int)(i * iconContainerSize);
+        int x = 0;
+        int y = 0;
+        IdxToPos(&windowData->Metrics, (int)i, &x, &y);
         windowData->FocusWindows[i] = CreateWindowEx(0, FOCUS_CLASS_NAME, NULL,
             WS_CHILD /* | WS_VISIBLE */,
-            x, pad, iconContainerSize, iconContainerSize,
+            x, y, iconContainerSize, iconContainerSize,
             windowData->MainWin, NULL, windowData->StaticData->Instance, windowData);
         windowData->FocusWindowCount++;
     }

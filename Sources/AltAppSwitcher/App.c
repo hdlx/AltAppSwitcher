@@ -172,6 +172,18 @@ static LRESULT KbProc(int nCode, WPARAM wParam, LPARAM lParam)
             bypassMsg = true;
         }
 
+        // Keep repeated Alt+Tab key presses out of the Windows shell. Forward
+        // them to the switcher window so it can move the selection itself.
+        if (prevMode == ModeApp && (nextAppKey || prevAppKey)) {
+            if (!rel) {
+                LPARAM keyMessage = (LPARAM)(1
+                    | ((scan & 0xFF) << 16)
+                    | ((extended & 1) << 24));
+                PostThreadMessage(MainThread, MSG_APP_KEY, kbStrut.vkCode, keyMessage);
+            }
+            bypassMsg = true;
+        }
+
         // Init
         if (prevMode == ModeNone && isAppHold && nextApp) {
             HANDLE ht = CreateThread(NULL, 0, ThreadFnRestoreKey, (LPVOID)(UINT_PTR)Cfg->Key.AppHold, CREATE_SUSPENDED, NULL);
@@ -392,6 +404,11 @@ int StartAltAppSwitcher(HINSTANCE instance)
                 appData.app_mode_window = NULL;
             }
             appData.win_mode_window = WinModeCreateWindow();
+            break;
+        }
+        case MSG_APP_KEY: {
+            if (IsWindow(appData.app_mode_window))
+                SendMessage(appData.app_mode_window, WM_KEYDOWN, msg.wParam, msg.lParam);
             break;
         }
         case MSG_DEINIT: {

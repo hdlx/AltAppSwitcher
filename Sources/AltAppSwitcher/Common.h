@@ -1,4 +1,5 @@
 #include <stdbool.h>
+#include <stdint.h>
 #include <windef.h>
 struct Config;
 typedef struct IVirtualDesktopManager IVirtualDesktopManager;
@@ -22,3 +23,5 @@ void MruTrackerDeinit(void);
 // Returns the 0-based recency rank of hwnd (0 = most recently used), or
 // -1 if hwnd has not been observed becoming foreground yet.
 int MruTrackerGetRank(HWND hwnd);
+// Returns an order assigned when a top-level window is first created or discovered.
+uint32_t MruTrackerGetCreationRank(HWND hwnd);

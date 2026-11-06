@@ -288,10 +288,67 @@ DWORD TryAttachToForeground()
 }
 
 #define MRU_CAPACITY 128u
+#define WINDOW_CREATION_CAPACITY 1024u
 
 static HWND MruList[MRU_CAPACITY];
 static uint32_t MruCount = 0;
 static HWINEVENTHOOK MruHook = NULL;
+static HWND WindowCreationList[WINDOW_CREATION_CAPACITY];
+static uint32_t WindowCreationCount = 0;
+static HWINEVENTHOOK WindowCreationHook = NULL;
+
+static uint32_t WindowCreationRecord(HWND hwnd)
+{
+    if (!hwnd)
+        return UINT32_MAX;
+
+    for (uint32_t i = 0; i < WindowCreationCount; i++) {
+        if (WindowCreationList[i] == hwnd)
+            return i;
+    }
+
+    if (WindowCreationCount >= WINDOW_CREATION_CAPACITY)
+        return UINT32_MAX;
+
+    WindowCreationList[WindowCreationCount] = hwnd;
+    return WindowCreationCount++;
+}
+
+static void WindowCreationForget(HWND hwnd)
+{
+    for (uint32_t i = 0; i < WindowCreationCount; i++) {
+        if (WindowCreationList[i] == hwnd) {
+            for (uint32_t j = i; j + 1 < WindowCreationCount; j++)
+                WindowCreationList[j] = WindowCreationList[j + 1];
+            WindowCreationCount--;
+            return;
+        }
+    }
+}
+
+static BOOL CALLBACK WindowCreationSeed(HWND hwnd, LPARAM lParam)
+{
+    (void)lParam;
+    WindowCreationRecord(hwnd);
+    return TRUE;
+}
+
+static void CALLBACK WindowCreationWinEventProc(HWINEVENTHOOK hook, DWORD event, HWND hwnd, LONG idObject,
+    LONG idChild, DWORD idEventThread, DWORD idEventTime)
+{
+    (void)hook;
+    (void)idEventThread;
+    (void)idEventTime;
+    if (idObject != OBJID_WINDOW || idChild != CHILDID_SELF)
+        return;
+
+    if (event == EVENT_OBJECT_CREATE) {
+        if (hwnd && GetAncestor(hwnd, GA_ROOT) == hwnd)
+            WindowCreationRecord(hwnd);
+    } else if (event == EVENT_OBJECT_DESTROY) {
+        WindowCreationForget(hwnd);
+    }
+}
 
 static void MruTrackerRecord(HWND hwnd)
 {
@@ -333,6 +390,10 @@ void MruTrackerInit(void)
     MruCount = 0;
     MruHook = SetWinEventHook(EVENT_SYSTEM_FOREGROUND, EVENT_SYSTEM_FOREGROUND, NULL,
         MruWinEventProc, 0, 0, WINEVENT_OUTOFCONTEXT);
+    WindowCreationCount = 0;
+    WindowCreationHook = SetWinEventHook(EVENT_OBJECT_CREATE, EVENT_OBJECT_DESTROY, NULL,
+        WindowCreationWinEventProc, 0, 0, WINEVENT_OUTOFCONTEXT | WINEVENT_SKIPOWNPROCESS);
+    EnumWindows(WindowCreationSeed, 0);
     // Seed with whatever is foreground right now, so the very first
     // switcher invocation already has a sensible "current app" rank.
     MruTrackerRecord(GetForegroundWindow());
@@ -340,6 +401,11 @@ void MruTrackerInit(void)
 
 void MruTrackerDeinit(void)
 {
+    if (WindowCreationHook) {
+        UnhookWinEvent(WindowCreationHook);
+        WindowCreationHook = NULL;
+    }
+    WindowCreationCount = 0;
     if (MruHook) {
         UnhookWinEvent(MruHook);
         MruHook = NULL;
@@ -353,4 +419,9 @@ int MruTrackerGetRank(HWND hwnd)
             return (int)i;
     }
     return -1;
+}
+
+uint32_t MruTrackerGetCreationRank(HWND hwnd)
+{
+    return WindowCreationRecord(hwnd);
 }

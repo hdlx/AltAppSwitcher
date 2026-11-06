@@ -13,7 +13,9 @@ Main features:
 ## Launching AltAppSwitcher:
 Get the archive from the [release page](https://github.com/hdlx/AltAppSwitcher/releases/).
 
-**x86_64** and **ARM64** (AArch64) architectures are available. Please note that I was not able to test the ARM64 one myself.
+**x86_64** and **ARM64** (AArch64) architectures are available. The v0.109 source was built and manually tested on Windows 11 ARM64. When run as administrator, repeated Alt+Tab and Alt+Shift+Tab presses stayed in AltAppSwitcher, selection moved in both directions, and releasing Alt activated the selected window. Window mode showed icons and titles without window previews. Full-width layout, duplicate-title numbering, and fixed creation order were also verified.
+
+Creation order is tracked for top-level windows created while AltAppSwitcher is running. Windows that were already open at startup are initially ordered by the enumeration order available to Windows.
 
 **Run `AltAppSwitcher.exe` (preferably as an administator).**
 
@@ -30,6 +32,8 @@ Click "Remove from startup" to add to revert this.
 ## Customization
 **"Settings"** (executable or from tray icon) lets you change settings such as **key bindings**, **theme**, **scale** and **mouse support**.
 Restore default settings by removing `AltAppSwitcherConfig.txt`.
+
+For a window-title switcher that fills the selected display, set `app_switcher_mode` to `window`, `display_name` to `all`, `full_width` to `true`, and `window_order` to `creation` in `AltAppSwitcherConfig.json`. Duplicate titles are numbered in creation order. `window_order` can also be `recent` to sort by activation recency. Increase `scale` to make the icons larger; for example, `5.0` requests five times the Windows default icon size. `icons_per_row` controls how many entries fit on each row.
 
 ## Known issues
 - Alt tab popup is behind start menu.
@@ -55,6 +59,7 @@ Make is part of MinGW.
 - Open a terminal at the root of the repository.
 - Run `mingw32-make.exe` (MinGW make must be used)
 - Binaries are found in `/Output/Debug_x86_64`
+- To build a release for Windows ARM64 with the UCRT AArch64 llvm-mingw toolchain, run `mingw32-make.exe ARCH=aarch64 CONF=Release`. Binaries are found in `/Output/Release_aarch64/AAS`.
 ### Debugging:
 I'm using VSCodium/VSCode to write and debug code, with 2 extensions:
 - https://open-vsx.org/extension/vadimcn/vscode-lldb for debugging

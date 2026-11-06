@@ -30,6 +30,11 @@ typedef enum AppSwitcherMode {
     AppSwitcherModeWindow,
 } AppSwitcherMode;
 
+typedef enum WindowOrderMode {
+    WindowOrderRecent,
+    WindowOrderCreation,
+} WindowOrderMode;
+
 typedef enum MultipleMonitorMode {
     MultipleMonitorModeMouse,
     MultipleMonitorModeMain,
@@ -53,7 +58,9 @@ typedef struct Config {
     ThemeMode ThemeMode;
     DisplayName DisplayName;
     float Scale;
+    bool FullWidth;
     AppSwitcherMode AppSwitcherMode;
+    WindowOrderMode WindowOrder;
     MultipleMonitorMode MultipleMonitorMode;
     AppFilterMode AppFilterMode;
     bool RestoreMinimizedWindows;
@@ -70,6 +77,7 @@ typedef struct EnumString {
 extern const EnumString keyES[17];
 extern const EnumString themeES[4];
 extern const EnumString appSwitcherModeES[3];
+extern const EnumString windowOrderES[3];
 extern const EnumString displayNameES[5];
 extern const EnumString multipleMonitorModeES[3];
 extern const EnumString appFilterModeES[3];
