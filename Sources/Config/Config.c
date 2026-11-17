@@ -74,6 +74,12 @@ const EnumString desktopFilterES[3] = {
     { "end", 0xFFFFFFFF }
 };
 
+const EnumString layoutES[3] = {
+    { "horizontal", LayoutHorizontal },
+    { "vertical", LayoutVertical },
+    { "end", 0xFFFFFFFF }
+};
+
 typedef struct StrPair {
     char Key[64];
     char Value[64];
@@ -163,6 +169,7 @@ void DefaultConfig(Config* config)
     config->RestoreMinimizedWindows = true;
     config->DesktopFilter = DesktopFilterCurrent;
     config->IconsPerRow = 0;
+    config->Layout = LayoutHorizontal;
     config->AskForElevation = true;
 }
 
@@ -370,6 +377,8 @@ void LoadConfig(Config* config)
     JSONReadFloat(j, "scale", &config->Scale);
 
     JSONReadInt(j, "icons_per_row", &config->IconsPerRow);
+
+    JSONReadEnum(j, "layout", &config->Layout, layoutES);
 }
 
 void WriteConfig(const Config* config)
@@ -401,6 +410,8 @@ void WriteConfig(const Config* config)
     JSONWriteFloat(j, "scale", config->Scale);
 
     JSONWriteInt(j, "icons_per_row", config->IconsPerRow);
+
+    JSONWriteEnum(j, "layout", config->Layout, layoutES);
 
     char* jsonstr = cJSON_Print(j);
 
