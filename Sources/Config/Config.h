@@ -45,6 +45,11 @@ typedef enum DesktopFilter {
     DesktopFilterAll,
 } DesktopFilter;
 
+typedef enum Layout {
+    LayoutHorizontal,
+    LayoutVertical,
+} Layout;
+
 typedef struct Config {
     struct KeyConfig Key;
     bool Mouse;
@@ -59,6 +64,7 @@ typedef struct Config {
     bool RestoreMinimizedWindows;
     DesktopFilter DesktopFilter;
     int IconsPerRow;
+    Layout Layout;
     bool AskForElevation;
 } Config;
 
@@ -74,6 +80,7 @@ extern const EnumString displayNameES[5];
 extern const EnumString multipleMonitorModeES[3];
 extern const EnumString appFilterModeES[3];
 extern const EnumString desktopFilterES[3];
+extern const EnumString layoutES[3];
 
 void LoadConfig(Config* config);
 void WriteConfig(const Config* config);

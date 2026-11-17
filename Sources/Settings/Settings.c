@@ -72,6 +72,8 @@ static void SetupGUI(gui_window_data* gui, void* userData)
     CreateText("Icons per row:", "0 for no limit (single row layout)", gui);
     CreateIntField("",
         &cfg->IconsPerRow, gui);
+    CreateText("Layout:", "Horizontal: icons in a row (default).\nVertical: one entry per line, icon with window name next to it.\nNavigate with Up/Down arrows or J/K.", gui);
+    CreateComboBox("", (unsigned int*)&cfg->Layout, layoutES, gui);
 
     GridLayout(1, gui);
     SetBoldFont(gui);

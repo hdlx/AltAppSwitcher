@@ -86,6 +86,8 @@ typedef struct Metrics {
     float DigitBoxPad;
     float PathThickness;
     float TileAndNameHeight;
+    bool Vertical; // One entry per row: icon + names on the right
+    float RowWidth; // Vertical layout only: width of a full row (icon + text)
 } Metrics;
 
 typedef enum Mode {
@@ -1431,6 +1433,46 @@ static void IdxToPos(const Metrics* m, int idx, int* outX, int* outY)
     *outY = (int)m->Pad + (int)(m->TileAndNameHeight) * (idx / (int)m->ColCount);
 }
 
+// Vertical layout: one entry per row, icon on the left, app / window name on the right.
+// Reuses the grid helpers (IdxToPos, PosToIdx) with a single column whose
+// row height is the tile size.
+static void ComputeMetricsVertical(uint32_t iconCount, Metrics* metrics, const struct Config* cfg,
+    const int* monitorOffset, const int* monitorSize)
+{
+    const float scale = max(cfg->Scale, 0.5f);
+    const float containerRatio = 1.25f;
+    const float padRatio = 0.15f;
+    float iconSize = (float)GetSystemMetrics(SM_CXICON) * scale;
+    // Shrink icons if the list does not fit in 90% of the screen height.
+    const float maxSizeY = (float)monitorSize[1] * 0.9f;
+    iconSize = min(iconSize, maxSizeY / (((float)iconCount * containerRatio) + (2.0f * padRatio)));
+    const float container = iconSize * containerRatio;
+    const float pad = iconSize * padRatio;
+    // Room for the names, on the right of the icon.
+    float textWidth = max(container * 5.0f, 280.0f);
+    textWidth = min(textWidth, ((float)monitorSize[0] * 0.6f) - container - (2.0f * pad));
+    const float rowWidth = container + textWidth;
+
+    const uint32_t sizeX = (uint32_t)(rowWidth + (2.0f * pad));
+    const uint32_t sizeY = (uint32_t)(((float)iconCount * container) + (2.0f * pad));
+
+    metrics->Vertical = true;
+    metrics->RowWidth = rowWidth;
+    metrics->ColCount = 1;
+    metrics->WinPosX = (monitorSize[0] / 2) - (sizeX / 2) + monitorOffset[0];
+    metrics->WinPosY = (monitorSize[1] / 2) - (sizeY / 2) + monitorOffset[1];
+    metrics->WinX = sizeX;
+    metrics->WinY = sizeY;
+    metrics->Icon = iconSize;
+    metrics->Container = container;
+    metrics->Pad = pad;
+    metrics->AppNameHeight = max(container * 0.3f, 16.0f);
+    metrics->DigitBoxHeight = min(max(container * 0.15f, 16.0f), container * 0.5f); // Min size of 16 for text
+    metrics->PathThickness = 2.0f;
+    metrics->DigitBoxPad = (0.15f * metrics->DigitBoxHeight) + metrics->PathThickness;
+    metrics->TileAndNameHeight = container;
+}
+
 static void ComputeMetrics(uint32_t iconCount, Metrics* metrics, const struct Config* cfg)
 {
     int monitorOffset[2] = { 0, 0 };
@@ -1447,6 +1489,12 @@ static void ComputeMetrics(uint32_t iconCount, Metrics* metrics, const struct Co
     monitorOffset[1] = info.rcMonitor.top;
     monitorSize[0] = info.rcMonitor.right - info.rcMonitor.left;
     monitorSize[1] = info.rcMonitor.bottom - info.rcMonitor.top;
+
+    *metrics = (Metrics) { };
+    if (cfg->Layout == LayoutVertical) {
+        ComputeMetricsVertical(iconCount, metrics, cfg, monitorOffset, monitorSize);
+        return;
+    }
 
     uint32_t dimX = (cfg->IconsPerRow > 0) && ((int)iconCount > cfg->IconsPerRow) ? cfg->IconsPerRow : iconCount;
     uint32_t dimY = ((iconCount + dimX - 1) / dimX);
@@ -1777,10 +1825,81 @@ static void CloseButtonRect(float* outRect, const Metrics* m, uint32_t idx)
         w,
         w
     };
+    if (m->Vertical) {
+        // Right end of the row, vertically centered.
+        r.X = (float)x + m->RowWidth - w - p;
+        r.Y = (float)y + ((m->Container - w) * 0.5f);
+    }
     outRect[0] = r.X;
     outRect[1] = r.Y;
     outRect[2] = r.X + r.Width;
     outRect[3] = r.Y + r.Height;
+}
+
+// Vertical layout: draws the app name and, below it, the window title,
+// on the right of the icon. Text is left aligned and trimmed with an ellipsis.
+static void DrawVerticalNames(GpGraphics* pGraphics, const struct GraphicsResources* pGraphRes,
+    GpFontFamily* pFontFamily, const Metrics* m, const SWinGroup* pWinGroup, float x, float y)
+{
+    const float container = m->Container;
+    const float gap = container * 0.1f;
+    const float closeRoom = m->DigitBoxHeight + (2.0f * m->DigitBoxPad);
+    const float textX = x + container + gap;
+    const float textW = m->RowWidth - container - gap - closeRoom;
+    if (textW <= 0.0f)
+        return;
+
+    // Primary line: app name. Secondary line: window title (when different).
+    const wchar_t* primary = pWinGroup->AppName;
+    static wchar_t title[MAX_PATH];
+    title[0] = L'\0';
+    if (wcslen(pWinGroup->Caption) > 0)
+        wcscpy_s(title, MAX_PATH, pWinGroup->Caption);
+    else if (pWinGroup->WindowCount > 0)
+        GetWindowTextW(pWinGroup->Windows[0], title, MAX_PATH);
+    if (wcslen(primary) == 0) {
+        primary = title;
+    }
+    const wchar_t* secondary = (primary != title && wcscmp(primary, title) != 0) ? title : L"";
+    const int primaryCount = (int)wcslen(primary);
+    const int secondaryCount = (int)wcslen(secondary);
+    if (primaryCount == 0)
+        return;
+
+    GpStringFormat* format = NULL;
+    ASSERT(Ok == GdipCreateStringFormat(StringFormatFlagsNoWrap, LANG_NEUTRAL, &format));
+    GdipSetStringFormatAlign(format, StringAlignmentNear);
+    GdipSetStringFormatLineAlign(format, StringAlignmentCenter);
+    GdipSetStringFormatTrimming(format, StringTrimmingEllipsisCharacter);
+
+    const float primarySize = max(container * 0.2f, 12.0f);
+    const float secondarySize = max(container * 0.15f, 11.0f);
+    GpFont* primaryFont = NULL;
+    GpFont* secondaryFont = NULL;
+    ASSERT(Ok == GdipCreateFont(pFontFamily, primarySize, FontStyleBold, (int)MetafileFrameUnitPixel, &primaryFont));
+    ASSERT(Ok == GdipCreateFont(pFontFamily, secondarySize, FontStyleRegular, (int)MetafileFrameUnitPixel, &secondaryFont));
+
+    if (secondaryCount == 0) {
+        RectF r = { textX, y, textW, container };
+        GdipDrawString(pGraphics, primary, primaryCount, primaryFont, &r, format, pGraphRes->pBrushText);
+    } else {
+        const float lineGap = container * 0.04f;
+        const float h0 = primarySize * 1.4f;
+        const float h1 = secondarySize * 1.4f;
+        const float top = y + ((container - (h0 + lineGap + h1)) * 0.5f);
+        RectF r0 = { textX, top, textW, h0 };
+        RectF r1 = { textX, top + h0 + lineGap, textW, h1 };
+        GdipDrawString(pGraphics, primary, primaryCount, primaryFont, &r0, format, pGraphRes->pBrushText);
+        // Dimmed text color for the window title.
+        GpSolidFill* dimBrush = NULL;
+        ASSERT(Ok == GdipCreateSolidFill((pGraphRes->TextColor & 0x00FFFFFF) | 0xA0000000, &dimBrush));
+        GdipDrawString(pGraphics, secondary, secondaryCount, secondaryFont, &r1, format, dimBrush);
+        GdipDeleteBrush(dimBrush);
+    }
+
+    GdipDeleteFont(primaryFont);
+    GdipDeleteFont(secondaryFont);
+    GdipDeleteStringFormat(format);
 }
 
 static void Draw(struct WindowData* windowData, RECT clientRect)
@@ -1817,6 +1936,9 @@ static void Draw(struct WindowData* windowData, RECT clientRect)
     const float digitHeight = windowData->Metrics.DigitBoxHeight * 0.75f;
     const float nameHeight = windowData->Metrics.AppNameHeight * 0.6f;
     const float namePad = windowData->Metrics.AppNameHeight * 0.2f;
+    const bool vertical = windowData->Metrics.Vertical;
+    // In vertical layout, the selection box spans the whole row (icon + names).
+    const float selectWidth = vertical ? windowData->Metrics.RowWidth : selectSize;
 
     // Resources
     GpFont* fontName = NULL;
@@ -1849,7 +1971,7 @@ static void Draw(struct WindowData* windowData, RECT clientRect)
             int tileX = 0;
             int tileY = 0;
             IdxToPos(&windowData->Metrics, (int)mouseSelIdx, &tileX, &tileY);
-            RectF selRect = { (float)tileX, (float)tileY, selectSize, selectSize };
+            RectF selRect = { (float)tileX, (float)tileY, selectWidth, selectSize };
             DrawRoundedRect(pGraphics, NULL, pGraphRes->pBrushBgHighlight, &selRect, 10);
         }
 
@@ -1857,7 +1979,7 @@ static void Draw(struct WindowData* windowData, RECT clientRect)
             int tileX = 0;
             int tileY = 0;
             IdxToPos(&windowData->Metrics, (int)selIdx, &tileX, &tileY);
-            RectF selRect = { (float)tileX, (float)tileY, selectSize, selectSize };
+            RectF selRect = { (float)tileX, (float)tileY, selectWidth, selectSize };
             COLORREF cr = pGraphRes->TextColor;
             ARGB gdipColor = cr | 0xFF000000;
             GpPen* pPen;
@@ -1943,6 +2065,11 @@ static void Draw(struct WindowData* windowData, RECT clientRect)
             ASSERT(Ok == GdipDeletePath(pPath));
 
             // ASSERT(!GdipDrawString(pGraphics, str, digitsCount, digitsCount == 2 ? font2Digits : font1Digit, &r, pGraphRes->pFormat, pGraphRes->pBrushBg));
+        }
+
+        if (vertical) {
+            DrawVerticalNames(pGraphics, pGraphRes, pFontFamily, &windowData->Metrics, pWinGroup, x, y);
+            continue;
         }
 
         // Name
@@ -2315,11 +2442,12 @@ static void Init(struct WindowData* windowData)
 
     for (uint32_t i = 0; i < windowData->WinGroups.Size; i++) {
         const int iconContainerSize = (int)windowData->Metrics.Container;
-        const int pad = (int)windowData->Metrics.Pad;
-        int x = pad + (int)(i * iconContainerSize);
+        int x = 0;
+        int y = 0;
+        IdxToPos(&windowData->Metrics, (int)i, &x, &y);
         windowData->FocusWindows[i] = CreateWindowEx(0, FOCUS_CLASS_NAME, NULL,
             WS_CHILD /* | WS_VISIBLE */,
-            x, pad, iconContainerSize, iconContainerSize,
+            x, y, iconContainerSize, iconContainerSize,
             windowData->MainWin, NULL, windowData->StaticData->Instance, windowData);
         windowData->FocusWindowCount++;
     }
